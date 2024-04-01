@@ -1,0 +1,118 @@
+&pm7550ba_eusb2_repeater {
+	qcom,param-override-seq = <0x0f 0x51 0x06 0x53 0x00 0x54 0x07 0x57>;
+	qcom,param-override-seq-host = <0x09 0x51 0x06 0x53 0x02 0x54 0x05 0x57>;
+};
+
+&usb0 {
+	dwc3@a600000 {
+		maximum-speed = "high-speed";
+		snps,usb2-lpm-disable;
+		snps,usb2-gadget-lpm-disable;
+	};
+};
+
+&tlmm {
+	aw_haptics: aw_haptics {
+		aw_irq_gpio_default: aw_irq_gpio_default {
+			mux {
+				pins = "gpio145";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio145";
+				drive-strength = <2>;
+				input-enable;
+				bias-pull-up;
+			};
+		};
+	};
+
+	qupv3_se3_i2c_pins: qupv3_se3_i2c_pins {
+		qupv3_se3_i2c_sda_active: qupv3_se3_i2c_sda_active {
+			mux {
+				pins = "gpio12";
+				function = "qup0_se3_l0";
+			};
+
+			config {
+				pins = "gpio12";
+				drive-strength = <2>;
+				bias-pull-up;
+				qcom,i2c_pull;
+			};
+		};
+
+		qupv3_se3_i2c_scl_active: qupv3_se3_i2c_scl_active {
+			mux {
+				pins = "gpio13";
+				function = "qup0_se3_l1";
+			};
+
+			config {
+				pins = "gpio13";
+				drive-strength = <2>;
+				bias-pull-up;
+				qcom,i2c_pull;
+			};
+		};
+
+		qupv3_se3_i2c_sleep: qupv3_se3_i2c_sleep {
+			mux {
+				pins = "gpio12", "gpio13";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio12", "gpio13";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+};
+
+&pm7550ba_vib {
+	status = "disabled";
+};
+
+&qupv3_se3_i2c {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&qupv3_se3_i2c_sda_active>, <&qupv3_se3_i2c_scl_active>;
+	pinctrl-1 = <&qupv3_se3_i2c_sleep>;
+	status = "ok";
+	/* AWINIC AW8697 Haptic */
+	aw8697_haptic@5A {
+		compatible = "awinic,aw8697_haptic";
+		reg = <0x5A>;
+		reset-gpio = <&tlmm 147 0>;
+		irq-gpio = <&tlmm 145 0>;
+		status = "ok";
+		qcom,device_id = <809>; /* 809 */
+		/* haptic ic : aw86927 */
+		oplus,aw86927_boost_voltage = <80>; /* 0x50 */
+		haptic_hv_vmax = /bits/ 8 < 0x28 0x28 0x28 0x28 0x28 0x28 0x28 0x2C 0x30 0x34 0x38 0x3C 0x40 0x44 0x48 0x4C 0x50 >;
+		haptic_hv_gain = /bits/ 8 < 0x49 0x51 0x5A 0x62 0x6B 0x73 0x7C 0x80 0x80 0x80 0x80 0x80 0x80 0x80 0x80 0x80 0x80 >;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&aw_irq_gpio_default>;
+		oplus,livetap_support;
+	};
+	/* AWINIC AW8697 Haptic End */
+};
+
+&soc {
+	feedback_fb: feedback_fb {
+		compatible = "oplus,haptic-feedback";
+	};
+};
+
+&regulator_ocp_notifier {
+	periph-d40-supply = <0>;
+	periph-d41-supply = <0>;
+	periph-d42-supply = <0>;
+	periph-d43-supply = <0>;
+	periph-d44-supply = <0>;
+	periph-d45-supply = <0>;
+	periph-d46-supply = <0>;
+};

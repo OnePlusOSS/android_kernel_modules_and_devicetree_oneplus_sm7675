@@ -1,0 +1,50 @@
+#include "pitti-audio-overlay.dtsi"
+
+&wcd9378_rst_gpio {
+	compatible = "qcom,msm-cdc-pinctrl";
+	pinctrl-names = "aud_active", "aud_sleep";
+	pinctrl-0 = <&wcd9378_2_reset_active>;
+	pinctrl-1 = <&wcd9378_2_reset_sleep>;
+};
+
+&wcd9378_codec {
+	qcom,wcd-rst-gpio-node = <&wcd9378_rst_gpio>;
+};
+
+&pitti_snd {
+	qcom,model = "pitti-qrd-snd-card";
+	qcom,msm-mi2s-master = <1>, <1>, <1>, <1>;
+	qcom,wcn-btfm = <0>;
+	qcom,audio-routing =
+		"IN1_HPHL", "HPHL_OUT",
+		"IN2_HPHR", "HPHR_OUT",
+		"IN3_AUX", "AUX_OUT",
+		"RX_TX DEC0_INP", "TX DEC0 MUX",
+		"RX_TX DEC1_INP", "TX DEC1 MUX",
+		"RX_TX DEC2_INP", "TX DEC2 MUX",
+		"RX_TX DEC3_INP", "TX DEC3 MUX",
+		"SpkrMono WSA_IN", "AUX",
+		"TX SWR_INPUT", "ADC1_OUTPUT",
+		"TX SWR_INPUT", "ADC2_OUTPUT",
+		"TX SWR_INPUT", "ADC3_OUTPUT",
+		"VA SWR_INPUT", "VA_SWR_CLK",
+		"VA SWR_INPUT", "ADC1_OUTPUT",
+		"VA SWR_INPUT", "ADC2_OUTPUT",
+		"VA SWR_INPUT", "ADC3_OUTPUT",
+		"VA_AIF1 CAP", "VA_SWR_CLK",
+		"VA_AIF2 CAP", "VA_SWR_CLK",
+		"VA_AIF3 CAP", "VA_SWR_CLK";
+	qcom,msm-mbhc-usbc-audio-supported = <0>;
+	qcom,msm-mbhc-hphl-swh = <1>;
+	qcom,msm-mbhc-gnd-swh = <1>;
+	qcom,cdc-dmic01-gpios = <&cdc_dmic01_gpios>;
+	qcom,cdc-dmic23-gpios = <&cdc_dmic23_gpios>;
+
+	asoc-codec  = <&stub_codec>, <&lpass_cdc>,
+		  <&wcd9378_codec>, <&wsa881x_i2c_e>;
+	asoc-codec-names = "msm-stub-codec.1", "lpass-cdc",
+			   "wcd9378_codec", "wsa-codec0";
+	qcom,wsa-aux-dev-prefix = "SpkrMono";
+	qcom,msm_audio_ssr_devs = <&audio_gpr>, <&lpi_tlmm>,
+								<&lpass_cdc>;
+};

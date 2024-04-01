@@ -1,0 +1,123 @@
+/***************************************************************
+** Copyright (C), 2023, OPLUS Mobile Comm Corp., Ltd
+**
+** Description : display common config
+** Version : NA
+** Date : 2023/11/28
+** Author : Oplus Display
+******************************************************************/
+				qcom,mdss-dsi-set-demura2-offset0-command = [
+					/* 0x144 > DBV >= 0x008 */
+					/* demura2 offset */
+					39 00 00 50 00 00 06 F0 55 AA 52 08 04
+					15 00 00 50 00 00 02 6F 02
+					39 00 00 50 00 00 03 EC 2A 6A
+					15 00 00 50 00 00 02 6F A5
+					39 00 00 50 00 00 07 EC 2A 2A 2A 6A 6A 6A
+					/* HBM Mode OFF */
+					39 00 00 50 00 00 06 F0 55 AA 52 08 00
+					15 00 00 50 00 00 02 6F 2E
+					39 00 00 50 00 00 04 C0 02 30 00
+					39 00 00 50 00 00 06 F0 55 AA 52 08 04
+					15 00 00 50 00 00 02 6F 01
+					39 00 00 50 00 00 06 CB 03 04 1F 7C E8
+					15 00 00 50 00 00 02 6F 06
+					39 00 00 50 00 00 0A CB 02 08 D1 55 21 22 DE BB 7C
+					39 00 00 10 00 00 06 F0 55 AA 52 08 00
+				];
+				qcom,mdss-dsi-set-demura2-offset1-command = [
+					/* 0x2D1 > DBV >= 0x144 */
+					/* demura2 offset */
+					39 00 00 50 00 00 06 F0 55 AA 52 08 04
+					15 00 00 50 00 00 02 6F 02
+					39 00 00 50 00 00 03 EC 0E 2E
+					15 00 00 50 00 00 02 6F A5
+					39 00 00 50 00 00 07 EC 0E 0E 0E 2E 2E 2E
+					/* HBM Mode OFF */
+					39 00 00 50 00 00 06 F0 55 AA 52 08 00
+					15 00 00 50 00 00 02 6F 2E
+					39 00 00 50 00 00 04 C0 02 30 00
+					39 00 00 50 00 00 06 F0 55 AA 52 08 04
+					15 00 00 50 00 00 02 6F 01
+					39 00 00 50 00 00 06 CB 03 04 1F 7C E8
+					15 00 00 50 00 00 02 6F 06
+					39 00 00 50 00 00 0A CB 02 08 D1 55 21 22 DE BB 7C
+					39 00 00 10 00 00 06 F0 55 AA 52 08 00
+				];
+				qcom,mdss-dsi-set-demura2-offset2-command = [
+					/* 0x522 > DBV >= 0x2D1 */
+					/* demura2 offset */
+					39 00 00 50 00 00 06 F0 55 AA 52 08 04
+					15 00 00 50 00 00 02 6F 02
+					39 00 00 50 00 00 03 EC 06 16
+					15 00 00 50 00 00 02 6F A5
+					39 00 00 50 00 00 07 EC 06 06 06 16 16 16
+					/* HBM Mode OFF */
+					39 00 00 50 00 00 06 F0 55 AA 52 08 00
+					15 00 00 50 00 00 02 6F 2E
+					39 00 00 50 00 00 04 C0 02 30 00
+					39 00 00 50 00 00 06 F0 55 AA 52 08 04
+					15 00 00 50 00 00 02 6F 01
+					39 00 00 50 00 00 06 CB 03 04 1F 7C E8
+					15 00 00 50 00 00 02 6F 06
+					39 00 00 50 00 00 0A CB 02 08 D1 55 21 22 DE BB 7C
+					39 00 00 10 00 00 06 F0 55 AA 52 08 00
+				];
+				qcom,mdss-dsi-set-demura2-offset3-command = [
+					/* 0xE7D > DBV >= 0x522 */
+					/* demura2 offset */
+					39 00 00 50 00 00 06 F0 55 AA 52 08 04
+					15 00 00 50 00 00 02 6F 02
+					39 00 00 50 00 00 03 EC 00 00
+					15 00 00 50 00 00 02 6F A5
+					39 00 00 50 00 00 07 EC 00 00 00 00 00 00
+					/* HBM Mode OFF */
+					39 00 00 50 00 00 06 F0 55 AA 52 08 00
+					15 00 00 50 00 00 02 6F 2E
+					39 00 00 50 00 00 04 C0 02 30 00
+					39 00 00 50 00 00 06 F0 55 AA 52 08 04
+					15 00 00 50 00 00 02 6F 01
+					39 00 00 50 00 00 06 CB 03 04 1F 7C E8
+					15 00 00 50 00 00 02 6F 06
+					39 00 00 50 00 00 0A CB 02 08 D1 55 21 22 DE BB 7C
+					39 00 00 10 00 00 06 F0 55 AA 52 08 00
+				];
+				qcom,mdss-dsi-set-demura2-offset4-command = [
+					/* DBV >= 0xE7D */
+					/* demura2 offset */
+					39 00 00 50 00 00 06 F0 55 AA 52 08 04
+					15 00 00 50 00 00 02 6F 02
+					39 00 00 50 00 00 03 EC 00 00
+					15 00 00 50 00 00 02 6F A5
+					39 00 00 50 00 00 07 EC 00 00 00 00 00 00
+					/* HBM Mode ON */
+					39 00 00 50 00 00 06 F0 55 AA 52 08 00
+					15 00 00 50 00 00 02 6F 2E
+					39 00 00 50 00 00 04 C0 15 40 00
+					39 00 00 50 00 00 06 F0 55 AA 52 08 04
+					15 00 00 50 00 00 02 6F 01
+					39 00 00 50 00 00 06 CB 01 03 05 1F 7C
+					15 00 00 50 00 00 02 6F 06
+					39 00 00 50 00 00 0A CB 02 08 D1 55 21 22 EF 7C FF
+					39 00 00 10 00 00 06 F0 55 AA 52 08 00
+				];
+
+				qcom,mdss-dsi-hbm-max-command = [
+					39 00 00 40 00 00 06 F0 55 AA 52 08 01
+					39 00 00 40 00 00 09 B6 00 32 00 C8 01 9A 01 04
+					39 00 00 00 00 00 03 51 0F FF
+				];
+				qcom,mdss-dsi-hbm-exit-max-command = [
+					39 00 00 40 00 00 06 F0 55 AA 52 08 01
+					39 00 00 40 00 00 09 B6 00 64 00 C8 01 68 01 04
+					39 00 00 00 00 00 03 51 0F 9F
+				];
+
+				qcom,mdss-dsi-set-demura2-offset0-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-set-demura2-offset1-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-set-demura2-offset2-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-set-demura2-offset3-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-set-demura2-offset4-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-hbm-max-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-hbm-exit-max-command-state = "dsi_hs_mode";
+

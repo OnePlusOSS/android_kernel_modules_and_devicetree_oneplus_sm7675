@@ -1,0 +1,95 @@
+#include <dt-bindings/clock/qcom,rpmh.h>
+
+&soc {
+    //add for nfc_chipset
+    nfc_chipset {
+        compatible = "oplus-nfc-chipset";
+        chipset-23678 = "pn560";
+	chipset-23718 = "pn560";
+    };
+};
+
+
+&tlmm {
+	nfc {
+		nfc_int_active: nfc_int_active {
+			/* active state */
+			mux {
+				/* GPIO 61 NFC Read Interrupt */
+				pins = "gpio61";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio61";
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-up;
+			};
+		};
+
+		nfc_int_suspend: nfc_int_suspend {
+			/* sleep state */
+			mux {
+				/* GPIO 61 NFC Read Interrupt */
+				pins = "gpio61";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio61";
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-up;
+			};
+		};
+
+		nfc_enable_active: nfc_enable_active {
+			mux {
+				pins = "gpio114";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio114";
+				drive-strength = <2>; /* 2 MA */
+				bias-pull-up;
+			};
+		};
+
+		nfc_enable_suspend: nfc_enable_suspend {
+			mux {
+				pins = "gpio114";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio114";
+				drive-strength = <2>; /* 2 MA */
+				bias-disable;
+			};
+		};
+	};
+};
+
+
+&qupv3_se9_i2c {
+	status = "ok";
+	qcom,clk-freq-out = <1000000>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	nq@28 {
+		compatible = "qcom,sn-nci";
+		reg = <0x28>;
+ 		qcom,sn-irq = <&tlmm 61 0x00>;
+ 		qcom,sn-ven = <&tlmm 114 0x00>;
+ 		qcom,sn-clkreq = <&tlmm 115 0x00>;
+ 		qcom,sn-vdd-1p8-supply = <&L5B>;
+ 		qcom,sn-vdd-1p8-voltage = <1200000 1200000>;
+ 		qcom,sn-vdd-1p8-current = <157000>;
+ 		interrupt-parent = <&tlmm>;
+ 		interrupts = <61 0>;
+ 		interrupt-names = "nfc_irq";
+ 		pinctrl-names = "nfc_active", "nfc_suspend";
+ 		pinctrl-0 = <&nfc_int_active &nfc_enable_active>;
+ 		pinctrl-1 = <&nfc_int_suspend &nfc_enable_suspend>;
+	};
+};

@@ -1,0 +1,10 @@
+config SIH_VIBRATOR
+    tristate "SI Vibrator driver for sih6887"
+    depends on I2C
+    help
+      This option enables support for sih6887 series Haptic Driver.
+
+config OPLUS_VIBRATOR_GKI_ENABLE
+    tristate "vibrator compatibility"
+    help
+      This option enables support for vibrator compatibility.

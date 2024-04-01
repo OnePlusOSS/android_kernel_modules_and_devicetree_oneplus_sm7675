@@ -1,0 +1,467 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/oplus/hw-id.h>
+#include "../qcom/pineapple-mtp-overlay.dts"
+#include "pineapple_overlay_common.dtsi"
+#include "pangu_overlay_common.dtsi"
+#include "oplus_chg/oplus-chg-22111.dtsi"
+#include "oplus_misc/oplus-misc-22111.dtsi"
+#include "tp/pangu-oplus-tp-22111.dtsi"
+#include "oplus_fp/oplus_fp_22111.dtsi"
+#include "sensor/pangu-sensor-22111.dtsi"
+
+/ {
+    model = "Qualcomm Technologies, Inc. Pineapple MTP,pangu";
+
+    oplus,project-id = <22112>;
+    oplus,hw-id = <OPLUS_EVB1 OPLUS_EVB3 OPLUS_T0 OPLUS_EVT1 OPLUS_EVT2 OPLUS_DVT1 OPLUS_DVT2 OPLUS_PVT1>;
+};
+
+&tlmm {
+  //#ifdef OPLUS_FEATURE_RF_CABLE_DETECT
+  rf_cable0_active: rf_cable0_active {
+    mux {
+      pins = "gpio98";
+      function = "gpio";
+    };
+    config {
+      pins = "gpio98";
+      drive-strength = <2>;
+      input-enable;
+      bias-pull-up;
+    };
+  };
+  //#endif /* OPLUS_FEATURE_RF_CABLE_DETECT */
+};
+
+&tlmm {
+  //#ifdef OPLUS_FEATURE_701_satellite
+  satellite_wakeup_active: satellite_wakeup_active {
+    mux {
+      pins = "gpio128";
+      function = "gpio";
+    };
+    config {
+      pins = "gpio128";
+      drive-strength = <2>;
+      output-enable;
+      bias-pull-up;
+    };
+  };
+  //#endif /* OPLUS_FEATURE_701_satellite */
+};
+
+&tlmm {
+  //#ifdef OPLUS_FEATURE_701_satellite
+  satellite_sleep_active: satellite_sleep_active {
+    mux {
+      pins = "gpio177";
+      function = "gpio";
+    };
+    config {
+      pins = "gpio177";
+      drive-strength = <2>;
+      input-enable;
+      bias-disable;
+    };
+  };
+  //#endif /* OPLUS_FEATURE_701_satellite */
+};
+
+&tlmm {
+  //#ifdef OPLUS_FEATURE_701_satellite
+  satellite_rst_active: satellite_rst_active {
+    mux {
+      pins = "gpio28";
+      function = "gpio";
+    };
+    config {
+      pins = "gpio28";
+      drive-strength = <2>;
+      output-enable;
+      bias-pull-up;
+    };
+  };
+  //#endif /* OPLUS_FEATURE_701_satellite */
+
+  	qupv3_se10_2uart_pins: qupv3_se10_2uart_pins {
+		qupv3_se10_2uart_default_tx: qupv3_se10_2uart_default_tx {
+			mux {
+				pins = "gpio10";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio10";
+				drive-strength = <2>;
+				bias-pull-down;
+				output-low;
+			};
+		};
+
+		qupv3_se10_2uart_default_rx: qupv3_se10_2uart_default_rx {
+			mux {
+				pins = "gpio11";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio11";
+				drive-strength = <2>;
+				bias-pull-down;
+				output-low;
+			};
+		};
+
+		qupv3_se10_2uart_tx_active: qupv3_se10_2uart_tx_active {
+			mux {
+				pins = "gpio10";
+				function = "qup2_se2_l2";
+			};
+
+			config {
+				pins = "gpio10";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		qupv3_se10_2uart_rx_active: qupv3_se10_2uart_rx_active {
+			mux {
+				pins = "gpio11";
+				function = "qup2_se2_l3";
+			};
+
+			config {
+				pins = "gpio11";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+	};
+
+	qupv3_se7_2uart_pins: qupv3_se7_2uart_pins {
+		qupv3_se7_2uart_default_tx: qupv3_se7_2uart_default_tx {
+			mux {
+				pins = "gpio62";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio62";
+				drive-strength = <2>;
+				bias-pull-down;
+				output-low;
+			};
+		};
+
+		qupv3_se7_2uart_default_rx: qupv3_se7_2uart_default_rx {
+			mux {
+				pins = "gpio63";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio63";
+				drive-strength = <2>;
+				bias-pull-down;
+				output-low;
+			};
+		};
+
+		qupv3_se7_2uart_tx_active: qupv3_se7_2uart_tx_active {
+			mux {
+				pins = "gpio62";
+				function = "qup1_se7_l2";
+			};
+
+			config {
+				pins = "gpio62";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		qupv3_se7_2uart_rx_active: qupv3_se7_2uart_rx_active {
+			mux {
+				pins = "gpio63";
+				function = "qup1_se7_l3";
+			};
+
+			config {
+				pins = "gpio63";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+	};
+};
+
+&pmk8550_gpios {
+	alt_701_disable_clk {
+		alt_sleep_clk_disable: alt_sleep_clk_disable {
+			pins = "gpio3";
+			function = "normal";
+			input-disable;
+			output-disable;
+			output-low;
+			bias-disable;
+			power-source = <0>;
+		};
+	};
+};
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interconnect/qcom,pineapple.h>
+&qupv3_1 {
+    /* 701 UART Instance */
+    qupv3_se7_2uart: qcom,qup_uart@a9c000 {
+        compatible = "qcom,msm-geni-serial-hs";
+        reg = <0xa9c000 0x4000>;
+        reg-names = "se_phys";
+        interrupts-extended = <&intc GIC_SPI 579 IRQ_TYPE_LEVEL_HIGH>,
+                <&tlmm 27 IRQ_TYPE_LEVEL_HIGH>;
+        clock-names = "se-clk";
+        clocks = <&gcc GCC_QUPV3_WRAP1_S7_CLK>;
+        interconnect-names = "qup-core", "qup-config", "qup-memory";
+        interconnects =
+        <&clk_virt MASTER_QUP_CORE_1 &clk_virt SLAVE_QUP_CORE_1>,
+        <&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_QUP_1>,
+        <&aggre1_noc MASTER_QUP_1 &mc_virt  SLAVE_EBI1>;
+        pinctrl-names = "default", "active", "sleep", "shutdown";
+        pinctrl-0 = <&qupv3_se7_2uart_default_tx>, <&qupv3_se7_2uart_default_rx>;
+        pinctrl-1 = <&qupv3_se7_2uart_tx_active>, <&qupv3_se7_2uart_rx_active>;
+        pinctrl-2 = <&qupv3_se7_2uart_default_tx>, <&qupv3_se7_2uart_default_rx>;
+        pinctrl-3 = <&qupv3_se7_2uart_default_tx>, <&qupv3_se7_2uart_default_rx>;
+        qcom,wakeup-byte = <0xFD>;
+        status = "ok";
+    };
+};
+
+&qupv3_2 {
+    /* 701 UART Instance */
+    qupv3_se10_2uart: qcom,qup_uart@888000 {
+        compatible = "qcom,msm-geni-serial-hs";
+        reg = <0x888000 0x4000>;
+        reg-names = "se_phys";
+        interrupts-extended = <&intc GIC_SPI 584 IRQ_TYPE_LEVEL_HIGH>,
+                <&tlmm 27 IRQ_TYPE_LEVEL_HIGH>;
+        clock-names = "se-clk";
+        clocks = <&gcc GCC_QUPV3_WRAP2_S2_CLK>;
+        interconnect-names = "qup-core", "qup-config", "qup-memory";
+        interconnects =
+        <&clk_virt MASTER_QUP_CORE_2 &clk_virt SLAVE_QUP_CORE_2>,
+        <&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_QUP_2>,
+        <&aggre2_noc MASTER_QUP_2 &mc_virt  SLAVE_EBI1>;
+        pinctrl-names = "default", "active", "sleep", "shutdown";
+        pinctrl-0 = <&qupv3_se10_2uart_default_tx>, <&qupv3_se10_2uart_default_rx>;
+        pinctrl-1 = <&qupv3_se10_2uart_tx_active>, <&qupv3_se10_2uart_rx_active>;
+        pinctrl-2 = <&qupv3_se10_2uart_default_tx>, <&qupv3_se10_2uart_default_rx>;
+        pinctrl-3 = <&qupv3_se10_2uart_default_tx>, <&qupv3_se10_2uart_default_rx>;
+        qcom,wakeup-byte = <0xFD>;
+        status = "ok";
+    };
+};
+&apps_rsc_drv2 {
+	rpmh-regulator-ldob8 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		qcom,resource-name = "ldob8";
+		qcom,regulator-type = "pmic5-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			 RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 10000>;
+
+		L8B: pm_humu_l8: regulator-pm-humu-l8 {
+			regulator-name = "pm_humu_l8";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			qcom,init-voltage = <3300000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+	rpmh-regulator-ldoc2 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		qcom,resource-name = "ldoc2";
+		qcom,regulator-type = "pmic5-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			 RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 30000>;
+
+		L2C: pm_v6c_l2: regulator-pm-v6c-l2 {
+			regulator-name = "pm_v6c_l2";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			qcom,init-voltage = <1800000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+	rpmh-regulator-ldod3 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		qcom,resource-name = "ldod3";
+		qcom,regulator-type = "pmic5-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			 RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 30000>;
+
+		L3D: pm_v6d_l3: regulator-pm-v6d-l3 {
+			regulator-name = "pm_v6d_l3";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			qcom,init-voltage = <1800000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+	rpmh-regulator-ldog2 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		qcom,resource-name = "ldog2";
+		qcom,regulator-type = "pmic5-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			 RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 30000>;
+
+		L2G: pm_v6g_l2: regulator-pm-v6g-l2 {
+			regulator-name = "pm_v6g_l2";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <1100000>;
+			regulator-max-microvolt = <1100000>;
+			qcom,init-voltage = <1100000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+};
+
+&aliases{
+    hsuart3	= "/soc/qcom,qupv3_2_geni_se@8c0000/qcom,qup_uart@888000";
+    hsuart4	= "/soc/qcom,qupv3_1_geni_se@ac0000/qcom,qup_uart@a9c000";
+};
+
+//#ifdef OPLUS_FEATURE_701_satellite
+&pm8550vs_g_gpios {
+    gpio4_pa_out {
+    gpio4_pa_out_default: gpio4_pa_out_default {
+    pins = "gpio4"; /* GPIO 4 */
+    function = "normal"; /* normal output */
+    power-source = <1>; /* VIN1 */
+    output-high; /* digital output, no invert */
+    input-disable; /* prevent GPIO from being set to DIO */
+    };
+  };
+};
+//#endif /* OPLUS_FEATURE_701_satellite */
+
+&soc {
+  //#ifdef OPLUS_FEATURE_RF_CABLE_DETECT
+  oplus_rf_cable {
+    compatible = "oplus,rf_cable";
+    interrupt-parent = <&tlmm>;
+    rf_cable_support_num = <1>;
+    rf,cable0-gpio = <&tlmm 98 0>;
+    rf,cable-support-timer = <0>;
+    pinctrl-names = "rf_cable_active";
+    pinctrl-0 = <&rf_cable0_active>;
+  };
+  //#endif /* OPLUS_FEATURE_RF_CABLE_DETECT */
+
+  //#ifdef OPLUS_FEATRUE_DUAL_SIM_DETECT
+  oplus-gpio {
+    compatible = "oplus,oplus-gpio";
+    pinctrl-names = "sim2_det_no_pull", "sim2_det_pull_high", "sim2_det_pull_low";
+    pinctrl-0 = <&sim2_det_no_pull>;
+    pinctrl-1 = <&sim2_det_pull_high>;
+    pinctrl-2 = <&sim2_det_pull_low>;
+    oplus,oplus-sim2-det = <&pm8550vs_c_gpios 5 GPIO_ACTIVE_LOW>;
+    oplus,uim-reset-pin = "modem_solution";
+  };
+  oplus_sim_detect {
+    compatible = "oplus, sim_detect";
+    Hw,sim_det = "modem_det";
+  };
+  //#endif /* OPLUS_FEATRUE_DUAL_SIM_DETECT */
+
+  //#ifdef OPLUS_FEATURE_701_satellite
+   oplus_satellite {
+    compatible = "oplus,701_satellite";
+    satellite,dvdd_0p8-supply = <&L3D>;
+    satellite,dvdd_0p6-supply = <&L2C>;
+    satellite,dvdd_0p75-supply = <&L2G>;
+    satellite,avdd_0p9-supply = <&L8B>;
+    pinctrl-names = "alt_sleep_clk_disable", "alt_sleep_clk_default";
+    pinctrl-0 = <&alt_sleep_clk_disable>;
+    pinctrl-1 = <&alt_sleep_clk_default>;
+    oplus,oplus-satellite-rst= <&tlmm 28 GPIO_ACTIVE_LOW>;
+    oplus,oplus-satellite-wakeup = <&tlmm 128 GPIO_ACTIVE_LOW>;
+    oplus,oplus-satellite-sleep = <&tlmm 177 GPIO_ACTIVE_LOW>;
+    oplus,oplus-satellite-pa = <&pm8550vs_g_gpios 4 GPIO_ACTIVE_HIGH>;
+  };
+  //#endif /* OPLUS_FEATURE_701_satellite */
+
+};
+
+
+&pm8550vs_c_gpios {
+  //#ifdef OPLUS_FEATRUE_DUAL_SIM_DETECT
+  sim2_det_no_pull: sim2_det_no_pull {
+    pins = "gpio5";
+    function = "normal";
+    input-enable;
+    power-source = <1>;
+    bias-disable;
+  };
+
+  sim2_det_pull_high: sim2_det_pull_high {
+    pins = "gpio5";
+    function = "normal";
+    input-enable;
+    power-source = <1>;
+    bias-pull-up;
+  };
+
+  sim2_det_pull_low: sim2_det_pull_low {
+    pins = "gpio5";
+    function = "normal";
+    input-enable;
+    power-source = <1>;
+    bias-pull-down;
+  };
+  //#endif OPLUS_FEATRUE_DUAL_SIM_DETECT
+};
+
+&pmk8550_vadc {
+	pm8550b_batt_therm {
+		reg = <PM8550B_ADC5_GEN3_AMUX_THM1_BATT_THERM_100K_PU>;
+		label = "pm8550b_batt_therm";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,pre-scaling = <1 1>;
+		qcom,adc-tm-type = <1>;
+	};
+};
+
+&thermal_zones {
+	batt-therm {
+		polling-delay-passive = <0>;
+		polling-delay = <0>;
+		thermal-sensors = <&pmk8550_vadc PM8550B_ADC5_GEN3_AMUX_THM1_BATT_THERM_100K_PU>;
+		trips {
+			active-config0 {
+				temperature = <125000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <125000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+		};
+	};
+};

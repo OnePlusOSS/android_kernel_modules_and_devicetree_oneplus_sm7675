@@ -1,0 +1,12 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/oplus/hw-id.h>
+#include "../cliffs-audio-mtp.dts"
+#include "cliffs-audio-overlay-common.dtsi"
+#include "bale-23622-audio-cliffs-overlay.dtsi"
+
+/ {
+    model = "Qualcomm Technologies, Inc. Cliffs MTP,bale";
+
+    oplus,project-id = <23622 23718>;
+};

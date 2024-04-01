@@ -1,0 +1,94 @@
+&aliases {
+	i2c4 = "/soc/qcom,qupv3_0_geni_se@ac0000/i2c@a80000";
+};
+
+&lpass_cdc {
+	qcom,num-macros = <3>;
+	lpass-cdc-clk-rsc-mngr {
+		clock-names = "tx_core_clk", "rx_core_clk", "rx_tx_core_clk", "va_core_clk";
+		clocks = <&clock_audio_tx_1 0>, <&clock_audio_rx_1 0>,
+			<&clock_audio_rx_tx 0>, <&clock_audio_va_1 0>;
+	};
+};
+
+&wsa_macro {
+	status = "disabled";
+};
+
+&wsa884x_0220 {
+	status = "disabled";
+};
+
+&wsa884x_0221 {
+	status = "disabled";
+};
+
+&wsa883x_0221 {
+	status = "disabled";
+};
+
+&wsa883x_0222 {
+	status = "disabled";
+};
+
+&wcd937x_codec {
+	qcom,cdc-micbias1-mv = <2700>;
+	qcom,cdc-micbias2-mv = <2700>;
+	qcom,cdc-micbias3-mv = <2700>;
+};
+
+&wcd937x_codec {
+	status = "okay";
+};
+
+&wcd937x_tx_slave {
+	status = "okay";
+};
+
+&wcd937x_rx_slave {
+	status = "okay";
+};
+
+&fm_i2s1_gpios {
+	status = "disabled";
+};
+
+&wsa_swr_gpios {
+	status = "disabled";
+};
+
+&cdc_dmic01_gpios {
+	status = "disabled";
+};
+
+&cdc_dmic23_gpios {
+	status = "disabled";
+};
+
+&cdc_dmic45_gpios {
+	status = "disabled";
+};
+
+&cdc_dmic67_gpios {
+	status = "disabled";
+};
+
+&wsa_spkr_en01 {
+	status = "disabled";
+};
+
+&wsa_spkr_en02 {
+	status = "disabled";
+};
+
+&clock_audio_wsa_1 {
+	status = "disabled";
+};
+
+&clock_audio_wsa_tx {
+	status = "disabled";
+};
+
+&wcd_usbss {
+	status = "disabled";
+};
