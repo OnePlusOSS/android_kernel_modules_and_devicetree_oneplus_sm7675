@@ -2,12 +2,22 @@
 &oplus_cpa {
 	/* format: <protocol_type power_w> */
 	oplus,protocol_list = <CHG_PROTOCOL_VOOC 120
-			       CHG_PROTOCOL_PPS  55
+			       CHG_PROTOCOL_PPS  33
 			       CHG_PROTOCOL_PD   18
 			       CHG_PROTOCOL_QC   18>;
 	oplus,default_protocol_list = <CHG_PROTOCOL_VOOC
-						CHG_PROTOCOL_PPS
-						CHG_PROTOCOL_PD>;
+					CHG_PROTOCOL_PPS
+					CHG_PROTOCOL_PD>;
+	oplus,cpa_region_cfg_power_pps {
+		oplus,region_id = /bits/ 8 <0x44>;
+		oplus,protocol_list = <CHG_PROTOCOL_VOOC 120
+                                       CHG_PROTOCOL_PPS  55
+                                       CHG_PROTOCOL_PD	 18
+                                       CHG_PROTOCOL_QC	 18>;
+		oplus,default_protocol_list = <CHG_PROTOCOL_VOOC
+                                               CHG_PROTOCOL_PPS
+                                               CHG_PROTOCOL_PD>;
+	};
 };
 
 &battery_charger {
@@ -177,8 +187,7 @@
 			strategy_soc_range_mid {
 				strategy_temp_little_cold =	<11000 4460 2500 0 0
 								11000 4470 2000 1 0>;
-				strategy_temp_cool =		<11000 4460 3500 0 0
-								11000 4460 3000 0 0
+				strategy_temp_cool =		<11000 4460 3000 0 0
 								11000 4460 2500 0 0
 								11000 4470 2000 1 0>;
 				strategy_temp_little_cool =	<11000 4460 4000 0 0

@@ -581,7 +581,8 @@ int32_t EEPROM_CommonWrite(struct cam_eeprom_ctrl_t *e_ctrl,
 			i2c_reg_array.reg_addr = 0xE000;
 			i2c_reg_array.reg_data = 0xA2;
 		} else if ((strcmp(cam_write_eeprom->eepromName, "imx766_gt24p256c_tele") == 0)
-                 ||( strcmp(cam_write_eeprom->eepromName, "imx890_gt24p256c_tele") == 0)){
+                 ||(strcmp(cam_write_eeprom->eepromName, "imx890_gt24p256c_tele") == 0)
+                 ||(strcmp(cam_write_eeprom->eepromName, "gt24p128g2csli_s5kjn5_tele") == 0)){
 			i2c_reg_array.reg_addr = 0xE000;
 			i2c_reg_array.reg_data = 0xA0;
 		} else if ((strcmp(cam_write_eeprom->eepromName, "imx766_p24c256c_wide") == 0)
@@ -666,7 +667,8 @@ int32_t EEPROM_CommonWrite(struct cam_eeprom_ctrl_t *e_ctrl,
 			i2c_reg_array.reg_addr = 0xE000;
 			i2c_reg_array.reg_data = 0xA3;
 		} else if ((strcmp(cam_write_eeprom->eepromName, "imx766_gt24p256c_tele") == 0)
-                 ||(strcmp(cam_write_eeprom->eepromName, "imx890_gt24p256c_tele") == 0)){
+                 ||(strcmp(cam_write_eeprom->eepromName, "imx890_gt24p256c_tele") == 0)
+                 ||(strcmp(cam_write_eeprom->eepromName, "gt24p128g2csli_s5kjn5_tele") == 0)){
 			i2c_reg_array.reg_addr = 0xE000;
 			i2c_reg_array.reg_data = 0xA1;
 		} else if ((strcmp(cam_write_eeprom->eepromName, "imx766_p24c256c_wide") == 0)

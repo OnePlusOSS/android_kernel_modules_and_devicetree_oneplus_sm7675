@@ -5,15 +5,16 @@
 #include "pineapple_overlay_common.dtsi"
 #include "caihong_overlay_common.dtsi"
 #include "oplus_chg/oplus-chg-23926.dtsi"
+#include "oplus_misc/oplus-misc-23926.dtsi"
 #include "tp/caihong-oplus-tp-23926.dtsi"
 #include "tp/caihong-oplus-tp-23926_firmware.dtsi"
 #include "sensor/caihong-sensor-23926.dtsi"
-#include "oplus_pogo_kyb/caihong-oplus-pogopin-kyb-23926.dtsi"
+#include "oplus_pogo_kb/caihong-oplus-pogopin-kb-23926.dtsi"
 
 / {
     model = "Qualcomm Technologies, Inc. Pineapple MTP,caihong";
 
-    oplus,project-id = <23926 23976 23978>;
+    oplus,project-id = <23926 23927>;
     oplus,hw-id = <OPLUS_EVB1 OPLUS_EVB3 OPLUS_T0 OPLUS_EVT1 OPLUS_EVT2 OPLUS_DVT1 OPLUS_DVT2 OPLUS_PVT1>;
 };
 

@@ -62,6 +62,7 @@
 #include <linux/soc/qcom/smem.h>
 #endif
 #include <linux/gfp.h>
+#include <linux/iio/consumer.h>
 
 #ifdef OPLUS_SHA1_HMAC
 #include <linux/random.h>
@@ -109,6 +110,7 @@ static int gauge_i2c_err = 0;
 int oplus_vooc_get_fast_chg_type(void);
 bool oplus_vooc_get_fastchg_ing(void);
 bool oplus_vooc_get_vooc_by_normal_path(void);
+int oplus_battery_type_check_bqfs(struct chip_bq27541 *chip);
 
 int __attribute__((weak)) oplus_get_fg_device_type(void)
 {
@@ -3096,11 +3098,9 @@ static bool bq27541_get_battery_hmac(void)
 			}
 			msleep(10);
 		}
-	} else if (gauge_ic->batt_bq27z561 || gauge_ic->batt_nfg1000a) {
+	} else if (gauge_ic->support_sha256_hmac) {
 		result = init_sha256_gauge_auth(gauge_ic);
 	} else {
-		if (gauge_ic->support_extern_cmd)
-			return false;
 		return true;
 	}
 
@@ -3125,7 +3125,8 @@ static bool bq27541_get_battery_authenticate(void)
 		bq27541_get_battery_temperature();
 	}
 
-	if (gauge_ic->temp_pre == (-400 - ZERO_DEGREE_CELSIUS_IN_TENTH_KELVIN)) {
+	if ((gauge_ic->temp_pre == (-400 - ZERO_DEGREE_CELSIUS_IN_TENTH_KELVIN))
+			|| (oplus_battery_type_check_bqfs(gauge_ic) == false)) {
 		return false;
 	} else {
 		return true;
@@ -3753,7 +3754,20 @@ bool bqfs_get_init_status(void)
 	if (!chip)
 		return false;
 
-	return chip->bqfs_init;
+	return chip->bqfs_info.bqfs_status;
+}
+
+int bqfs_fw_check(void)
+{
+	struct chip_bq27541 *chip = gauge_ic;
+	int rc = 0;
+
+	if (!chip)
+		return false;
+	if (chip->device_type == DEVICE_BQ27426)
+		rc = bqfs_fw_upgrade(chip, false);
+
+	return rc;
 }
 
 static int gauge_get_qmax(int *qmax1, int *qmax2)
@@ -4308,6 +4322,7 @@ static struct oplus_gauge_operations bq27541_gauge_ops = {
 	.get_batt_soh = gauge_get_soh,
 	.get_calib_time = gauge_get_calib_time,
 	.get_bqfs_status = bqfs_get_init_status,
+	.bqfs_fw_check = bqfs_fw_check,
 };
 
 static struct oplus_gauge_operations bq27541_sub_gauge_ops = {
@@ -4578,13 +4593,17 @@ static void oplus_set_device_type_by_extern_cmd(struct chip_bq27541 *chip)
 	chip->device_type_for_vooc = DEVICE_TYPE_FOR_VOOC_BQ27541;
 try:
 	ret = gauge_i2c_txsubcmd(chip, BQ27Z561_DATAFLASHBLOCK, extend.addr);
-	if (ret < 0)
+	if (ret < 0) {
+		schedule_delayed_work(&chip->hw_config_retry_work, msecs_to_jiffies(3000));
 		return;
+	}
 
 	msleep(5);
 	ret = gauge_read_i2c_block(chip, BQ27Z561_DATAFLASHBLOCK, (extend.len + 2), extend_data);
-	if (ret < 0)
+	if (ret < 0) {
+		schedule_delayed_work(&chip->hw_config_retry_work, msecs_to_jiffies(3000));
 		return;
+	}
 	data_check = (extend_data[1] << 0x8) | extend_data[0];
 	if (try_count-- > 0 && data_check != extend.addr) {
 		pr_info("not match. extend_data[0]=0x%2x, extend_data[1]=0x%2x\n",
@@ -4601,6 +4620,17 @@ try:
 	pr_info("device_type : 0x%04x\n", device_type);
 }
 
+static void oplus_hw_config_retry_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct chip_bq27541 *chip =
+		container_of(dwork, struct chip_bq27541, hw_config_retry_work);
+
+	oplus_set_device_type_by_extern_cmd(chip);
+	chip->cmd_addr.reg_ai = BQ28Z610_REG_TI;
+	oplus_set_device_name(chip, DEVICE_TYPE_BQ27541);
+}
+
 static void bq27541_hw_config(struct chip_bq27541 *chip)
 {
 	int ret = 0;
@@ -4612,6 +4642,7 @@ static void bq27541_hw_config(struct chip_bq27541 *chip)
 	exfg_information_register(&bq27541_gauge_ops);
 #endif
 	if (chip->support_extern_cmd) {
+		INIT_DELAYED_WORK(&chip->hw_config_retry_work, oplus_hw_config_retry_work);
 		oplus_set_device_type_by_extern_cmd(chip);
 		goto device_type_set;
 	}
@@ -4630,13 +4661,15 @@ static void bq27541_hw_config(struct chip_bq27541 *chip)
 	udelay(66);
 	bq27541_cntl_cmd(chip, BQ27541_BQ27411_SUBCMD_DEVICE_TYPE);
 	udelay(66);
-	gauge_read_i2c(chip, BQ27541_BQ27411_REG_CNTL, &device_type);
+	ret = gauge_read_i2c(chip, BQ27541_BQ27411_REG_CNTL, &device_type);
 	udelay(66);
 	bq27541_cntl_cmd(chip, BQ27541_BQ27411_SUBCMD_CTNL_STATUS);
 	udelay(66);
 	bq27541_cntl_cmd(chip, BQ27541_BQ27411_SUBCMD_FW_VER);
 	udelay(66);
-	gauge_read_i2c(chip, BQ27541_BQ27411_REG_CNTL, &fw_ver);
+	ret |= gauge_read_i2c(chip, BQ27541_BQ27411_REG_CNTL, &fw_ver);
+	if (ret)
+		pr_err("error to read BQ27541_BQ27411_REG_CNTL\n");
 
 device_type_set:
 	if (device_type == DEVICE_TYPE_BQ27411) {
@@ -4676,6 +4709,8 @@ static void bq27541_parse_dt(struct chip_bq27541 *chip)
 	struct device_node *node = chip->dev->of_node;
 	int rc = 0;
 	chip->support_extern_cmd = of_property_read_bool(node, "oplus,support_extern_cmd");
+	if (chip->support_extern_cmd)
+		chip->support_sha256_hmac = true;
 	chip->modify_soc_smooth = of_property_read_bool(node, "qcom,modify-soc-smooth");
 	chip->modify_soc_calibration = of_property_read_bool(node, "qcom,modify-soc-calibration");
 	chip->batt_bq28z610 = of_property_read_bool(node, "qcom,batt_bq28z610");
@@ -4704,11 +4739,15 @@ static int sealed(struct chip_bq27541 *chip)
 {
 	/*    return control_cmd_read(di, CONTROL_STATUS) & (1 << 13);*/
 	int value = 0;
+	int ret = 0;
 
 	bq27541_cntl_cmd(chip, CONTROL_STATUS);
 	/*    bq27541_cntl_cmd(di, CONTROL_STATUS);*/
 	usleep_range(10000, 10000);
-	gauge_read_i2c(chip, CONTROL_STATUS, &value);
+	ret = gauge_read_i2c(chip, CONTROL_STATUS, &value);
+	if (ret)
+		pr_err("error to read CONTROL_STATUS\n");
+
 	/*    chg_debug(" REG_CNTL: 0x%x\n", value); */
 
 	if (chip->device_type == DEVICE_BQ27541 || chip->device_type == DEVICE_ZY0602) {
@@ -4961,6 +5000,7 @@ static int bq27426_seal(struct chip_bq27541 *chip)
 	u8 CNTL1_VAL_2[2] = { 0x20, 0x00 };
 	int retry = 2;
 	int rc = 0;
+	int ret = 0;
 	int value = 0;
 
 	do {
@@ -4968,7 +5008,9 @@ static int bq27426_seal(struct chip_bq27541 *chip)
 		pr_err("%s write {0x40,0x00} --> 0x00\n", __func__);
 		usleep_range(200000, 200000);
 
-		gauge_read_i2c(chip, CONTROL_STATUS, &value);
+		ret = gauge_read_i2c(chip, CONTROL_STATUS, &value);
+		if (ret)
+			pr_err("error to read CONTROL_STATUS\n");
 		if (value & BIT(13)) {
 			retry = 0;
 			rc = 0;
@@ -6870,6 +6912,8 @@ static bool init_sha256_gauge_auth(struct chip_bq27541 *chip)
 		ret = bq27z561_sha256_hmac_authenticate(chip);
 	else if (chip->batt_nfg1000a)
 		ret = nfg1000a_sha256_hmac_authenticate(chip);
+	else
+		ret = false;
 	if (!ret)
 		return ret;
 
@@ -7153,10 +7197,10 @@ rerun:
 	}
 
 	if (fg_ic->device_type == DEVICE_BQ27426) {
-		fg_ic->bqfs_init = false;
+		fg_ic->bqfs_info.bqfs_status = false;
 		bqfs_init(fg_ic);
 	} else {
-		fg_ic->bqfs_init = true;
+		fg_ic->bqfs_info.bqfs_status = true;
 	}
 
 	fg_ic->soc_pre = 50;
@@ -7234,7 +7278,7 @@ rerun:
 		chip->device_type_for_vooc = gauge_ic->device_type_for_vooc;
 		chip->capacity_pct = gauge_ic->capacity_pct;
 		atomic_set(&gauge_ic->gauge_i2c_status, 0);
-		if (!gauge_ic->batt_bq27z561 && !gauge_ic->batt_nfg1000a)
+		if (!gauge_ic->support_sha256_hmac)
 			gauge_ic->authenticate_data =
 				devm_kzalloc(&client->dev, sizeof(struct bq27541_authenticate_data), GFP_KERNEL);
 		else

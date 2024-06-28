@@ -3874,8 +3874,12 @@ irqreturn_t oplus_voocphy_interrupt_handler(struct oplus_voocphy_manager *chip)
 		}
 	} else {
 		if(oplus_voocphy_int_disable_chg(chip)) {
-			voocphy_err(", oplus_voocphy_int_disable_chg\n");
-			oplus_chglib_disable_charger(true);
+			voocphy_err("oplus_voocphy_int_disable_chg\n");
+			chip->fastchg_disable_charger = true;
+			oplus_chglib_disable_charger_by_client(true, CP_ERR_VOTER);
+		} else if (chip->fastchg_disable_charger) {
+			chip->fastchg_disable_charger = false;
+			oplus_chglib_disable_charger_by_client(false, CP_ERR_VOTER);
 		}
 	}
 

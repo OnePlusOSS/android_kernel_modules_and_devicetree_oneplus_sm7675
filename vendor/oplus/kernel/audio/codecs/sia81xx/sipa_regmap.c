@@ -76,7 +76,7 @@ static const struct reg_map_info reg_map_info_table[] = {
 		.reg_addr_width = 8,
 		.reg_val_width = 8,
 		.chip_id_addr = 0x00,
-		.chip_id_ranges = {{0x60, 0x68}, {0x6A, 0x6F}},
+		.chip_id_ranges = {{0x60, 0x68}},
 		.chip_id_range_num = 2
 	},
 	[CHIP_TYPE_SIA8159A] = {
@@ -85,6 +85,14 @@ static const struct reg_map_info reg_map_info_table[] = {
 		.reg_val_width = 8,
 		.chip_id_addr = 0x00,
 		.chip_id_ranges = {{0x58, 0x58}},
+		.chip_id_range_num = 1
+	},
+	[CHIP_TYPE_SIA815T] = {
+		.chip_type = CHIP_TYPE_SIA815T,
+		.reg_addr_width = 8,
+		.reg_val_width = 8,
+		.chip_id_addr = 0x00,
+		.chip_id_ranges = {{0x6a, 0x6f}},
 		.chip_id_range_num = 1
 	},
 	[CHIP_TYPE_SIA9175] = {
@@ -709,6 +717,7 @@ void sipa_regmap_check_trimming(
 	uint32_t trim_bytes = 0;
 	uint16_t crc = 0, crc_cal = 0;
 	uint32_t ret = -1;
+	uint8_t i;
 
 	if (NULL == si_pa)
 		return;
@@ -779,6 +788,12 @@ void sipa_regmap_check_trimming(
 		return;
 	}
 
+	pr_err("[debug][%s] %s: ch%d check trim. 0x20 = 0x%02x,  0x21 = 0x%02x, 0x22 = 0x%02x,\r\n",
+		LOG_FLAG, __func__, si_pa->channel_num, trim[2], trim[1], trim[0]);
+
+	pr_err("[debug][%s] %s: ch%d check trim. crc_cal = %d,  crc =%d,\r\n",
+		LOG_FLAG, __func__, si_pa->channel_num, crc_cal, crc);
+
 	si_pa->pa_status &= 0xFE; //clear status;
 	if (crc_cal != crc) {
 		pr_err("[  err][%s] %s: ch%d check trim crc failed! \r\n",
@@ -789,6 +804,37 @@ void sipa_regmap_check_trimming(
 		reg_list = &chip_cfg.trim_regs.default_set;
 		regs = (SIPA_REG_PROC *)(data + reg_list->offset);
 		sipa_regmap_proc_1_reg_list(si_pa, reg_list, regs, val_width);
+		return;
+	} else {
+		if (si_pa->chip_type == CHIP_TYPE_SIA8159 ||
+			si_pa->chip_type == CHIP_TYPE_SIA8159A) {
+
+			reg_list = &chip_cfg.trim_regs.default_set;
+			regs = (SIPA_REG_PROC *)(data + reg_list->offset);
+
+			for (i = 0; i < reg_list->num; i++) {
+				if (regs[i].addr == 0x20)
+					regs[i].val[si_pa->scene] = trim[2];
+
+				if (regs[i].addr == 0x21)
+					regs[i].val[si_pa->scene] = trim[1];
+
+				if (regs[i].addr == 0x22) {
+					regs[i].val[si_pa->scene] = trim[0];
+					if (trim[0] >= 0x20)
+						regs[i].val[si_pa->scene] -= 0x20;
+					else
+						regs[i].val[si_pa->scene] &= 0x0F;
+				}
+
+				ret = sipa_regmap_proc_1_reg(si_pa, &regs[i], val_width);
+				if (0 != ret) {
+					pr_err("[  err][%s] %s: ret = %d, chip_type = %u, regmap = %p, addr = 0x%x\r\n",
+						LOG_FLAG, __func__, ret, si_pa->chip_type, si_pa->regmap, regs[i].addr);
+					return;
+				}
+			}
+		}
 	}
 }
 /********************************************************************

@@ -75,15 +75,14 @@ static void zo_set_swappiness(void *data, int *swappiness)
 #else
 		*swappiness = g_swappiness;
 #endif
-#ifdef CONFIG_HYBRIDSWAP_SWAPD
-	} else if (strncmp(current->comm, "hybridswapd:", sizeof("hybridswapd:") - 1) == 0) {
-		*swappiness = g_hybridswapd_swappiness;
-		if (free_swap_is_low_fp && free_swap_is_low_fp())
-			*swappiness = 0;
-#endif
-	} else
-		*swappiness = g_direct_swappiness;
+	} else {
+		unsigned long file = global_node_page_state(NR_ACTIVE_FILE) +
+			global_node_page_state(NR_INACTIVE_FILE);
 
+		/* if file is tiny, do not change swappiness */
+		if (file > (SZ_512M >> PAGE_SHIFT))
+			*swappiness = g_direct_swappiness;
+	}
 	return;
 }
 

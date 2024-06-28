@@ -2289,8 +2289,8 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 									soc_info->rgltr_name[vreg_idx]);
 									goto power_up_failed;
 						}
-						usleep_range(power_setting->delay * 1000,
-										(power_setting->delay * 1000) + 1000);
+						usleep_range(power_setting->delay * 500,
+										(power_setting->delay * 500) + 100);
 
 						rc = cam_soc_util_regulator_disable(
 								soc_info->rgltr[vreg_idx],
@@ -2305,8 +2305,8 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 									soc_info->rgltr_name[vreg_idx]);
 									goto power_up_failed;
 						}
-						usleep_range(power_setting->delay * 1000,
-										(power_setting->delay * 1000) + 1000);
+						usleep_range(power_setting->delay * 500,
+										(power_setting->delay * 500) + 100);
 					}
 				}
 #endif

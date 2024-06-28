@@ -15,6 +15,7 @@
 #include "oplus_display_private_api.h"
 #include "oplus_display_interface.h"
 #include "sde_trace.h"
+#include "oplus_display_high_frequency_pwm.h"
 
 #if defined(CONFIG_PXLW_IRIS)
 #include "dsi_iris_loop_back.h"
@@ -558,6 +559,9 @@ int oplus_display_panel_get_serial_number(void *buf)
 		panel_serial_info.reg_index = display->panel->oplus_ser.serial_number_index;
 
 		panel_serial_info.year = (read[panel_serial_info.reg_index] & 0xF0) >> 0x4;
+		if (!strcmp(display->panel->name, "AC172 P 7 A0001 dsc cmd mode panel")) {
+			panel_serial_info.year += 10;
+		}
 
 		panel_serial_info.month		= read[panel_serial_info.reg_index]	& 0x0F;
 		panel_serial_info.day		= read[panel_serial_info.reg_index + 1]	& 0x1F;
@@ -2308,6 +2312,15 @@ int oplus_display_panel_set_hbm_max(void *data)
 	}
 
 	LCD_INFO("Set hbm max state=%d\n", hbm_max_state);
+
+	if ((!strcmp(panel->name, "P 3 AB781 dsc cmd mode panel")
+		|| !strcmp(panel->name, "P 3 AB714 dsc cmd mode panel")
+		|| !strcmp(panel->name, "P 7 AB715 dsc cmd mode panel"))
+		&& oplus_panel_pwm_onepulse_is_enabled(panel)) {
+		LCD_WARN("panel onepulse is enable, can't set hbm max\n");
+		rc = -EFAULT;
+		return rc;
+	}
 
 	mutex_lock(&display->display_lock);
 

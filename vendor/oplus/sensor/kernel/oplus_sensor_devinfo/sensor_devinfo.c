@@ -55,12 +55,51 @@ __attribute__((weak)) int unregister_lcdinfo_notifier() {
 	return -1;
 }
 
-enum {
+enum panel_id {
 	SAMSUNG = 1,
 	BOE,
 	TIANMA,
 	NT36672C,
-	HX83112F
+	HX83112F,
+	P_3,
+	P_B,
+	PANEL_NUM
+};
+
+struct panel_node {
+        enum panel_id id;
+        char *lcm_name;
+};
+
+static struct panel_node g_panel_node[PANEL_NUM] = {
+	{
+		.id = SAMSUNG,
+		.lcm_name = "samsung",
+	},
+	{
+		.id = BOE,
+		.lcm_name = "boe",
+	},
+	{
+		.id = TIANMA,
+		.lcm_name = "tianma",
+	},
+	{
+		.id = NT36672C,
+		.lcm_name = "nt36672c",
+	},
+	{
+		.id = HX83112F,
+		.lcm_name = "hx83112f",
+	},
+	{
+		.id = P_3,
+		.lcm_name = "p_3",
+	},
+	{
+		.id = P_B,
+		.lcm_name = "p_B",
+	}
 };
 
 #define DEV_TAG                     "[sensor_devinfo] "
@@ -89,6 +128,12 @@ enum {
 #define GOLD_REAR_ALS_FACTOR        (0x10)
 #define GOLD_REAR_CCT_FACTOR        (0x11)
 #define GYRO_CALI_RANGE             (0x12)
+#define GOLD_CCT_3K                 (0x13)
+#define GOLD_CCT_6K                 (0x14)
+#define GOLD_CCT_FACTOR             (0x15)
+#define CCT_TYPE                    (0x16)
+#define GOLD_CCT_CHANNELS           (0x17)
+#define CCT_GAIN_CALI               (0x18)
 
 #define RED_MAX_LUX                 (0x01)
 #define GREEN_MAX_LUX               (0x02)
@@ -111,7 +156,12 @@ enum {
 #define ID_SARS -1
 #endif
 
+#ifndef ID_PWM_RGB
+#define ID_PWM_RGB 115
+#endif
+
 #define SOURCE_NUM 6
+#define MAX_SIZE 64
 
 struct delayed_work parameter_work;
 struct delayed_work utc_work;
@@ -141,11 +191,27 @@ static int gold_rear_als_factor = 1001;
 static uint32_t lb_bri_max = 320;
 atomic_t utc_suspend;
 
+static char gold_cct_3k[35] = {0};
+static char gold_cct_6k[35] = {0};
+static char gold_cct_factor[35] = {0};
+static int cct_type = CCT_NORMAL;
+static int gold_cct_channels = 4;
+static int g_cct_gain_cali = 0;
+static int support_panel = 0;
+
+static bool g_report_brightness = false;
+static bool g_support_bri_to_hal = false;
+static bool g_support_bri_to_scp = false;
+static bool g_support_pwm_turbo = false;
+static bool g_need_to_sync_lcd_rate = false;
+
 enum {
 	NONE_TYPE = 0,
 	LCM_DC_MODE_TYPE,
 	LCM_BRIGHTNESS_TYPE,
 	MAX_INFO_TYPE,
+	LCM_PWM_TURBO = 0x14,
+	LCM_ADFR_MIN_FPS = 0x15,
 };
 struct sensorlist_info_t {
 	char name[16];
@@ -155,7 +221,13 @@ struct als_info{
 	uint16_t brightness;
 	uint16_t dc_mode;
 	bool use_lb_algo;
-};
+	uint16_t pwm_turbo;
+	uint16_t rt_bri;
+	uint16_t fps;
+#if IS_ENABLED(CONFIG_OPLUS_SENSOR_USE_BLANK_MODE)
+	uint16_t blank_mode;
+#endif
+}__packed __aligned(4);
 
 struct als_info g_als_info;
 
@@ -176,6 +248,7 @@ enum {
 	ps,
 	baro,
 	rear_cct,
+	front_cct,
 	maxhandle,
 };
 
@@ -415,6 +488,8 @@ static inline int handle_to_sensor(int handle)
 		break;
 	case rear_cct:
 		sensor = ID_REAR_CCT;
+	case front_cct:
+		sensor = ID_CCT;
 	}
 	return sensor;
 }
@@ -531,6 +606,9 @@ static int sensor_read_oplus_custom(struct cali_data *data)
 		data->ps_cali_data[0], data->ps_cali_data[1], data->ps_cali_data[2],
 		data->ps_cali_data[3], data->ps_cali_data[4], data->ps_cali_data[5],
 		data->als_factor, data->baro_cali_offset);
+	DEVINFO_LOG("cct_cali_data [%d,%d,%d,%d,%d,%d]\n",
+		data->cct_cali_data[0], data->cct_cali_data[1], data->cct_cali_data[2],
+		data->cct_cali_data[3], data->cct_cali_data[4], data->cct_cali_data[5]);
 	return 0;
 }
 
@@ -539,10 +617,12 @@ static void transfer_lcdinfo_to_scp(struct work_struct *dwork)
 	int err = 0;
 	unsigned int len = 0;
 	union SCP_SENSOR_HUB_DATA lcdinfo_req;
-	lcdinfo_req.req.sensorType = ID_LIGHT;
+	lcdinfo_req.req.sensorType = OPLUS_LIGHT;
 	lcdinfo_req.req.action = OPLUS_ACTION_SET_LCD_INFO;
-	DEVINFO_LOG("send lcd info to scp brightness %d, dc_mode %d", (uint32_t)g_als_info.brightness, (uint32_t)g_als_info.dc_mode);
-	lcdinfo_req.req.data[0] = (uint32_t)g_als_info.brightness << 16 | g_als_info.dc_mode;
+	DEVINFO_LOG("send lcd info to scp brightness %d, dc_mode %d, pwm_turbo:%d",
+		(uint32_t)g_als_info.brightness, (uint32_t)g_als_info.dc_mode, (uint32_t)g_als_info.pwm_turbo);
+	lcdinfo_req.req.data[0] = (uint32_t)g_als_info.brightness << 16 | (uint32_t)g_als_info.dc_mode << 8 | (uint32_t)g_als_info.pwm_turbo;
+	DEVINFO_LOG("send lcd info to scp, sensortype:%d, data:%d", lcdinfo_req.req.sensorType, lcdinfo_req.req.data[0]);
 	len = sizeof(lcdinfo_req.req);
 	#ifdef CONFIG_OPLUS_SENSOR_MTK68XX
 	err = mtk_nanohub_req_send(&lcdinfo_req);
@@ -650,6 +730,24 @@ int oplus_send_factory_mode_cmd_to_hub(int sensorType, int mode, void *result)
 	case ID_CCT:
 		DEVINFO_LOG("ID_CCT : send_factory_mode_cmd_to_hub");
 		fac_req.req.sensorType =  OPLUS_CCT;
+		fac_req.req.action = OPLUS_ACTION_SET_FACTORY_MODE;
+		fac_req.req.data[0] = mode;
+		len = sizeof(fac_req.req);
+#ifdef CONFIG_OPLUS_SENSOR_MTK68XX
+		err = mtk_nanohub_req_send(&fac_req);
+#else
+		err = scp_sensorHub_req_send(&fac_req, &len, 1);
+#endif
+		if (err < 0 || fac_req.rsp.action != OPLUS_ACTION_SET_FACTORY_MODE) {
+			DEVINFO_LOG("fail! err %d\n", err);
+			return -1;
+		} else {
+			*((uint8_t *) result) = fac_req.rsp.reserve[0];
+		}
+		break;
+	case ID_PWM_RGB:
+		DEVINFO_LOG("ID_PWM_RGB : send_factory_mode_cmd_to_hub");
+		fac_req.req.sensorType =  OPLUS_LIGHT;
 		fac_req.req.action = OPLUS_ACTION_SET_FACTORY_MODE;
 		fac_req.req.data[0] = mode;
 		len = sizeof(fac_req.req);
@@ -1275,6 +1373,189 @@ exit:
 	return rc;
 }
 
+static struct panel_node * find_panel(enum panel_id id)
+{
+	int index = 0;
+	for (index = 0; index < PANEL_NUM; ++index) {
+		if (g_panel_node[index].id == id) {
+			return &g_panel_node[index];
+		}
+	}
+	return NULL;
+}
+
+static void choose_special_gold_cct_value(int support_panel)
+{
+	uint32_t gold_cct_r = 0;
+	uint32_t gold_cct_g = 0;
+	uint32_t gold_cct_b = 0;
+	uint32_t gold_cct_c = 0;
+	uint32_t gold_cct_w = 0;
+	uint32_t gold_cct_f = 0;
+	int offset = 0;
+	int len = 0;
+	void *fdt = initial_boot_params;
+	char als_panel[MAX_SIZE] = {0};
+	struct panel_node *p_node = NULL;
+	const struct fdt_property *front_cct_feature = NULL;
+
+	p_node = find_panel(support_panel);
+	if (p_node == NULL) {
+		DEVINFO_LOG("find panel fail\n");
+		return;
+	}
+
+	snprintf(als_panel, MAX_SIZE, "/odm/als_panel_%s_1", p_node->lcm_name);
+	DEVINFO_LOG("%s\n", als_panel);
+	/*get 3000k gold ch*/
+	offset = fdt_path_offset(fdt, als_panel);
+	front_cct_feature = fdt_get_property(fdt, offset, "gold_cct_3k", &len);
+	if (front_cct_feature == NULL) {
+		DEVINFO_LOG("gold_cct_3k fail\n");
+		return;
+	} else {
+		gold_cct_r = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data));
+		gold_cct_g = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 1));
+		gold_cct_b = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 2));
+		gold_cct_c = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 3));
+		gold_cct_w = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 4));
+		gold_cct_f = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 5));
+		DEVINFO_LOG("gold_cct_3k [%u, %u, %u, %u, %u, %u]",
+			gold_cct_r, gold_cct_g, gold_cct_b,
+			gold_cct_c, gold_cct_w, gold_cct_f);
+
+		sprintf(gold_cct_3k, "%u %u %u %u %u %u",
+			gold_cct_r, gold_cct_g, gold_cct_b,
+			gold_cct_c, gold_cct_w, gold_cct_f);
+	}
+
+	/*get 6000k gold ch*/
+	front_cct_feature = fdt_get_property(fdt, offset, "gold_cct_6k", &len);
+	if (front_cct_feature == NULL) {
+		DEVINFO_LOG("gold_cct_6k fail\n");
+		return;
+	} else {
+		gold_cct_r = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data));
+		gold_cct_g = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 1));
+		gold_cct_b = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 2));
+		gold_cct_c = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 3));
+		gold_cct_w = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 4));
+		gold_cct_f = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 5));
+		DEVINFO_LOG("gold_cct_3k [%u, %u, %u, %u, %u, %u]",
+			gold_cct_r, gold_cct_g, gold_cct_b,
+			gold_cct_c, gold_cct_w, gold_cct_f);
+
+		sprintf(gold_cct_6k, "%u %u %u %u %u %u",
+			gold_cct_r, gold_cct_g, gold_cct_b,
+			gold_cct_c, gold_cct_w, gold_cct_f);
+	}
+}
+
+static void get_front_cct_feature(void)
+{
+	const struct fdt_property *front_cct_feature = NULL;
+	uint32_t gold_cct_r = 0;
+	uint32_t gold_cct_g = 0;
+	uint32_t gold_cct_b = 0;
+	uint32_t gold_cct_c = 0;
+	uint32_t gold_cct_w = 0;
+	uint32_t gold_cct_f = 0;
+
+	front_cct_feature = oplus_get_dts_feature(front_cct, "/odm/light", "cct_type");
+	if (front_cct_feature == NULL) {
+		cct_type = CCT_WISE;
+	} else {
+		cct_type = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data));
+		cct_type = CCT_WISE;
+	}
+	DEVINFO_LOG("cct_type = %d", cct_type);
+
+	front_cct_feature = oplus_get_dts_feature(front_cct, "/odm/light", "support_panel");
+	if (front_cct_feature == NULL) {
+		support_panel = 0; /* not support 2 panel */
+	} else {
+		support_panel = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data));
+	}
+	DEVINFO_LOG("support_panel = %d", support_panel);
+
+	if (support_panel > 0) {
+		DEVINFO_LOG("choose special gold cct");
+		choose_special_gold_cct_value(support_panel);
+	} else {
+		/*get 3000k gold ch*/
+		front_cct_feature = oplus_get_dts_feature(front_cct, "/odm/light", "gold_cct_3k");
+		if (front_cct_feature == NULL) {
+			DEVINFO_LOG("gold_cct_3k fail\n");
+			return;
+		} else {
+			gold_cct_r = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data));
+			gold_cct_g = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 1));
+			gold_cct_b = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 2));
+			gold_cct_c = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 3));
+			gold_cct_w = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 4));
+			gold_cct_f = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 5));
+			DEVINFO_LOG("gold_cct_3k [%u, %u, %u, %u, %u, %u]",
+					gold_cct_r, gold_cct_g, gold_cct_b,
+					gold_cct_c, gold_cct_w, gold_cct_f);
+
+			sprintf(gold_cct_3k, "%u %u %u %u %u %u",
+					gold_cct_r, gold_cct_g, gold_cct_b,
+					gold_cct_c, gold_cct_w, gold_cct_f);
+		}
+
+		/*get 6000k gold ch*/
+		front_cct_feature = oplus_get_dts_feature(front_cct, "/odm/light", "gold_cct_6k");
+		if (front_cct_feature == NULL) {
+			DEVINFO_LOG("gold_cct_6k fail\n");
+			return;
+		} else {
+			gold_cct_r = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data));
+			gold_cct_g = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 1));
+			gold_cct_b = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 2));
+			gold_cct_c = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 3));
+			gold_cct_w = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 4));
+			gold_cct_f = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 5));
+			DEVINFO_LOG("gold_cct_6k [%u, %u, %u, %u, %u, %u]",
+					gold_cct_r, gold_cct_g, gold_cct_b,
+					gold_cct_c, gold_cct_w, gold_cct_f);
+
+			sprintf(gold_cct_6k, "%u %u %u %u %u %u",
+					gold_cct_r, gold_cct_g, gold_cct_b,
+					gold_cct_c, gold_cct_w, gold_cct_f);
+		}
+	}
+
+	/* get gold_cct_factor */
+	front_cct_feature = oplus_get_dts_feature(front_cct, "/odm/light", "gold_cct_factor");
+	if (front_cct_feature == NULL) {
+		DEVINFO_LOG("gold_cct_factor fail, use default\n");
+		sprintf(gold_cct_factor, "%d %d %d %d %d %d", 1001, 1001, 1001, 1001, 1001, 1001);
+		return;
+	} else {
+		gold_cct_r = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data));
+		gold_cct_g = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 1));
+		gold_cct_b = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 2));
+		gold_cct_c = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 3));
+		gold_cct_w = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 4));
+		gold_cct_f = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data + 5));
+		DEVINFO_LOG("gold_cct_factor [%u, %u, %u, %u, %u, %u]",
+				gold_cct_r, gold_cct_g, gold_cct_b,
+				gold_cct_c, gold_cct_w, gold_cct_f);
+
+		sprintf(gold_cct_factor, "%u %u %u %u %u %u",
+				gold_cct_r, gold_cct_g, gold_cct_b,
+				gold_cct_c, gold_cct_w, gold_cct_f);
+	}
+
+	front_cct_feature = oplus_get_dts_feature(front_cct, "/odm/light", "need_gain_cali");
+	if (front_cct_feature == NULL) {
+		DEVINFO_LOG("g_cct_gain_cali fail, use default\n");
+	} else {
+		g_cct_gain_cali = fdt32_to_cpu(*((uint32_t *)front_cct_feature->data));
+	}
+	DEVINFO_LOG("g_cct_gain_cali = %d", g_cct_gain_cali);
+}
+
 static void sensor_devinfo_work(struct work_struct *dwork)
 {
 	int ret = 0;
@@ -1357,6 +1638,16 @@ static void sensor_devinfo_work(struct work_struct *dwork)
 	}
 	memset(cfg_data, 0, sizeof(int) * 12);
 
+	/*front cct*/
+	for (index = 0; index < 6; index++) {
+		cfg_data[index] = g_cali_data->cct_cali_data[index];
+	}
+	ret = oplus_sensor_cfg_to_hub(ID_CCT, (uint8_t *)cfg_data, sizeof(cfg_data));
+	if (ret < 0) {
+		DEVINFO_LOG("send cct config fail\n");
+	}
+	memset(cfg_data, 0, sizeof(int) * 12);
+
 	/*rear cct*/
 	for (index = 0; index < 6; index++) {
 		cfg_data[index] = g_cali_data->cct_cali_data[index];
@@ -1388,6 +1679,7 @@ static void sensor_devinfo_work(struct work_struct *dwork)
 	get_gold_rear_cct();
 	get_acc_gyro_cali_nv_adapt_q_flag();
 	oplus_mag_para_init();
+	get_front_cct_feature();
 
 	DEVINFO_LOG("success \n");
 }
@@ -1621,6 +1913,28 @@ static int sensor_feature_read_func(struct seq_file *s, void *v)
 	case GYRO_CALI_RANGE:
 		seq_printf(s, "%d", gyro_cali_range);
 		break;
+	case GOLD_CCT_3K:
+		seq_printf(s, "%s", gold_cct_3k);
+		DEVINFO_LOG("gold_cct_3k = %s \n", gold_cct_3k);
+		break;
+	case GOLD_CCT_6K:
+		DEVINFO_LOG("gold_cct_6k = %s \n", gold_cct_6k);
+		seq_printf(s, "%s", gold_cct_6k);
+		break;
+	case GOLD_CCT_FACTOR:
+		DEVINFO_LOG("gold_cct_factor = %s \n", gold_cct_factor);
+		seq_printf(s, "%s", gold_cct_factor);
+		break;
+	case CCT_TYPE:
+		seq_printf(s, "%d", cct_type);
+		break;
+	case GOLD_CCT_CHANNELS:
+		seq_printf(s, "%d", gold_cct_channels);
+		break;
+	case CCT_GAIN_CALI:
+		DEVINFO_LOG("g_cct_gain_cali = %d \n", g_cct_gain_cali);
+		seq_printf(s, "%d", g_cct_gain_cali);
+		break;
 	default:
 		seq_printf(s, "not support chendai\n");
 	}
@@ -1634,6 +1948,8 @@ static ssize_t sensor_feature_write(struct file *filp, const char *ubuf, size_t 
 	long val = 0;
 	int ret = 0;
 	int result = 0;
+	int cfg_data[12] = {0};
+	int index = 0;
 	struct seq_file *s = filp->private_data;
 	void *p = s->private;
 	int node = Ptr2UINT32(p);
@@ -1671,6 +1987,44 @@ static ssize_t sensor_feature_write(struct file *filp, const char *ubuf, size_t 
 			break;
 		case CCT_NORMAL_MODE:
 			ret = oplus_send_factory_mode_cmd_to_hub(ID_CCT, 0, &result);
+			break;
+		case CFG_CCT_CALI_DATA_MODE:
+			ret = sensor_read_oplus_custom(g_cali_data);
+			if (ret) {
+				DEVINFO_LOG("try again\n");
+				msleep(100);
+				sensor_read_oplus_custom(g_cali_data);
+			}
+			for (index = 0; index < 12; index++) {
+				cfg_data[index] = g_cali_data->cct_cali_data[index];
+			}
+			DEVINFO_LOG("cct_cali_data [%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d]\n",
+				cfg_data[0], cfg_data[1], cfg_data[2],
+				cfg_data[3], cfg_data[4], cfg_data[5],
+				cfg_data[6], cfg_data[7], cfg_data[8],
+				cfg_data[9], cfg_data[10], cfg_data[11]);
+			ret = oplus_sensor_cfg_to_hub(ID_CCT, (uint8_t *)cfg_data, sizeof(cfg_data));
+			if (ret < 0) {
+				DEVINFO_LOG("send cct config fail\n");
+			}
+			break;
+		case LEAK_CALI_NORMAL_MODE:
+			ret = oplus_send_factory_mode_cmd_to_hub(ID_PWM_RGB, 0, &result);
+			break;
+		case LEAR_CALI_MODE:
+			ret = oplus_send_factory_mode_cmd_to_hub(ID_PWM_RGB, 1, &result);
+			break;
+		case CCT_FACTORY_512_GAIN:
+			ret = oplus_send_factory_mode_cmd_to_hub(ID_PWM_RGB, 2, &result);
+			break;
+		case CCT_FACTORY_1024_GAIN:
+			ret = oplus_send_factory_mode_cmd_to_hub(ID_PWM_RGB, 3, &result);
+			break;
+		case CCT_FACTORY_2048_GAIN:
+			ret = oplus_send_factory_mode_cmd_to_hub(ID_PWM_RGB, 4, &result);
+			break;
+		case CCT_FACTORY_GAIN_NORMAL:
+			ret = oplus_send_factory_mode_cmd_to_hub(ID_PWM_RGB, 5, &result);
 			break;
 		default:
 			DEVINFO_LOG("ivalid sensor mode\n");
@@ -1837,6 +2191,48 @@ static int oplus_sensor_feature_init()
 		DEVINFO_LOG("gold_rear_cct_factor err\n ");
 		return -ENOMEM;
 	}
+
+	p_entry = proc_create_data("gold_cct_3k", S_IRUGO | S_IWUGO, oplus_sensor, &Sensor_info_fops,
+			UINT2Ptr(GOLD_CCT_3K));
+	if (!p_entry) {
+		DEVINFO_LOG("gold_cct_3k err\n ");
+		return -ENOMEM;
+	}
+
+	p_entry = proc_create_data("gold_cct_6k", S_IRUGO | S_IWUGO, oplus_sensor, &Sensor_info_fops,
+			UINT2Ptr(GOLD_CCT_6K));
+	if (!p_entry) {
+		DEVINFO_LOG("gold_cct_6k err\n ");
+		return -ENOMEM;
+	}
+
+	p_entry = proc_create_data("gold_cct_factor", S_IRUGO | S_IWUGO, oplus_sensor, &Sensor_info_fops,
+			UINT2Ptr(GOLD_CCT_FACTOR));
+	if (!p_entry) {
+		DEVINFO_LOG("gold_cct_factor err\n ");
+		return -ENOMEM;
+	}
+
+	p_entry = proc_create_data("cct_type", S_IRUGO | S_IWUGO, oplus_sensor, &Sensor_info_fops,
+			UINT2Ptr(CCT_TYPE));
+	if (!p_entry) {
+		DEVINFO_LOG("cct_type err\n ");
+		return -ENOMEM;
+	}
+
+	p_entry = proc_create_data("gold_cct_channels", S_IRUGO | S_IWUGO, oplus_sensor, &Sensor_info_fops,
+			UINT2Ptr(GOLD_CCT_CHANNELS));
+	if (!p_entry) {
+		DEVINFO_LOG("gold_cct_channels err\n ");
+		return -ENOMEM;
+	}
+
+	p_entry = proc_create_data("cct_gain_cali", S_IRUGO | S_IWUGO, oplus_sensor, &Sensor_info_fops,
+			UINT2Ptr(CCT_GAIN_CALI));
+	if (!p_entry) {
+		DEVINFO_LOG("cct_gain_cali err\n ");
+		return -ENOMEM;
+	}
 	return 0;
 }
 #ifdef CONFIG_OPLUS_SENSOR_MTK68XX
@@ -1904,9 +2300,7 @@ static int lcdinfo_callback(struct notifier_block *nb,
 		val = *(bool*)data;
 		if (val != g_als_info.dc_mode) {
 			g_als_info.dc_mode = val;
-			if (g_als_info.use_lb_algo) {
-				schedule_delayed_work(&lcdinfo_work, 0);
-			}
+			schedule_delayed_work(&lcdinfo_work, 0);
 		}
 		break;
 	case LCM_BRIGHTNESS_TYPE:
@@ -1924,6 +2318,22 @@ static int lcdinfo_callback(struct notifier_block *nb,
 		}
 
 		break;
+	case LCM_PWM_TURBO:
+		val = *(bool*)data;
+		if (g_support_pwm_turbo) {
+			if (val != g_als_info.pwm_turbo) {
+				g_als_info.pwm_turbo = val;
+				schedule_delayed_work(&lcdinfo_work, 0);
+			}
+		}
+		break;
+	case LCM_ADFR_MIN_FPS:
+		val = *(int*)data;
+		if (g_need_to_sync_lcd_rate) {
+			g_als_info.fps = val;
+			schedule_delayed_work(&lcdinfo_work, 0);
+		}
+		break;
 	default:
 		break;
 	}
@@ -1932,10 +2342,75 @@ static int lcdinfo_callback(struct notifier_block *nb,
 static struct notifier_block lcdinfo_notifier = {
 	.notifier_call = lcdinfo_callback,
 };
+
+static int ssc_interactive_parse_dts(void)
+{
+	int ret = 0;
+	int report_brightness = 0;
+	int support_bri_to_scp = 0;
+	int support_pwm_turbo = 0;
+	int need_to_sync_lcd_rate = 0;
+
+	struct device_node *node = NULL;
+
+	node = of_find_node_by_name(NULL, "ssc_interactive");
+	if (!node) {
+		DEVINFO_LOG("find ssc_interactive fail\n");
+		return -ENOMEM;
+	}
+
+	ret = of_property_read_u32(node, "report_brightness", &report_brightness);
+	if (ret != 0) {
+		DEVINFO_LOG("read report_brightness fail\n");
+	}
+
+	if (report_brightness == 1) {
+		g_report_brightness = true;
+		DEVINFO_LOG("support brightness report\n");
+	}
+
+	ret = of_property_read_u32(node, "support_bri_to_scp", &support_bri_to_scp);
+	if (ret != 0) {
+		DEVINFO_LOG("read support_bri_to_scp fail\n");
+	}
+
+	if (support_bri_to_scp == 1) {
+		g_support_bri_to_scp = true;
+		DEVINFO_LOG("support bri_to_scp\n");
+	}
+
+	g_support_bri_to_hal = true;
+
+	ret = of_property_read_u32(node, "support_pwm_turbo", &support_pwm_turbo);
+	if (ret != 0) {
+		DEVINFO_LOG("read support_pwm_turbo fail\n");
+	}
+
+	support_pwm_turbo = 1;
+	if (support_pwm_turbo == 1) {
+		g_support_pwm_turbo = true;
+		DEVINFO_LOG("support pwm_turbo report\n");
+	}
+
+
+	ret = of_property_read_u32(node, "need_to_sync_lcd_rate", &need_to_sync_lcd_rate);
+	if (ret != 0) {
+		DEVINFO_LOG("read need_to_sync_lcd_rate fail\n");
+	}
+
+	if (need_to_sync_lcd_rate == 1) {
+		g_need_to_sync_lcd_rate = true;
+		DEVINFO_LOG("need_to_sync_lcd_rate\n");
+	}
+
+	return 0;
+}
+
 static int __init sensor_devinfo_init(void)
 {
 	int ret = 0;
 
+	ssc_interactive_parse_dts();
 	mag_soft_parameter_init();
 	get_new_arch_info();
 	is_support_lb_algo();

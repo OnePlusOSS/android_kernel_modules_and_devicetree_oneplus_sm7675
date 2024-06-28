@@ -125,6 +125,8 @@ int send_to_user(int sock_no, size_t len, const int *data)
 	struct sk_buff *skb = NULL;
 	int dt[MAX_DATA_LEN];
 	int num = len + SEND_DATA_LEN;
+	char buffer[1024];
+	int buf_len = 0;
 
 	if (recv_pid <= 0)
 		return ret;
@@ -141,8 +143,11 @@ int send_to_user(int sock_no, size_t len, const int *data)
 	/* fill the data */
 	for (i = 0; i + SEND_DATA_LEN < num; i++) {
 		dt[i + SEND_DATA_LEN] = data[i];
-		pr_info("cpu_netlink: send_to_user: %d\n", data[i]);
+		if(buf_len + 12 + 1 <= 1024) {
+		    buf_len += snprintf(buffer + buf_len, sizeof(buffer) - buf_len, ",%d", data[i]);
+		}
 	}
+	pr_info("cpu_netlink,sock_no:%d, len:%d, data%*s", dt[0], dt[1], buf_len, buffer);
 
 	len = sizeof(int) * num;
 	size = nla_total_size(len);

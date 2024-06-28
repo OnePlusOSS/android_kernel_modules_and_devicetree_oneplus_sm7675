@@ -2071,6 +2071,7 @@ static int wcd_mbhc_usbc_ana_event_handler(struct notifier_block *nb,
 		return -EINVAL;
 
 #ifdef OPLUS_ARCH_EXTENDS
+	dev_info(mbhc->component->dev, "%s: mode = %lu\n", __func__, mode);
 	/* Fix the l_det status when plug out after insertion */
 	mbhc->usbc_mode = mode;
 #endif /* OPLUS_ARCH_EXTENDS */

@@ -1837,14 +1837,7 @@ static bool is_freq_dbs_or_sbs(struct wlan_objmgr_psoc *psoc,
 			       qdf_freq_t freq_1,
 			       qdf_freq_t freq_2)
 {
-	if ((policy_mgr_is_hw_sbs_capable(psoc) &&
-	     policy_mgr_are_sbs_chan(psoc, freq_1, freq_2)) ||
-	    (policy_mgr_is_hw_dbs_capable(psoc) &&
-	     !wlan_reg_is_same_band_freqs(freq_1, freq_2))) {
-		return true;
-	}
-
-	return false;
+	return !policy_mgr_2_freq_always_on_same_mac(psoc, freq_1, freq_2);
 }
 
 #else
@@ -1892,7 +1885,6 @@ enum MLO_TYPE cm_bss_mlo_type(struct wlan_objmgr_psoc *psoc,
 	for (i = 0; i < entry->ml_info.num_links; i++) {
 		if (!entry->ml_info.link_info[i].is_valid_link)
 			continue;
-		multi_link = true;
 		freq_entry = entry->channel.chan_freq;
 		freq[i] = entry->ml_info.link_info[i].freq;
 		entry_partner[i] =
@@ -1900,8 +1892,17 @@ enum MLO_TYPE cm_bss_mlo_type(struct wlan_objmgr_psoc *psoc,
 				     &entry->ml_info.link_info[i].link_addr);
 		if (entry_partner[i])
 			freq[i] = entry_partner[i]->channel.chan_freq;
-		if (is_freq_dbs_or_sbs(psoc, freq[i], freq_entry))
+		if (is_freq_dbs_or_sbs(psoc, freq[i], freq_entry)) {
 			return MLMR;
+		} else if (freq[i] == freq_entry) {
+			mlme_debug("Partner " QDF_MAC_ADDR_FMT
+				   " freq %d same as assoc freq, invalid it",
+				   QDF_MAC_ADDR_REF(entry->ml_info.link_info[i].link_addr.bytes),
+				   freq[i]);
+			entry->ml_info.link_info[i].is_valid_link = false;
+		} else {
+			multi_link = true;
+		}
 	}
 
 	if (multi_link)

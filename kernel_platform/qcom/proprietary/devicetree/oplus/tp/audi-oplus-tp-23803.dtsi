@@ -274,6 +274,9 @@
 		synaptics,spi-mode = <0>;
 		synaptics,spi-byte-delay-us = <0>;
 		synaptics,spi-block-delay-us = <0>;
+
+		/* SW Support Feature Control */
+		tp_data_record_support;
 	};
 
 };
@@ -472,7 +475,7 @@
 			linux,input-type = <1>;
 			linux,code = <KEY_VOLUMEDOWN>;
 			gpio-key,wakeup;
-			debounce-interval = <15>;
+			debounce-interval = <32>;
 			linux,can-disable;
 		};
 	};

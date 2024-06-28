@@ -32,6 +32,8 @@
 #define AWDSP_RX_VMAX_0			(0X10013D17)
 #define AWDSP_RX_VMAX_1			(0X10013D18)
 #define AW_MSG_ID_SPIN			(0x10013D2E)
+#define AW_MSG_ID_ALGO_AUTHENTICATION	(0x10013D46)
+
 
 enum {
 	AW_SPIN_0 = 0,
@@ -74,5 +76,9 @@ int aw87xxx_dsp_get_spin(void);
 int aw87xxx_spin_set_record_val(void);
 void aw87xxx_device_parse_port_id_dt(struct aw_device *aw_dev);
 void aw87xxx_device_parse_topo_id_dt(struct aw_device *aw_dev);
+#ifdef AW_ALGO_AUTH_DSP
+int aw87xxx_dsp_get_algo_auth_data(struct aw_device *aw_dev, char *data, unsigned int data_len);
+int aw87xxx_dsp_set_algo_auth_data(struct aw_device *aw_dev, char *data, unsigned int data_len);
+#endif
 
 #endif

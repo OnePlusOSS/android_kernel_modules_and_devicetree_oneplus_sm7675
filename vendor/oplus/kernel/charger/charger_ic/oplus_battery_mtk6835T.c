@@ -5784,8 +5784,8 @@ static void oplus_ccdetect_enable(void)
 
 	/* set DRP mode */
 	if (pinfo != NULL && pinfo->tcpc != NULL) {
-		tcpm_typec_change_role(pinfo->tcpc, TYPEC_ROLE_DRP);
-		pr_err("%s: set drp", __func__);
+		tcpm_typec_change_role(pinfo->tcpc, TYPEC_ROLE_TRY_SNK);
+		pr_err("%s: set typec role try sink", __func__);
 	}
 }
 
@@ -5991,6 +5991,27 @@ static bool oplus_chg_get_vbus_status(struct oplus_chg_chip *chip)
                 return false;
 
 	return chip->charger_exist;
+}
+
+int oplus_check_pd_usb_type(void)
+{
+	struct tcpc_device *tcpc;
+	int ret = 0;
+
+	tcpc = tcpc_dev_get_by_name("type_c_port0");
+	if (!tcpc) {
+		chg_err("get type_c_port0 fail\n");
+		return PORT_ERROR;
+	}
+
+	if (!tcpm_inquire_pd_connected(tcpc))
+		return PORT_A;
+
+	ret = tcpm_inquire_dpm_flags(tcpc);
+	if (ret & DPM_FLAGS_PARTNER_USB_COMM)
+		return PORT_PD_WITH_USB;
+
+	return PORT_PD_WITHOUT_USB;
 }
 
 static void oplus_usbtemp_thread_init(void)

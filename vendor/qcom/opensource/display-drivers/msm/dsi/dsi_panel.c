@@ -10,6 +10,9 @@
 #include <linux/of_gpio.h>
 #include <linux/pwm.h>
 #include <video/mipi_display.h>
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+#include <linux/soc/qcom/panel_event_notifier.h>
+/*#endif OPLUS_FEATURE_TP_BASIC*/
 
 #include "dsi_panel.h"
 #include "dsi_ctrl_hw.h"
@@ -67,6 +70,24 @@
 #define MIN_PREFILL_LINES      40
 #define RSCC_MODE_THRESHOLD_TIME_US 40
 #define DCS_COMMAND_THRESHOLD_TIME_US 40
+
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+extern int (*tp_gesture_enable_notifier)(unsigned int tp_index);
+static int shutdown_flag = 0;
+static bool is_pd_with_guesture = false;
+static int panel_esd_check_failed = 0;
+static int tp_irq = 0;
+/* use to send panel event notification, and you can user "panel->name" to judge primary/secondary panel */
+#define OPLUS_PANEL_EVENT_NOTIFY(tp_index, event_type, data) { \
+	int blank = data; \
+	enum panel_event_notifier_tag panel_type = (tp_index == 0) ? PANEL_EVENT_NOTIFICATION_PRIMARY : PANEL_EVENT_NOTIFICATION_SECONDARY; \
+	struct panel_event_notification notification; \
+	notification.notif_type = event_type; \
+	notification.panel = &panel->drm_panel; \
+	notification.notif_data.lcd_ctl_blank = &blank; \
+	panel_event_notification_trigger(panel_type, &notification); \
+}
+/*#endif OPLUS_FEATURE_TP_BASIC*/
 
 static void dsi_dce_prepare_pps_header(char *buf, u32 pps_delay_ms)
 {
@@ -434,12 +455,26 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 	oplus_panel_gpio_pre_on(panel);
 #endif /* OPLUS_FEATURE_DISPLAY */
 
+#ifdef OPLUS_FEATURE_DISPLAY
+	if (!strcmp(panel->name, "Dual dsi csot nt36532 video mode panel with DSC")
+		|| !strcmp(panel->name, "Dual dsi nt36523w video mode panel with DSC")) {
+		rc = 0;
+	} else {
+		rc = dsi_pwr_enable_regulator(&panel->power_info, true);
+		if (rc) {
+			DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
+					panel->name, rc);
+			goto exit;
+		}
+	}
+#else
 	rc = dsi_pwr_enable_regulator(&panel->power_info, true);
 	if (rc) {
 		DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
 				panel->name, rc);
 		goto exit;
 	}
+#endif
 
 #if defined(CONFIG_PXLW_IRIS)
 	if (iris_is_chip_supported()) {
@@ -475,7 +510,7 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 				panel->name, rc);
 			goto error_disable_pinctrl;
 		}
-		usleep_range(10*1000, (10*1000)+100);
+		usleep_range(12*1000, (12*1000)+100);
 	}
 
 	if (!strcmp(panel->oplus_priv.vendor_name, "A0005")
@@ -487,9 +522,26 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		|| !strcmp(panel->oplus_priv.vendor_name, "A0004")) {
 		rc = 0;
 	} else {
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+		if (!strcmp(panel->name, "Dual dsi csot nt36532 video mode panel with DSC") \
+			|| !strcmp(panel->name, "Dual dsi nt36523w video mode panel with DSC")) {
+			if(tp_gesture_enable_notifier && tp_gesture_enable_notifier(0)) {
+				DSI_INFO("[%s][TP] set is_pd_with_guesture to true, first set reset low\n", __func__);
+				gpio_set_value(panel->reset_config.reset_gpio, 0);
+				usleep_range(5*1000, (5*1000)+100);
+			}
+		}
+/*#endif OPLUS_FEATURE_TP_BASIC*/
 		rc = dsi_panel_reset(panel);
 	}
 	oplus_pwm_set_power_on(panel);
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+	if (!strcmp(panel->name, "Dual dsi csot nt36532 video mode panel with DSC") \
+		|| !strcmp(panel->name, "Dual dsi nt36523w video mode panel with DSC")) {
+		DSI_INFO("[%s][TP] notify touch driver to pull up cs gpio.\n", __func__);
+		OPLUS_PANEL_EVENT_NOTIFY(0, DRM_PANEL_EVENT_FOR_TOUCH, 0x19); //LCD_CTL_CS_ON
+	}
+/*#endif OPLUS_FEATURE_TP_BASIC*/
 #else
 	rc = dsi_panel_reset(panel);
 #endif /* OPLUS_FEATURE_DISPLAY */
@@ -497,6 +549,14 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		DSI_ERR("[%s] failed to reset panel, rc=%d\n", panel->name, rc);
 		goto error_disable_gpio;
 	}
+
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+	if (!strcmp(panel->name, "Dual dsi csot nt36532 video mode panel with DSC") \
+		|| !strcmp(panel->name, "Dual dsi nt36523w video mode panel with DSC")) {
+		DSI_INFO("[%s][TP] notify touch driver to load tp firmware.\n", __func__);
+		OPLUS_PANEL_EVENT_NOTIFY(0, DRM_PANEL_EVENT_FOR_TOUCH, 0x10); //LCD_CTL_TP_LOAD_FW
+	}
+/*#endif OPLUS_FEATURE_TP_BASIC*/
 
 	goto exit;
 
@@ -521,6 +581,26 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 {
 	int rc = 0;
 
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+	if (!strcmp(panel->name, "Dual dsi csot nt36532 video mode panel with DSC") \
+		|| !strcmp(panel->name, "Dual dsi nt36523w video mode panel with DSC")) {
+		panel_esd_check_failed = atomic_read(&(panel->esd_recovery_pending));
+		if(tp_gesture_enable_notifier && tp_gesture_enable_notifier(0)) {
+			is_pd_with_guesture = true;
+			DSI_INFO("[%s][TP] set is_pd_with_guesture to true, shutdown_flag status is %d\n", __func__, shutdown_flag);
+			if (0 == shutdown_flag)
+				DSI_INFO("[%s][TP] tp gesture is enable, display not to power off\n", __func__);
+		} else {
+			is_pd_with_guesture = false;
+			DSI_INFO("[%s][TP] set is_pd_with_guesture to false\n", __func__);
+		}
+		if ((is_pd_with_guesture == false) || (1 == shutdown_flag) || panel_esd_check_failed) {
+			DSI_INFO("[%s][TP] notify touch driver to pull down cs gpio.\n", __func__);
+			OPLUS_PANEL_EVENT_NOTIFY(0, DRM_PANEL_EVENT_FOR_TOUCH, 0x1A); //LCD_CTL_CS_OFF
+		}
+	}
+/*#endif OPLUS_FEATURE_TP_BASIC*/
+
 #ifdef OPLUS_FEATURE_DISPLAY
 	DSI_INFO("debug for dsi_panel_power_off\n");
 #if defined(CONFIG_PXLW_IRIS)
@@ -543,8 +623,28 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
 	if (gpio_is_valid(panel->reset_config.reset_gpio) &&
-					!panel->reset_gpio_always_on)
-		gpio_set_value(panel->reset_config.reset_gpio, 0);
+					!panel->reset_gpio_always_on) {
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+		//DSI_INFO("[%s][TP] panel name is %s.\n", __func__, panel->name);
+		if (!strcmp(panel->name, "Dual dsi csot nt36532 video mode panel with DSC") \
+			|| !strcmp(panel->name, "Dual dsi nt36523w video mode panel with DSC")) {
+			DSI_INFO("[%s][TP] is_pd_with_guesture is %d, shutdown_flag = %d, panel_esd_check_failed = %d\n",
+				__func__, is_pd_with_guesture, shutdown_flag, panel_esd_check_failed);
+			if ((is_pd_with_guesture == true) && (0 == shutdown_flag) && (0 == panel_esd_check_failed )) {
+				gpio_set_value(panel->reset_config.reset_gpio, 1);
+				DSI_INFO("[%s][TP] set lcd reset to high for TP when gesture is enable\n", __func__);
+			} else {
+				gpio_set_value(panel->reset_config.reset_gpio, 0);
+				DSI_INFO("[%s][TP] set lcd reset to low for TP when gesture is disable\n", __func__);
+				tp_irq = gpio_to_irq(463);
+				disable_irq_nosync(tp_irq);
+			}
+		} else {
+			/* for other projects */
+			gpio_set_value(panel->reset_config.reset_gpio, 0);
+		}
+/*#endif OPLUS_FEATURE_TP_BASIC*/
+	}
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
@@ -563,15 +663,28 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 #ifdef OPLUS_FEATURE_DISPLAY
 	if(panel->bl_ic_ktz8866_used) {
 	/* add for ktz8866 power off */
-		rc = bl_ic_ktz8866_set_lcd_bias_by_gpio(false);
-		if (rc) {
-			DSI_ERR("[%s] failed set lcd_set_bias false, rc=%d\n", panel->name, rc);
-		}
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+		if ((is_pd_with_guesture == false) || (1 == shutdown_flag) || panel_esd_check_failed) {
+			tp_irq = gpio_to_irq(463);
+			disable_irq_nosync(tp_irq);
+			DSI_INFO("[%s][TP] need to disable tp irq %d and power off ktz8866 bias ,tp gesture = %d, shutdown_flag = %d, esd_check = %d\n",
+				__func__, tp_irq, is_pd_with_guesture, shutdown_flag, panel_esd_check_failed);
+/*#endif OPLUS_FEATURE_TP_BASIC*/
+			rc = bl_ic_ktz8866_set_lcd_bias_by_gpio(false);
+			if (rc) {
+				DSI_ERR("[%s] failed set lcd_set_bias false, rc=%d\n", panel->name, rc);
+			}
+			usleep_range(20*1000, (20*1000)+100);
 
-		rc = bl_ic_ktz8866_hw_en(false);
-		if (rc) {
-			DSI_ERR("[%s] failed set bl_ic_ktz8866_hw_en false, rc=%d\n", panel->name, rc);
+			rc = bl_ic_ktz8866_hw_en(false);
+			if (rc) {
+				DSI_ERR("[%s] failed set bl_ic_ktz8866_hw_en false, rc=%d\n", panel->name, rc);
+			}
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+		} else {
+			DSI_INFO("[%s][TP] tp gesture is enable, bl_ic_ktz8866 bias don't power off\n", __func__);
 		}
+/*#endif OPLUS_FEATURE_TP_BASIC*/
 	}
 #endif
 
@@ -585,10 +698,23 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	iris_power_off(panel);
 #endif
 
-	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
-	if (rc)
-		DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
-				panel->name, rc);
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+	if (!strcmp(panel->name,"Dual dsi csot nt36532 video mode panel with DSC") \
+		|| !strcmp(panel->name, "Dual dsi nt36523w video mode panel with DSC")) {
+		if ((is_pd_with_guesture == false) || (1 == shutdown_flag) || panel_esd_check_failed) {
+			DSI_INFO("[%s][TP] tp gesture is disable, display goto power off\n", __func__);
+			rc = dsi_pwr_enable_regulator(&panel->power_info, false);
+			if (rc)
+				DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
+						panel->name, rc);
+		}
+	} else {
+/*#endif OPLUS_FEATURE_TP_BASIC*/
+		rc = dsi_pwr_enable_regulator(&panel->power_info, false);
+		if (rc)
+			DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
+					panel->name, rc);
+	}
 
 #ifdef OPLUS_FEATURE_DISPLAY
 #if defined(CONFIG_PXLW_IRIS)
@@ -629,6 +755,7 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 	if (!panel || !panel->cur_mode)
 		return -EINVAL;
 #ifdef OPLUS_FEATURE_DISPLAY
+	OPLUS_LCD_TRACE_BEGIN(cmd_set_prop_map[type]);
 	oplus_panel_cmd_switch(panel, &type);
 	oplus_panel_cmdq_pack_handle(panel, type, true);
 	oplus_panel_cmd_print(panel, type);
@@ -709,6 +836,7 @@ error:
 				panel->oplus_priv.vendor_name, cmd_set_prop_map[type], rc);
 		WARN_ON(rc);
 	}
+	OPLUS_LCD_TRACE_END(cmd_set_prop_map[type]);
 #endif /* OPLUS_FEATURE_DISPLAY */
 	return rc;
 }
@@ -2246,6 +2374,7 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-hbm-exit-switch-command",
 	"qcom,mdss-dsi-hbm-max-command",
 	"qcom,mdss-dsi-hbm-exit-max-command",
+	"qcom,mdss-dsi-dimming-setting-command",
 	"qcom,mdss-dsi-pwm-switch-onepulse-command",
 	"qcom,mdss-dsi-timming-pwm-switch-onepulse-command",
 	"qcom,mdss-dsi-pwm-switch-1to3-command",
@@ -2414,6 +2543,7 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-hbm-exit-switch-command-state",
 	"qcom,mdss-dsi-hbm-max-command-state",
 	"qcom,mdss-dsi-hbm-exit-max-command-state",
+	"qcom,mdss-dsi-dimming-setting-command-state",
 	"qcom,mdss-dsi-pwm-switch-onepulse-command-state",
 	"qcom,mdss-dsi-timming-pwm-switch-onepulse-command-state",
 	"qcom,mdss-dsi-pwm-switch-1to3-command-state",
@@ -2991,7 +3121,7 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 		if (iris_is_chip_supported()) {
 			if (is_primary) {
 				DSI_ERR("[%s] failed get primary reset gpio, rc=%d\n", panel->name,
-					panel->reset_config.reset_gpio);			
+					panel->reset_config.reset_gpio);
 			}
 		} else {
 #endif
@@ -4185,6 +4315,13 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 				rc = -EINVAL;
 				goto error;
 			}
+		}
+#ifdef OPLUS_FEATURE_DISPLAY
+		else if (!strcmp(string, "mipi_err_check")) {
+			esd_config->status_mode = ESD_MODE_PANEL_MIPI_ERR_FLAG;
+		} else if (!strcmp(string, "error_flag")) {
+			esd_config->status_mode = ESD_MODE_PANEL_ERROR_FLAG;
+#endif /* OPLUS_FEATURE_DISPLAY */
 #if defined(CONFIG_PXLW_IRIS)
 		} else if (!strcmp(string, "esd_sw_sim_success") && iris_is_chip_supported()) {
 			esd_config->status_mode = ESD_MODE_SW_SIM_SUCCESS;
@@ -4215,7 +4352,20 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 	} else if (panel->esd_config.status_mode ==  ESD_MODE_PANEL_TE) {
 		esd_mode = "te_check";
 	}
-
+#ifdef OPLUS_FEATURE_DISPLAY
+	else if (panel->esd_config.status_mode ==  ESD_MODE_PANEL_ERROR_FLAG) {
+		esd_mode = "error_flag";
+		panel->esd_config.esd_error_flag_gpio = utils->get_named_gpio(utils->data,
+			"qcom,error-flag-gpio", 0);
+		panel->esd_config.esd_error_flag_gpio_slave = utils->get_named_gpio(utils->data,
+			"qcom,error-flag-gpio-slave", 0);
+		DSI_INFO("%s:get esd_error_flag_gpio[%d], esd_error_flag_gpio_slave[%d]\n",
+			__func__, panel->esd_config.esd_error_flag_gpio, panel->esd_config.esd_error_flag_gpio_slave);
+	}
+	else if (panel->esd_config.status_mode ==  ESD_MODE_PANEL_MIPI_ERR_FLAG) {
+		esd_mode = "mipi_err_check";
+	}
+#endif /* OPLUS_FEATURE_DISPLAY */
 	DSI_DEBUG("ESD enabled with mode: %s\n", esd_mode);
 
 	return 0;
@@ -5073,6 +5223,21 @@ int dsi_panel_pre_prepare(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+	if (!strcmp(panel->name, "Dual dsi csot nt36532 video mode panel with DSC")
+		|| !strcmp(panel->name, "Dual dsi nt36523w video mode panel with DSC")) {
+		if ((is_pd_with_guesture == false) || (1 == shutdown_flag) || panel_esd_check_failed) {
+			DSI_INFO("[%s][TP]:set power_on, is_pd_with_guesture = false\n", __func__);
+			rc = dsi_pwr_enable_regulator(&panel->power_info, true);
+			if (rc) {
+				DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
+						panel->name, rc);
+				goto error;
+			}
+		}
+	}
+/*#endif OPLUS_FEATURE_TP_BASIC*/
+
 #if defined(CONFIG_PXLW_IRIS)
 	iris_power_on(panel);
 #endif
@@ -5865,6 +6030,19 @@ int dsi_panel_unprepare(struct dsi_panel *panel)
 		       panel->name, rc);
 		goto error;
 	}
+
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+	if (!strcmp(panel->name, "Dual dsi csot nt36532 video mode panel with DSC") \
+		|| !strcmp(panel->name, "Dual dsi nt36523w video mode panel with DSC")) {
+		if ((tp_gesture_enable_notifier && (1 != tp_gesture_enable_notifier(0))) || (1 == shutdown_flag)) {
+			DSI_INFO("[%s][TP] tp gesture is disable, notify touch driver to set reset 0\n", __func__);
+			OPLUS_PANEL_EVENT_NOTIFY(0, DRM_PANEL_EVENT_FOR_TOUCH, 0x12); //LCD_CTL_RST_OFF
+			usleep_range(2000, 3000);
+			//if (gpio_is_valid(panel->reset_config.reset_gpio))
+			//	gpio_set_value(panel->reset_config.reset_gpio, 0);
+		}
+	}
+/*#endif OPLUS_FEATURE_TP_BASIC*/
 
 error:
 	mutex_unlock(&panel->panel_lock);

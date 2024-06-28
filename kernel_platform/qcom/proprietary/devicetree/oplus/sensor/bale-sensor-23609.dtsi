@@ -44,6 +44,13 @@
 	oplus_sensor {
 		compatible = "oplus,sensor-devinfo";
 		/*virtual sensor*/
+		cctsensor@0 {
+			sensor-name = <0x08>;//tcs3720
+			sensor-index = <0>;//source num
+			sensor-type = <6>;//OPLUS_CCT
+			first-source = "bale_P_3_AB714_dsc_cmd";
+			second-source = "bale_P_7_AB715_dsc_cmd";
+		};
 		mag_fusion {
 			sensor-type = <6>;//OPLUS_MAG_FUSION
 			is-virtual-sensor;

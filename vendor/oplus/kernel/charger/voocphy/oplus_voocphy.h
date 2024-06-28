@@ -669,6 +669,8 @@ struct oplus_voocphy_manager {
 	unsigned int master_cp_ichg;
 	unsigned int cp_vbat;
 	unsigned int cp_vac;
+	int cp_tsbus;
+	int cp_tsbat;
 	unsigned int slave_cp_ichg;
 	unsigned int slave_cp_vbus;
 	unsigned int slave_cp_vsys;

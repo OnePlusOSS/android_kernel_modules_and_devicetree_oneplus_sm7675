@@ -1621,6 +1621,7 @@ static int sc8517_charger_probe(struct i2c_client *client,
 
 	sc8517_create_device_node(&(client->dev));
 	voocphy->ops = &oplus_sc8517_ops;
+	sc8517_dump_registers(voocphy);
 	ret = oplus_register_voocphy(voocphy);
 	if (ret < 0) {
 		chg_err("failed to register voocphy, ret = %d", ret);

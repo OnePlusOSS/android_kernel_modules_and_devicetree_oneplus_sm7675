@@ -21,7 +21,7 @@
 #include <linux/signal.h>
 #include <linux/cpufeature.h>
 #include <linux/sched/clock.h>
-
+#include <linux/cgroup.h>
 #ifdef CONFIG_OPLUS_FEATURE_SCHED_SPREAD
 #include <linux/cpuhotplug.h>
 #endif /* CONFIG_OPLUS_FEATURE_SCHED_SPREAD */
@@ -42,9 +42,7 @@
 #include "sa_common.h"
 #include "sa_fair.h"
 #include "sa_priority.h"
-#ifdef CONFIG_LOCKING_PROTECT
-#include "sched_assist_locking.h"
-#endif
+
 
 #ifdef CONFIG_OPLUS_CPU_AUDIO_PERF
 #include "sa_audio.h"
@@ -68,6 +66,18 @@
 #define inherit_ux_get_bits(value, type)	((value & inherit_ux_mask_of(type)) >> inherit_ux_offset_of(type))
 #define inherit_ux_value(type, value)		((u64)value << inherit_ux_offset_of(type))
 
+#define SCHED_MAX_CPUSET 100ULL
+#define SCHED_MAX_CPUCTL 100ULL
+#define SCHED_MAX_CFS_R 1000ULL
+#define SCHED_MAX_RT_R 10ULL
+#define SCHED_MAX_AFFINITY_MASK 1000ULL
+#define MAX_PID (32768)
+#define CPUCTL_MULT_UNIT (SCHED_MAX_CPUSET)
+#define CFS_R_MULT_UNIT (CPUCTL_MULT_UNIT * SCHED_MAX_CPUCTL)
+#define RT_R_MULT_UNIT (CFS_R_MULT_UNIT * SCHED_MAX_CFS_R)
+#define AFFINITY_MASK_MULT_UNIT (RT_R_MULT_UNIT * SCHED_MAX_RT_R)
+#define AFFINITY_SET_MULT_UNIT (AFFINITY_MASK_MULT_UNIT * SCHED_MAX_AFFINITY_MASK)
+
 #ifdef CONFIG_OPLUS_FEATURE_TICK_GRAN
 DEFINE_PER_CPU(u64, retired_instrs);
 DEFINE_PER_CPU(u64, nvcsw);
@@ -90,6 +100,20 @@ static DEFINE_PER_CPU(int, prev_hwbinder_flag);
 
 #ifdef CONFIG_OPLUS_FEATURE_TICK_GRAN
 #define TICK_GRAN_NUM 3
+#endif
+
+#ifdef CONFIG_LOCKING_PROTECT
+struct sched_assist_locking_ops *locking_ops __read_mostly;
+
+void register_sched_assist_locking_ops(struct sched_assist_locking_ops *ops)
+{
+	if (!ops)
+		return;
+
+	if (cmpxchg(&locking_ops, NULL, ops))
+		pr_warn("sched_assist_locking_ops has already been registered!\n");
+}
+EXPORT_SYMBOL_GPL(register_sched_assist_locking_ops);
 #endif
 
 #define TOPAPP 4
@@ -393,9 +417,12 @@ void oplus_set_ux_state_lock(struct task_struct *t, int ux_state, int inherit_ty
 	}
 
 	ots = get_oplus_task_struct(t);
+
+	if (IS_ERR_OR_NULL(ots))
+		goto out;
 	if (inherit_type == INHERIT_UX_PIFUTEX)
 		goto set;
-	if (IS_ERR_OR_NULL(ots) || !test_task_is_fair(t) || (ux_state == ots->ux_state))
+	if (!test_task_is_fair(t) || (ux_state == ots->ux_state))
 		goto out;
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
@@ -571,6 +598,46 @@ void ux_priority_systrace_c(unsigned int cpu, struct task_struct *t)
 		tracing_mark_write(buf);
 		per_cpu(prev_preset_vruntime, cpu) = value;
 	}
+}
+
+void sched_info_systrace_c(unsigned int cpu, struct task_struct *p)
+{
+	struct rq *rq = cpu_rq(cpu);
+	struct cfs_rq *cfs_rq = &rq->cfs;
+	struct rt_rq *rt_rq = &rq->rt;
+	int cfs_running = cfs_rq->h_nr_running;
+	int rt_running = rt_rq->rt_nr_running;
+	struct oplus_task_struct *ots = get_oplus_task_struct(p);
+	u64 s_info = 0;
+	char buf[256];
+	struct css_set *cset;
+	int cpu_cid, cpuset_cid;
+
+	cset = task_css_set(p);
+	cpu_cid = cset->subsys[cpu_cgrp_id] ? cset->subsys[cpu_cgrp_id]->id : 0;
+	cpuset_cid = cset->subsys[cpuset_cgrp_id] ? cset->subsys[cpuset_cgrp_id]->id : 0;
+	if (cpu_cid >= SCHED_MAX_CPUCTL)
+		cpu_cid = 0;
+	if (cpuset_cid >= SCHED_MAX_CPUSET)
+		cpuset_cid = 0;
+
+	if (cfs_running >= SCHED_MAX_CFS_R)
+		cfs_running = SCHED_MAX_CFS_R;
+	if (rt_running >= SCHED_MAX_RT_R)
+		rt_running = SCHED_MAX_RT_R;
+
+	s_info += cpuset_cid;
+	s_info += cpu_cid * CPUCTL_MULT_UNIT;
+	s_info += cfs_running * CFS_R_MULT_UNIT;
+	s_info += rt_running * RT_R_MULT_UNIT;
+	s_info += ((u8)cpumask_bits(&p->cpus_mask)[0]) * AFFINITY_MASK_MULT_UNIT;
+	if (cpumask_weight(&p->cpus_mask) < nr_cpu_ids) {
+		if (ots && likely(test_bit(OTS_STATE_SET_AFFINITY, &ots->state))
+			&& ots->affinity_pid > 0 && ots->affinity_pid < MAX_PID)
+			s_info += ((u64)ots->affinity_pid) * AFFINITY_SET_MULT_UNIT;
+	}
+	snprintf(buf, sizeof(buf), "C|9999|Cpu%d_sched_info|%llu\n", cpu, s_info);
+	tracing_mark_write(buf);
 }
 
 void fbg_state_systrace_c(unsigned int cpu, struct task_struct *p)
@@ -942,18 +1009,17 @@ static void dequeue_ux_thread(struct rq *rq, struct task_struct *p)
 	spin_lock_irqsave(orq->ux_list_lock, irqflag);
 	smp_mb__after_spinlock();
 	if (!oplus_rbnode_empty(&ots->ux_entry)) {
-		u64 now = jiffies_to_nsecs(jiffies);
-
 		update_ux_timeline_task_removal(orq, ots);
 
 		/* inherit ux can only keep it's ux state in MAX_INHERIT_GRAN(64 ms) */
-		if (get_ux_state_type(p) == UX_STATE_INHERIT && (now - ots->inherit_ux_start > MAX_INHERIT_GRAN)) {
+		if (get_ux_state_type(p) == UX_STATE_INHERIT &&
+			(p->se.sum_exec_runtime - ots->inherit_ux_start > MAX_INHERIT_GRAN)) {
 			atomic64_set(&ots->inherit_ux, 0);
 			ots->ux_depth = 0;
 			ots->ux_state = 0;
 			if (unlikely(global_debug_enabled & DEBUG_FTRACE))
-				trace_printk("dequeue and unset inherit ux task=%-12s pid=%d tgid=%d now=%llu inherit_start=%llu\n",
-					p->comm, p->pid, p->tgid, now, ots->inherit_ux_start);
+				trace_printk("dequeue and unset inherit ux task=%-12s pid=%d tgid=%d sum_exec_runtime=%llu inherit_start=%llu\n",
+					p->comm, p->pid, p->tgid, p->se.sum_exec_runtime, ots->inherit_ux_start);
 		}
 
 		if (ots->ux_state & SA_TYPE_ONCE) {
@@ -961,8 +1027,8 @@ static void dequeue_ux_thread(struct rq *rq, struct task_struct *p)
 			ots->ux_depth = 0;
 			ots->ux_state = 0;
 			if (unlikely(global_debug_enabled & DEBUG_FTRACE))
-				trace_printk("dequeue and unset once ux task=%-12s pid=%d tgid=%d now=%llu inherit_start=%llu\n",
-					p->comm, p->pid, p->tgid, now, ots->inherit_ux_start);
+				trace_printk("dequeue and unset once ux task=%-12s pid=%d tgid=%d inherit_start=%llu\n",
+					p->comm, p->pid, p->tgid, ots->inherit_ux_start);
 		}
 		put_task_struct(p);
 	}
@@ -1191,15 +1257,6 @@ void sched_assist_target_comm(struct task_struct *task, const char *buf)
 	int ux_state;
 
 	strlcpy(comm, buf, sizeof(comm));
-
-#ifdef CONFIG_LOCKING_PROTECT
-	if (locking_protect_disable == false) {
-		if(strstr(buf, "kernel_net_tes")) {
-			locking_protect_disable = true;
-			locking_wakeup_preepmt_enable = 0;
-		}
-	}
-#endif
 
 	/*set mali-event-handle ux when task fork*/
 	cgroup_set_sched_assist_boost_task(task, comm);
@@ -1588,6 +1645,7 @@ void android_rvh_schedule_handler(void *unused, unsigned int sched_mode, struct 
 
 	if (unlikely(global_debug_enabled & DEBUG_SYSTRACE) && likely(prev != next)) {
 		ux_state_systrace_c(cpu_of(rq), next);
+		sched_info_systrace_c(cpu_of(rq), next);
 	}
 
 	if (unlikely(global_debug_enabled & DEBUG_FBG) && likely(prev != next))
@@ -1595,7 +1653,7 @@ void android_rvh_schedule_handler(void *unused, unsigned int sched_mode, struct 
 
 #ifdef CONFIG_LOCKING_PROTECT
 	if (unlikely(global_debug_enabled & DEBUG_SYSTRACE) && likely(prev != next))
-		locking_state_systrace_c(cpu_of(rq), next);
+		LOCKING_CALL_OP(state_systrace_c, cpu_of(rq), next);
 #endif
 }
 EXPORT_SYMBOL(android_rvh_schedule_handler);
@@ -1631,9 +1689,7 @@ void android_vh_scheduler_tick_handler(void *unused, struct rq *rq)
 
 static int boost_kill = 1;
 module_param_named(boost_kill, boost_kill, uint, 0644);
-#ifdef CONFIG_LOCKING_PROTECT
-module_param_named(locking_wakeup_preepmt_enable, locking_wakeup_preepmt_enable, uint, 0644);
-#endif
+
 int get_grp(struct task_struct *p)
 {
 	struct cgroup_subsys_state *css;
@@ -1689,6 +1745,65 @@ void android_vh_cgroup_set_task_handler(void *unused, int ret, struct task_struc
 		}
 		rcu_read_unlock();
 	}
+}
+
+void sched_setaffinity_tracking(struct task_struct *task, const struct cpumask *in_mask)
+{
+	struct oplus_task_struct *ots;
+	struct task_struct *tsk_from = current;
+	struct task_struct *leader = NULL;
+	pid_t affinity_pid = -1, affinity_tgid = -1;
+	char affinity_comm[TASK_COMM_LEN];
+
+	ots = get_oplus_task_struct(task);
+	if (IS_ERR_OR_NULL(ots))
+		return;
+
+	rcu_read_lock();
+	if (pid_alive(tsk_from)) {
+		affinity_pid = tsk_from->pid;
+		strncpy(affinity_comm, tsk_from->comm, TASK_COMM_LEN);
+		leader = rcu_dereference(tsk_from->group_leader);
+		if (pid_alive(leader))
+			affinity_tgid = leader->pid;
+	}
+	rcu_read_unlock();
+
+	if(cpumask_weight(in_mask) < nr_cpu_ids) {
+		set_bit(OTS_STATE_SET_AFFINITY, &ots->state);
+		ots->affinity_pid = affinity_pid;
+		ots->affinity_tgid = affinity_tgid;
+		if (unlikely(global_debug_enabled & DEBUG_FTRACE)) {
+			pr_info("pid=%d comm=%s set task(pid=%d comm=%s state=%lu) affinity to mask=%*pbl\n",
+				tsk_from->pid, tsk_from->comm, task->pid, task->comm, ots->state, cpumask_pr_args(in_mask));
+		}
+	}
+}
+
+void android_rvh_sched_setaffinity_handler(void *unused, struct task_struct *p,
+					const struct cpumask *in_mask,
+					int *retval)
+{
+	struct oplus_task_struct *ots;
+	/* nothing to do if the affinity call failed */
+	if (*retval)
+		return;
+
+	ots = get_oplus_task_struct(p);
+	if (IS_ERR_OR_NULL(ots))
+		return;
+
+	if (cpumask_weight(in_mask) == nr_cpu_ids) {
+		clear_bit(OTS_STATE_SET_AFFINITY, &ots->state);
+		ots->affinity_pid = -1;
+		ots->affinity_tgid = -1;
+		if (unlikely(global_debug_enabled & DEBUG_FTRACE)) {
+			pr_info("clear affinity to task pid=%d comm=%s\n", p->pid, p->comm);
+		}
+		return;
+	}
+
+	sched_setaffinity_tracking(p, in_mask);
 }
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_BAN_APP_SET_AFFINITY)

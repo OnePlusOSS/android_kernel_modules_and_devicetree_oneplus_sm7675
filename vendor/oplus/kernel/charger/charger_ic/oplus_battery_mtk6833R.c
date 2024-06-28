@@ -1474,6 +1474,7 @@ void notify_adapter_event(enum adapter_type type, enum adapter_event evt,
 			oplus_get_adapter_svid();
 			chr_err("MTK_PD_CONNECT_PE_READY_SNK_APDO in_good_connect true\n");
 			oplus_chg_pps_get_source_cap(pinfo);
+			oplus_chg_wake_update_work();
 #endif
 
 			break;
@@ -4425,8 +4426,6 @@ int oplus_chg_enable_qc_detect(void)
 int oplus_chg_set_pps_config(int vbus_mv, int ibus_ma)
 {
 	int ret = 0;
-	int vbus_mv_t = 0;
-	int ibus_ma_t = 0;
 	struct tcpc_device *tcpc = NULL;
 	struct oplus_chg_chip *chip = g_oplus_chip;
 
@@ -4454,14 +4453,6 @@ int oplus_chg_set_pps_config(int vbus_mv, int ibus_ma)
 		chg_err("tcpm_dpm_pd_request fail");
 		return -EINVAL;
 	}
-
-	ret = tcpm_inquire_pd_contract(tcpc, &vbus_mv_t, &ibus_ma_t);
-	if (ret != TCPM_SUCCESS) {
-		chg_err("inquire current vbus_mv and ibus_ma fail");
-		return -EINVAL;
-	}
-
-	chg_err("inquire_pd_contract vbus_mv_t[%d], ibus_ma_t[%d]", vbus_mv_t, ibus_ma_t);
 
 	return ret;
 }
@@ -4628,7 +4619,7 @@ int oplus_pps_pd_exit(void)
 		return -EINVAL;
 	}
 
-	ret = tcpm_set_pd_charging_policy(tcpc, DPM_CHARGING_POLICY_VSAFE5V, NULL);
+	ret = tcpm_set_pd_charging_policy(tcpc, tcpc->pd_port.dpm_charging_policy_default, NULL);
 
 	ret = tcpm_dpm_pd_request(tcpc, vbus_mv_t, ibus_ma_t, NULL);
 	if (ret != TCPM_SUCCESS) {

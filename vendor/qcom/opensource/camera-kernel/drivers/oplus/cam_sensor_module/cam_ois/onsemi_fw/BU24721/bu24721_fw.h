@@ -18,7 +18,7 @@
 #define FM_wri_pro		0xFF0F
 #define FM_era			0x8000
 
-#define	SUM_C	0x0028A705
+#define	SUM_C	0x0028E692
 #define	SUM_D	0x0001FC85
 #define	LEN_1	0x1000
 #define	LEN_2	0x0000
@@ -40,7 +40,7 @@
 #define	FLASH_DATA_BIN_6_START	0x2900
 //#define	FLASH_DATA_BIN_7_START	0x2C80
 #define FLASH_DATA_CAL_START	0x3F70
-#define Pro_ID_0				0x1AA60143
+#define Pro_ID_0				0x1AA6018F
 #define FW_ID					0xF01C
 #define OIS_status				0xF024
 #define OIS_control				0xF020

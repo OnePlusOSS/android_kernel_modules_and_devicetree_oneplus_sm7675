@@ -77,6 +77,7 @@ struct rwsem_waiter {
 #define LK_FUTEX_ENABLE (1 << 2)
 #define LK_OSQ_ENABLE   (1 << 3)
 #define LK_PIFUTEX_ENABLE (1 << 4)
+#define LK_PROTECT_ENABLE	(1 << 5)
 
 #ifdef CONFIG_OPLUS_LOCKING_MONITOR
 /*
@@ -139,6 +140,10 @@ void unregister_rtmutex_vendor_hooks(void);
 void lk_sysfs_exit(void);
 #ifdef CONFIG_OPLUS_LOCKING_MONITOR
 void kern_lstat_exit(void);
+#endif
+
+#ifdef CONFIG_LOCKING_PROTECT
+int sched_assist_locking_init(void);
 #endif
 
 #endif /* _OPLUS_LOCKING_MAIN_H_ */

@@ -29,6 +29,7 @@
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
 #include <asm/div64.h>
+#include <linux/iio/consumer.h>
 
 #include "../oplus_charger.h"
 #include "oplus_bq27541.h"
@@ -325,6 +326,9 @@ void bq27426_modify_soc_smooth_parameter(struct chip_bq27541 *chip, bool on)
 	int value = 0;
 	u8 oldl_csum = 0, byte0 = 0, byte1_old = 0, byte1_new = 0, new_csum = 0, temp = 0;
 
+	if (!chip->bqfs_info.bqfs_ship)
+		return;
+
 	if (bq27426_unseal(chip)) {
 		chg_err("bq27426_unseal fail !\n");
 		return;
@@ -380,80 +384,271 @@ smooth_exit:
 	chg_err("[%d, %d] [0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x] end\n", on, rc, byte0, byte1_old, value, temp, new_csum, oldl_csum);
 }
 
-void bqfs_init(struct chip_bq27541 *chip)
+enum {
+	BAT_TYPE_UNKNOWN,
+	BAT_TYPE_LIWINON, /* 1K resistance, adc:[70,180]*/
+	BAT_TYPE_COSMX, /* 15 resistance, adc:[180,350]*/
+	BAT_TYPE_ATL, /* 68K resistance, adc:[550,790]*/
+	BAT_TYPE_MAX,
+};
+
+static int oplus_bqfs_get_iio_channel(struct chip_bq27541 *chip, const char *propname, struct iio_channel **chan)
+{
+	int rc = 0;
+
+	rc = of_property_match_string(chip->dev->of_node, "io-channel-names", propname);
+	if (rc < 0)
+		return rc;
+
+	*chan = iio_channel_get(chip->dev, propname);
+	if (IS_ERR(*chan)) {
+		rc = PTR_ERR(*chan);
+		if (rc != -EPROBE_DEFER)
+			chg_err("%s channel unavailable, %d\n", propname, rc);
+		*chan = NULL;
+	}
+
+	return rc;
+}
+
+#define UNIT_TRANS_1000		1000
+#define BATTID_ARR_LEN 3
+#define BATTID_ARR_WIDTH 3
+/* This function is for mainboard fuelgauge. Use adc to judge battery id */
+int oplus_battery_type_check_bqfs(struct chip_bq27541 *chip)
+{
+	int value = 0;
+	int ret = -1;
+	int battery_type = BAT_TYPE_UNKNOWN;
+	int batt_id_vol[BATTID_ARR_LEN][BATTID_ARR_WIDTH] = {	{70, 180},
+								{180, 350},
+								{550, 790}};
+
+	if (!chip) {
+		printk(KERN_ERR "[OPLUS_CHG][%s]: chip_bq27541 not ready!\n", __func__);
+		return false;
+	}
+	if (chip->device_type != DEVICE_BQ27426) {
+		return true;
+	}
+	if (IS_ERR_OR_NULL(chip->batt_id_chan)) {
+		printk(KERN_ERR "[OPLUS_CHG][%s]: chg->iio.batt_id_chan is NULL !\n", __func__);
+		return false;
+	} else {
+		ret = iio_read_channel_processed(chip->batt_id_chan, &value);
+		if (ret < 0 || value <= 0) {
+			chg_err("fail to read batt id adc ret = %d\n", ret);
+			return false;
+		}
+	}
+
+	value = value / UNIT_TRANS_1000;
+	if (value >= batt_id_vol[0][0] && value <= batt_id_vol[0][1]) {
+		battery_type = BAT_TYPE_LIWINON;
+	} else if (value >= batt_id_vol[1][0] && value <= batt_id_vol[1][1]) {
+		battery_type = BAT_TYPE_COSMX;
+	} else if (value >= batt_id_vol[2][0] && value <= batt_id_vol[2][1]) {
+		battery_type = BAT_TYPE_ATL;
+	}
+
+	chg_err("battery_id := %d, battery_type:%d\n", value, battery_type);
+
+	if (battery_type > BAT_TYPE_UNKNOWN && battery_type < BAT_TYPE_MAX) {
+		return battery_type;
+	} else {
+		return false;
+	}
+}
+EXPORT_SYMBOL(oplus_battery_type_check_bqfs);
+
+#define TRACK_LOCAL_T_NS_TO_S_THD 1000000000
+#define TRACK_UPLOAD_COUNT_MAX 10
+#define TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD (24 * 3600)
+static int oplus_bqfs_track_get_local_time_s(void)
+{
+	int local_time_s;
+
+	local_time_s = local_clock() / TRACK_LOCAL_T_NS_TO_S_THD;
+	pr_info("local_time_s:%d\n", local_time_s);
+
+	return local_time_s;
+}
+
+int oplus_bqfs_track_upload_upgrade_info(struct chip_bq27541 *chip, char *bsfs_msg)
+{
+	int index = 0;
+	int curr_time;
+	static int upload_count = 0;
+	static int pre_upload_time = 0;
+
+	mutex_lock(&chip->track_upload_lock);
+	curr_time = oplus_bqfs_track_get_local_time_s();
+	if (curr_time - pre_upload_time > TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD)
+		upload_count = 0;
+
+	if (upload_count > TRACK_UPLOAD_COUNT_MAX) {
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+	chg_err(" bsfs_msg = %s\n", bsfs_msg);
+
+	mutex_lock(&chip->track_bqfs_err_lock);
+	if (chip->bqfs_err_uploading) {
+		pr_info("bqfs_err_uploading, should return\n");
+		mutex_unlock(&chip->track_bqfs_err_lock);
+		mutex_unlock(&chip->track_upload_lock);
+		return 0;
+	}
+
+	if (chip->bqfs_err_load_trigger)
+		kfree(chip->bqfs_err_load_trigger);
+	chip->bqfs_err_load_trigger = kzalloc(sizeof(oplus_chg_track_trigger), GFP_KERNEL);
+	if (!chip->bqfs_err_load_trigger) {
+		pr_err("bqfs_err_load_trigger memery alloc fail\n");
+		mutex_unlock(&chip->track_bqfs_err_lock);
+		mutex_unlock(&chip->track_upload_lock);
+		return -ENOMEM;
+	}
+	chip->bqfs_err_load_trigger->type_reason = TRACK_NOTIFY_TYPE_DEVICE_ABNORMAL;
+	chip->bqfs_err_load_trigger->flag_reason = TRACK_NOTIFY_FLAG_GAGUE_ABNORMAL;
+	chip->bqfs_err_uploading = true;
+	upload_count++;
+	pre_upload_time = oplus_bqfs_track_get_local_time_s();
+	mutex_unlock(&chip->track_bqfs_err_lock);
+
+	index += snprintf(&(chip->bqfs_err_load_trigger->crux_info[index]), OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			  "$$bqfs_msg@@%s", bsfs_msg);
+	index += snprintf(&(chip->bqfs_err_load_trigger->crux_info[index]), OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			  "$$err_scene@@%s", OPLUS_CHG_TRACK_SCENE_GAUGE_BQFS_ERR);
+
+	schedule_delayed_work(&chip->bqfs_err_load_trigger_work, 0);
+	mutex_unlock(&chip->track_upload_lock);
+	chg_err("success\n");
+
+	return 0;
+}
+
+static int oplus_bqfs_track_debugfs_init(struct chip_bq27541 *chip)
+{
+	int ret = 0;
+	struct dentry *debugfs_root;
+	struct dentry *debugfs_bqfs_ic;
+
+	debugfs_root = oplus_chg_track_get_debugfs_root();
+	if (!debugfs_root) {
+		ret = -ENOENT;
+		return ret;
+	}
+
+	debugfs_bqfs_ic = debugfs_create_dir("bqfs_track", debugfs_root);
+	if (!debugfs_bqfs_ic) {
+		ret = -ENOENT;
+		return ret;
+	}
+
+	chip->debug_force_bqfs_err = false;
+	debugfs_create_u32("debug_force_bqfs_err", 0644, debugfs_bqfs_ic, &(chip->debug_force_bqfs_err));
+
+	return ret;
+}
+
+static void oplus_bqfs_track_upgrade_err_load_trigger_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct chip_bq27541 *chip = container_of(dwork, struct chip_bq27541, bqfs_err_load_trigger_work);
+
+	if (!chip->bqfs_err_load_trigger)
+		return;
+
+	oplus_chg_track_upload_trigger_data(*(chip->bqfs_err_load_trigger));
+
+	kfree(chip->bqfs_err_load_trigger);
+	chip->bqfs_err_load_trigger = NULL;
+
+	chip->bqfs_err_uploading = false;
+}
+
+static void oplus_bqfs_track_update_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct chip_bq27541 *chip = container_of(dwork, struct chip_bq27541, bqfs_track_update_work);
+
+	oplus_bqfs_track_upload_upgrade_info(chip, chip->bqfs_info.track_info);
+}
+
+enum { BQFS_FW_CHECK_OK,
+       BQFS_FW_UNSEAL_FAIL,
+       BQFS_FW_CMD_LEN_ERR,
+       BQFS_FW_CMD_UPGRADE_ERR,
+       BQFS_FW_UPGRADE_MAX,
+};
+
+static int oplus_bqfs_track_init(struct chip_bq27541 *chip)
+{
+	int rc;
+
+	if (!chip)
+		return -EINVAL;
+
+	mutex_init(&chip->track_bqfs_err_lock);
+	mutex_init(&chip->track_upload_lock);
+
+	chip->bqfs_err_uploading = false;
+	chip->bqfs_err_load_trigger = NULL;
+
+	INIT_DELAYED_WORK(&chip->bqfs_err_load_trigger_work, oplus_bqfs_track_upgrade_err_load_trigger_work);
+	INIT_DELAYED_WORK(&chip->bqfs_track_update_work, oplus_bqfs_track_update_work);
+
+	rc = oplus_bqfs_track_debugfs_init(chip);
+	if (rc < 0) {
+		chg_err("bqfs track debugfs init error, rc=%d\n", rc);
+		return rc;
+	}
+
+	return rc;
+}
+
+int bqfs_fw_upgrade(struct chip_bq27541 *chip, bool init)
 {
 #define BQFS_INIT_RETRY_MAX	3
 #define BQFS_CMD_X_LEN	2
 #define BQFS_CMD_SHITF	8
-	struct device_node *node = chip->dev->of_node;
-	struct device_node *bqfs_node = NULL;
-	struct device *dev = &chip->client->dev;
+#define PUSH_DELAY_MS 15000
 	unsigned char *p;
 	bqfs_cmd_t cmd;
-	u8 *pBuf = NULL;
-	int read_buf = 0, bqfs_dm = 0, value_dm = 0, bqfs_unfilt = 0;
-	int i, buflen, len;
-	int rc = -1, rec_cnt = 0, retry_times = 0;
+	int i, buflen = 0, len;
+	int rc = BQFS_FW_CHECK_OK, rec_cnt = 0, retry_times = 0;
+	int read_buf = 0, value_dm = 0, index = 0;
 
-	if (!chip)
-		return;
-
-	bqfs_node = of_find_node_by_name(node, "battery_bqfs_params");
-	if (bqfs_node == NULL) {
-		chg_err(": Can't find child node \"battery_bqfs_params\"");
-		return;
-	}
-
-	rc = of_property_read_u32(bqfs_node, "bqfs_dm", &bqfs_dm);
-	if (rc) {
-		bqfs_dm = 0;
-	}
-
-	rc = of_property_read_u32(bqfs_node, "bqfs_unfilt", &bqfs_unfilt);
-	if (rc) {
-		bqfs_unfilt = BQ27426_BQFS_FILT;
-	}
 
 	bqfs_read_word(chip, BQ27426_REG_FLAGS, &read_buf);
 	bqfs_cntl_cmd(chip, BQ27426_SUBCMD_DM_CODE);
 	bqfs_read_word(chip, BQ27426_REG_CNTL, &value_dm);
-
-	if (!(read_buf & BIT(5)) && (value_dm == bqfs_dm) && !(read_buf & BIT(4))) {
-		chg_err(" [0x%x %d %d]\n", read_buf, value_dm, bqfs_dm);
-		chip->bqfs_init = true;
-		return;
+	if (!(read_buf & BIT(5)) && (value_dm == chip->bqfs_info.bqfs_dm) && !(read_buf & BIT(4))) {
+		chip->bqfs_info.bqfs_status = true;
+		goto BQFS_CHECK_END;
 	}
 
-	buflen = of_property_count_u8_elems(bqfs_node, "sinofs_bqfs_data");
-	pBuf = (u8 *)devm_kzalloc(dev, buflen, 0);
-	if (pBuf == NULL) {
-		rc = 1;
-		chg_err(": kzalloc error\n");
-		goto main_process_error;
-	}
-
-	rc = of_property_read_u8_array(bqfs_node, "sinofs_bqfs_data", pBuf, buflen);
-	if (rc) {
-		chg_err(": read dts sinofs_bqfs_data fail\n");
-		goto main_process_error;
-	}
-
+	oplus_chg_disable_charge();
 	if (bq27426_unseal(chip)) {
+		rc = BQFS_FW_UNSEAL_FAIL;
 		chg_err("bq27426_unseal fail !\n");
-		goto main_process_error;
+		goto UNSEAL_PROCESS_ERR;
 	}
 
 BQFS_EXECUTE_CMD_RETRY:
-	p = (unsigned char *)pBuf;
+	p = (unsigned char *)chip->bqfs_info.firmware_data;
+	buflen = chip->bqfs_info.fw_lenth;
 	rec_cnt = 0;
-	while (p < pBuf + buflen) {
+	while (p < chip->bqfs_info.firmware_data + buflen) {
 		cmd.cmd_type = *p++;
 
 		if (cmd.cmd_type == CMD_X) {
 			len = *p++;
-			if (len != BQFS_CMD_X_LEN)
-				goto main_process_error;
-
+			if (len != BQFS_CMD_X_LEN) {
+				rc = BQFS_FW_CMD_LEN_ERR;
+				goto BQFS_EXECUTE_CMD_ERR;
+			}
 			cmd.data.delay = *p << BQFS_CMD_SHITF | *(p + 1);
 			p += BQFS_CMD_X_LEN;
 		} else {
@@ -468,24 +663,91 @@ BQFS_EXECUTE_CMD_RETRY:
 		if (!bqfs_fg_fw_update_cmd(chip, &cmd)) {
 			retry_times++;
 			chg_err("Failed at [%d, %d]\n", rec_cnt, retry_times);
-			if (retry_times < BQFS_INIT_RETRY_MAX)
+			if (retry_times < BQFS_INIT_RETRY_MAX) {
 				goto BQFS_EXECUTE_CMD_RETRY;
-			else
+			} else {
+				rc = BQFS_FW_CMD_UPGRADE_ERR;
 				goto BQFS_EXECUTE_CMD_ERR;
+			}
 		}
 		mdelay(5);
 	}
-	chip->bqfs_init = true;
-	chg_err("Parameter update Successfully,bqfs_init %d\n", chip->bqfs_init);
+	chip->bqfs_info.bqfs_status = true;
+	chg_err("Parameter update Successfully,bqfs_status %d\n", chip->bqfs_info.bqfs_status);
+	mdelay(1000);
 
 BQFS_EXECUTE_CMD_ERR:
 	if (bq27426_seal(chip))
 		chg_err("bq27411 seal fail\n");
+UNSEAL_PROCESS_ERR:
+	oplus_chg_enable_charge();
+	index = snprintf(chip->bqfs_info.track_info, BQFS_INFO_LEN, "$$bqfs_status@@%d$$bqfs_result@@%d$$bqfs_times@@%d"
+		"$$value_dm@@0x%x$$bqfs_dm@@0x%x$$bqfs_flag@@0x%x$$bqfs_type@@%d$$bqfs_on@@%d",
+		chip->bqfs_info.bqfs_status, rc, retry_times, value_dm, chip->bqfs_info.bqfs_dm, read_buf, chip->bqfs_info.batt_type, init);
+	schedule_delayed_work(&chip->bqfs_track_update_work, msecs_to_jiffies(PUSH_DELAY_MS));
+BQFS_CHECK_END:
+	chg_err(" end[%d %d 0x%x %d 0x%x %d %d]\n", chip->bqfs_info.bqfs_status, rc, value_dm, chip->bqfs_info.bqfs_dm, read_buf, chip->bqfs_info.bqfs_ship, init);
 
-main_process_error:
-	if (pBuf)
-		devm_kfree(dev, pBuf);
-	chg_err(" end[%d %d 0x%x 0x%x]\n", rc, chip->bqfs_init, value_dm, read_buf);
+	return rc;
+}
+
+void bqfs_init(struct chip_bq27541 *chip)
+{
+	struct device_node *node = chip->dev->of_node;
+	struct device_node *bqfs_node = NULL;
+	const u8 *pBuf;
+	int bqfs_unfilt = 0, buflen = 0, batt_id = BAT_TYPE_UNKNOWN, rc = -1;
+	char dm_name[128] = {0}, data_name[128] = {0};
+
+	if (!chip)
+		return;
+
+	oplus_bqfs_track_init(chip);
+
+	bqfs_node = of_find_node_by_name(node, "battery_bqfs_params");
+	if (bqfs_node == NULL) {
+		chg_err(": Can't find child node \"battery_bqfs_params\"");
+		return;
+	}
+	rc = of_property_read_u32(bqfs_node, "bqfs_unfilt", &bqfs_unfilt);
+	if (rc) {
+		bqfs_unfilt = BQ27426_BQFS_FILT;
+	}
+	chip->bqfs_info.bqfs_ship = of_property_read_bool(bqfs_node, "oplus,bqfs_ship");
+
+	rc = oplus_bqfs_get_iio_channel(chip, "batt_id_chan", &chip->batt_id_chan);
+	if (rc < 0) {
+		chg_err("batt_id_chan get failed, rc = %d\n", rc);
+		batt_id = BAT_TYPE_UNKNOWN;
+	} else {
+		batt_id = oplus_battery_type_check_bqfs(chip);
+	}
+
+	if (batt_id <= BAT_TYPE_UNKNOWN || batt_id >= BAT_TYPE_MAX)
+		chip->bqfs_info.batt_type = BAT_TYPE_COSMX;
+	else
+		chip->bqfs_info.batt_type = batt_id;
+
+	sprintf(dm_name, "bqfs_dm_%d", chip->bqfs_info.batt_type);
+	sprintf(data_name, "sinofs_bqfs_data_%d", chip->bqfs_info.batt_type);
+	rc = of_property_read_u32(bqfs_node, dm_name, &chip->bqfs_info.bqfs_dm);
+	if (rc) {
+		chip->bqfs_info.bqfs_dm = 0;
+	}
+
+	pBuf = of_get_property(bqfs_node, data_name, &buflen);
+	if (!pBuf) {
+		chg_err(": fw get error\n");
+		return;
+	}
+
+	chip->bqfs_info.firmware_data = pBuf;
+	chip->bqfs_info.fw_lenth = buflen;
+
+	rc = bqfs_fw_upgrade(chip, true);
+	if (rc)
+		chg_err(": fail, rc = %d\n", rc);
+
 	return;
 }
 

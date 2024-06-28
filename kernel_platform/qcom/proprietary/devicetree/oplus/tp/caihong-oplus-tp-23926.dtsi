@@ -30,20 +30,22 @@
 		/* Other HW Resource */
 		irq-gpio = <&tlmm 162 0x2002>;
 		reset-gpio = <&tlmm 161 0x0>;
-		pinctrl-names = "default";
+		pinctrl-names = "default","pin_cs_high","pin_cs_low";
 		pinctrl-0 = <&ts_int_active &ts_reset_active>;
+		pinctrl-1 = <&qupv3_se4_spi_cs_active>;
+		pinctrl-2 = <&qupv3_se4_spi_cs_sleep>;
 
 		touchpanel,irq_need_dev_resume_time = <500>;
 		touchpanel,max-num-support = <10>;
-		touchpanel,tx-rx-num = <54 38>;
-		touchpanel,panel-coords = <20000 28000>;
-		touchpanel,display-coords = <2000 2800>;
-		touchpanel,touchmajor-limit = <0 54>;
+		touchpanel,tx-rx-num = <60 40>;
+		touchpanel,panel-coords = <21200 30000>;
+		touchpanel,display-coords = <2120 3000>;
+		touchpanel,touchmajor-limit = <0 60>;
 
 		touchpanel,pen-tx-rx-num = <12 8>;
 		touchpanel,doze-tx-num = <12>;
-		touchpanel,pen-panel-coords = <20000 28000>;
-		touchpanel,pen-max-pressure = <4096>;
+		touchpanel,pen-panel-coords = <21200 30000>;
+		touchpanel,pen-max-pressure = <16384>;
 		touchpanel,pen-max-tilt = <60 60>;
 		touchpanel,msecs-to-jiffies-time = <100>;
 		touchpanel,smooth-level = <0 1 2 6 8 10>;
@@ -52,10 +54,10 @@
 		tp_type = <15>;//HUAXING
 		panel_type = <15>;
 
-		platform_support_project = <23926 23976 23978>;
-		platform_support_project_dir = <23926 23926 23926>;
-		platform_support_commandline = "mdss_dsi_panel_nt35652w_2000_2800_dual_dsc_144hz_vid";
-		platform_support_project_commandline = "default_commandline","default_commandline","default_commandline";
+		platform_support_project = <23926 23927 23976 23978>;
+		platform_support_project_dir = <23926 23926 23926 23926>;
+		platform_support_commandline = "mdss_dsi_panel_csot_nt36532_2120_3000_dual_dsc_144hz_vid";
+		platform_support_project_commandline = "default_commandline","default_commandline","default_commandline","default_commandline";
 		platform_support_project_external_name = "FA261";
 		vid_len = <7>;
 
@@ -198,7 +200,7 @@
 				pins = "gpio51";
 				drive-strength = <6>;
 				bias-disable;
-				output-high;
+				output-low;
 			};
 		};
 	};

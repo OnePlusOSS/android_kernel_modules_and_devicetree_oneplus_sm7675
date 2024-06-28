@@ -158,6 +158,7 @@ static const char *support_chip_type_name_table[] = {
 	[CHIP_TYPE_SIA8159A] = "sia8159a",
 	[CHIP_TYPE_SIA81X9]  = "sia81x9",
 	[CHIP_TYPE_SIA8152X] = "sia8152x",
+	[CHIP_TYPE_SIA815T]  = "sia815T",
 	[CHIP_TYPE_SIA9195]  = "sia9195",
 	[CHIP_TYPE_SIA9196]  = "sia9196",
 	[CHIP_TYPE_SIA9175]  = "sia9175"
@@ -769,8 +770,16 @@ static bool sipa_is_chip_en(sipa_dev_t *si_pa)
 			&& sipa_regmap_get_chip_en(si_pa))
 			return true;
 #else
-		if (SIA81XX_ENABLE_LEVEL == gpio_get_value(si_pa->rst_pin))
-			return true;
+		if (si_pa->chip_type == CHIP_TYPE_SIA815T ||
+					si_pa->chip_type == CHIP_TYPE_SIA8159 ||
+					si_pa->chip_type == CHIP_TYPE_SIA8159A) {
+			if ((SIA81XX_ENABLE_LEVEL == gpio_get_value(si_pa->rst_pin))
+				&& sipa_regmap_get_chip_en(si_pa))
+				return true;
+		} else {
+			if (SIA81XX_ENABLE_LEVEL == gpio_get_value(si_pa->rst_pin))
+				return true;
+		}
 #endif
 	} else {
 		if (sipa_regmap_get_chip_en(si_pa))
@@ -2101,6 +2110,7 @@ static unsigned int get_chip_type(const char *name)
 
 /* CHIP_TYPE_SIA81X9 */
 static const uint32_t sia81x9_list[] = {
+	CHIP_TYPE_SIA815T,
 	CHIP_TYPE_SIA8159,
 	CHIP_TYPE_SIA8159A,
 	CHIP_TYPE_SIA8109

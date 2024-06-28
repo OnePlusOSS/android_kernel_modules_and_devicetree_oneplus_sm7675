@@ -7,6 +7,7 @@
 #define __OPLUS_BQ27541_H__
 
 #include "../oplus_gauge.h"
+#include "../oplus_chg_track.h"
 #define OPLUS_USE_FAST_CHARGER
 #define DRIVER_VERSION			"1.1.0"
 
@@ -540,6 +541,17 @@ typedef struct {
 	oplus_gauge_sha256_auth_result sha256_rst_k0;
 } oplus_gauge_auth_info_type;
 
+#define BQFS_INFO_LEN 128
+struct bqfs_para_info {
+	bool bqfs_status;
+	bool bqfs_ship;
+	int batt_type;
+	int bqfs_dm;
+	int fw_lenth;
+	char track_info[BQFS_INFO_LEN];
+	const u8 *firmware_data;
+};
+
 struct chip_bq27541 {
 	struct i2c_client *client;
 	struct device *dev;
@@ -598,8 +610,11 @@ struct chip_bq27541 {
 	struct pinctrl_state *gpio_data_sleep;
 	struct pinctrl_state *gpio_reset_active;
 	struct pinctrl_state *gpio_reset_sleep;
+	struct iio_channel *batt_id_chan;
 
 	bool support_extern_cmd;
+	bool support_sha256_hmac;
+	struct delayed_work hw_config_retry_work;
 	bool modify_soc_smooth;
 	bool modify_soc_calibration;
 
@@ -660,7 +675,14 @@ struct chip_bq27541 {
 	int dump_sh366002_block;
 	unsigned long log_last_update_tick;
 
-	bool bqfs_init;
+	struct bqfs_para_info bqfs_info;
+	struct mutex track_upload_lock;
+	struct mutex track_bqfs_err_lock;
+	u32 debug_force_bqfs_err;
+	bool bqfs_err_uploading;
+	oplus_chg_track_trigger *bqfs_err_load_trigger;
+	struct delayed_work bqfs_err_load_trigger_work;
+	struct delayed_work bqfs_track_update_work;
 };
 
 struct gauge_track_info_reg {

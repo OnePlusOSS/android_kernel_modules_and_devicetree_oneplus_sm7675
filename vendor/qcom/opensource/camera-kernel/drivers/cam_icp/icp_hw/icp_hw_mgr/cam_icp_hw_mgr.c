@@ -4323,6 +4323,11 @@ static int cam_icp_mgr_abort_handle_wq(
 		(struct cam_icp_hw_ctx_data *)task_data->data;
 	hw_mgr = ctx_data->hw_mgr_priv;
 
+	if (ctx_data->state == CAM_ICP_CTX_STATE_RELEASE || !hw_mgr) {
+		CAM_ERR(CAM_ICP, "ctx data has been released");
+		return 0;
+	}
+
 	rc = cam_icp_mgr_populate_abort_cmd(ctx_data, &abort_cmd);
 	if (rc)
 		return rc;

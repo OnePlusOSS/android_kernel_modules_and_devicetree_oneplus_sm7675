@@ -105,6 +105,7 @@
 #define SA_INPUT					(1 << 5)
 #define SA_LAUNCHER_SI				(1 << 6)
 #define SA_SCENE_OPT_SET			(1 << 7)
+#define SA_GPU_COMPOSITION  			(1 << 8)
 
 #define ROOT_UID               0
 #define SYSTEM_UID             1000
@@ -162,10 +163,16 @@ enum IM_FLAG_TYPE {
 	IM_FLAG_FORBID_SET_CPU_AFFINITY, /* forbid setting cpu affinity from app */
 	IM_FLAG_SYSTEMSERVER_PID,
 	IM_FLAG_MIDASD,
+	IM_FLAG_AUDIO_CAMERA_HAL, /* audio mode disable camera hal ux */
 	MAX_IM_FLAG_TYPE,
 };
 
 #define MAX_IM_FLAG_PRIO	MAX_IM_FLAG_TYPE
+
+enum ots_state {
+	OTS_STATE_SET_AFFINITY,
+	OTS_STATE_MAX,
+};
 
 #ifdef CONFIG_OPLUS_FEATURE_TICK_GRAN
 DECLARE_PER_CPU(u64, retired_instrs);
@@ -220,6 +227,42 @@ extern int global_sched_assist_enabled;
 extern int global_sched_assist_scene;
 
 struct rq;
+
+#ifdef CONFIG_LOCKING_PROTECT
+struct sched_assist_locking_ops {
+	void (*replace_next_task_fair)(struct rq *rq,
+		struct task_struct **p, struct sched_entity **se, bool *repick, bool simple);
+	void (*check_preempt_tick)(struct task_struct *p,
+			unsigned long *ideal_runtime, bool *skip_preempt,
+			unsigned long delta_exec, struct cfs_rq *cfs_rq,
+			struct sched_entity *curr, unsigned int granularity);
+	void (*enqueue_entity)(struct rq *rq, struct task_struct *p);
+	void (*dequeue_entity)(struct rq *rq, struct task_struct *p);
+	void (*check_preempt_wakeup)(struct rq *rq, struct task_struct *p, bool *preempt, bool *nopreempt);
+	void (*state_systrace_c)(unsigned int cpu, struct task_struct *p);
+	void (*opt_ss_lock_contention)(struct task_struct *p, int old_im, int new_im);
+};
+
+extern struct sched_assist_locking_ops *locking_ops;
+
+
+#define LOCKING_CALL_OP(op, args...) 						\
+do {														\
+	if (locking_ops && locking_ops->op) {					\
+		locking_ops->op(args);								\
+	}														\
+}while(0)
+
+#define LOCKING_CALL_OP_RET(op, args...) 						\
+({																\
+	__typeof__(locking_ops->op(args)) __ret = 0;				\
+	if (locking_ops && locking_ops->op) 							\
+			__ret = locking_ops->op(args);						\
+	__ret; 														\
+})
+
+void register_sched_assist_locking_ops(struct sched_assist_locking_ops *ops);
+#endif
 
 /* attention: before insert .ko, task's list->prev/next is init with 0 */
 static inline bool oplus_list_empty(struct list_head *list)
@@ -403,7 +446,7 @@ static inline void oplus_set_inherit_ux_start(struct task_struct *t, u64 start_t
 	if (IS_ERR_OR_NULL(ots))
 		return;
 
-	ots->inherit_ux_start = start_time;
+	ots->inherit_ux_start = t->se.sum_exec_runtime;
 }
 
 static inline void init_task_ux_info(struct task_struct *t)
@@ -600,6 +643,7 @@ void sa_sched_switch_handler(void *unused, bool preempt, struct task_struct *pre
 void android_vh_cgroup_set_task_handler(void *unused, int ret, struct task_struct *task);
 /* register vendor hook in kernel/signal.c  */
 void android_vh_exit_signal_handler(void *unused, struct task_struct *p);
+void android_rvh_sched_setaffinity_handler(void *unused, struct task_struct *p, const struct cpumask *in_mask, int *retval);
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_BAN_APP_SET_AFFINITY)
 void android_vh_sched_setaffinity_early_handler(void *unused, struct task_struct *task, const struct cpumask *new_mask, bool *skip);
 #endif

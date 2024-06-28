@@ -32,6 +32,8 @@
 #define FTS_REG_HIGH_FRAME_TIME                 0x8A
 #define FTS_REG_CHARGER_MODE_EN                 0x8B
 #define FTS_REG_EDGE_LIMIT                      0x8C
+#define FTS_REG_EDGE_LIMIT_BIT                  0x04
+#define FTS_REG_CTRL                            0x8B
 #define FTS_REG_STABLE_DISTANCE_AFTER_N         0xB9
 #define FTS_REG_STABLE_DISTANCE                 0xBA
 #define FTS_REG_HEADSET_MODE_EN                 0xC4
@@ -93,7 +95,7 @@
 #define FTS_MAX_ID                              0x0A
 #define FTS_POINTS_ONE                          21  /*2 + 6*3 + 1*/
 #define FTS_POINTS_TWO                          41  /*8*10 - 1*/
-#define FTS_MAX_POINTS_LENGTH          ((FTS_POINTS_ONE) + (FTS_POINTS_TWO))
+#define FTS_MAX_POINTS_LENGTH                   134  /* ((FTS_POINTS_ONE) + (FTS_POINTS_TWO))  */
 #define FTS_MAX_POINTS_SNR_LENGTH               1784 /* FTS_MAX_POINTS_LENGTH + 2 + 2*tx*rx + (tx+rx+4)*2*2 */
 #define FTS_REG_POINTS                          0x01
 #define FTS_REG_POINTS_N                        (FTS_POINTS_ONE + 1)
@@ -364,6 +366,7 @@ struct chip_data_ft3683g {
 	bool is_in_water;
 	bool charger_connected;
 	fod_trigger_type fod_trigger;
+	bool water_mode;
 };
 
 

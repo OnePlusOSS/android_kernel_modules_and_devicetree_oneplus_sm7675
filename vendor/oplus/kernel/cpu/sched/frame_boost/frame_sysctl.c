@@ -13,6 +13,10 @@ unsigned int sysctl_slide_boost_enabled;
 EXPORT_SYMBOL_GPL(sysctl_slide_boost_enabled);
 unsigned int sysctl_input_boost_enabled;
 EXPORT_SYMBOL_GPL(sysctl_input_boost_enabled);
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SF_SLIDE_BOOST)
+unsigned int sysctl_slide_min_util;
+EXPORT_SYMBOL_GPL(sysctl_slide_min_util);
+#endif
 
 #define INPUT_BOOST_DURATION 1500000000
 static struct hrtimer ibtimer;
@@ -111,6 +115,15 @@ struct ctl_table frame_boost_table[] = {
 		.mode		= 0666,
 		.proc_handler	= input_boost_ctrl_handler,
 	},
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SF_SLIDE_BOOST)
+	{
+		.procname       = "slide_min_util",
+		.data           = &sysctl_slide_min_util,
+		.maxlen         = sizeof(unsigned int),
+		.mode           = 0666,
+		.proc_handler   = proc_dointvec,
+	},
+#endif
 	{ }
 };
 
@@ -131,6 +144,9 @@ void fbg_sysctl_init(void)
 	sysctl_frame_boost_debug = 0;
 	sysctl_slide_boost_enabled = 0;
 	sysctl_input_boost_enabled = 0;
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SF_SLIDE_BOOST)
+	sysctl_slide_min_util = 0;
+#endif
 
 	ib_last_time = ktime_get();
 	intput_boost_duration = INPUT_BOOST_DURATION;

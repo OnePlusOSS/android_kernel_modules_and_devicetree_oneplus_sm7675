@@ -18,6 +18,40 @@ struct fbg_vendor_hook fbg_hook;
 int stune_boost[BOOST_MAX_TYPE];
 EXPORT_SYMBOL_GPL(stune_boost);
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SF_SLIDE_BOOST)
+static inline bool slide_boost_scene(void)
+{
+	return sysctl_slide_boost_enabled || sysctl_input_boost_enabled
+		|| sched_assist_scene(SA_ANIM) || sched_assist_scene(SA_GPU_COMPOSITION);
+}
+
+static inline unsigned long task_util(struct task_struct *p)
+{
+	return READ_ONCE(p->se.avg.util_avg);
+}
+
+static inline bool sf_skip_min_cpu(struct task_struct *p)
+{
+	return task_util(p) >= sysctl_slide_min_util;
+}
+
+bool slide_rt_boost(struct task_struct *p)
+{
+	struct oplus_task_struct *ots = get_oplus_task_struct(p);
+
+	if (IS_ERR_OR_NULL(ots))
+		return false;
+
+	if (ots->im_flag == IM_FLAG_SURFACEFLINGER || ots->im_flag == IM_FLAG_RENDERENGINE) {
+		if (slide_boost_scene() && sf_skip_min_cpu(p))
+			return true;
+	}
+
+	return false;
+}
+EXPORT_SYMBOL_GPL(slide_rt_boost);
+#endif
+
 static inline bool vaild_stune_boost_type(unsigned int type)
 {
 	return (type >= 0) && (type < BOOST_MAX_TYPE);

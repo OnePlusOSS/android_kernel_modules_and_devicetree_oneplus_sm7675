@@ -46,6 +46,39 @@ static int insert_limit[NUM_INSERT_MAX] = {0};
 			pr_info(x); \
 	} while (0)
 
+/**
+ * binder_inner_proc_lock() - Acquire inner lock for given binder_proc
+ * @proc:		  struct binder_proc to acquire
+ *
+ * Acquires proc->inner_lock. Used to protect todo lists
+ */
+#define binder_inner_proc_lock(proc) _binder_inner_proc_lock(proc, __LINE__)
+static void
+_binder_inner_proc_lock(struct binder_proc *proc, int line)
+	__acquires(&proc->inner_lock)
+{
+	spin_lock(&proc->inner_lock);
+}
+
+/**
+ * binder_inner_proc_unlock() - Release inner lock for given binder_proc
+ * @proc:		  struct binder_proc to acquire
+ *
+ * Release lock acquired via binder_inner_proc_lock()
+ */
+#define binder_inner_proc_unlock(proc) _binder_inner_proc_unlock(proc, __LINE__)
+static void
+_binder_inner_proc_unlock(struct binder_proc *proc, int line)
+	__releases(&proc->inner_lock)
+{
+	spin_unlock(&proc->inner_lock);
+}
+
+static bool binder_worklist_empty_ilocked(struct list_head *list)
+{
+	return list_empty(list);
+}
+
 static inline struct oplus_binder_struct *alloc_oplus_binder_struct(void)
 {
 	if (!oplus_binder_struct_cachep) {
@@ -532,6 +565,8 @@ static inline void binder_unset_inherit_ux(struct task_struct *thread_task,
 void android_vh_binder_restore_priority_handler(void *unused,
 	struct binder_transaction *t, struct task_struct *task)
 {
+	int wait = 0;
+
 	if (unlikely(!g_sched_enable))
 		return;
 
@@ -547,8 +582,23 @@ void android_vh_binder_restore_priority_handler(void *unused,
 #endif
 
 	if (t != NULL) {
+		if(t->to_proc) {
+			binder_inner_proc_lock(t->to_proc);
+			wait = binder_worklist_empty_ilocked(&t->to_proc->waiting_threads);
+			binder_inner_proc_unlock(t->to_proc);
+		}
+
+		if(!wait) {
+			trace_binder_ux_task(1, INVALID_VALUE, INVALID_VALUE, task,
+				INVALID_VALUE, t, NULL, "sync_ux unset binder_reply");
+			binder_unset_inherit_ux(task, true, t, NULL);
+		} else {
+			trace_binder_ux_task(1, INVALID_VALUE, INVALID_VALUE, task,
+				INVALID_VALUE, t, NULL, "busy, sync_ux unset fail");
+		}
+	} else {
 		trace_binder_ux_task(1, INVALID_VALUE, INVALID_VALUE, task,
-			INVALID_VALUE, t, NULL, "sync_ux unset priority");
+			INVALID_VALUE, t, NULL, "sync_ux unset waitfor work");
 		binder_unset_inherit_ux(task, true, t, NULL);
 	}
 }

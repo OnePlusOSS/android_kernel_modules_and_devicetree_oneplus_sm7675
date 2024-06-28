@@ -83,6 +83,7 @@ struct chip_sy6974b {
 	int			before_unsuspend_icl;
 	int			normal_init_delay_ms;
 	int			other_init_delay_ms;
+	int			charger_current_pre;
 
 	struct wakeup_source *suspend_ws;
 	/*fix chgtype identify error*/
@@ -505,6 +506,13 @@ int sy6974b_input_current_limit_write(int current_ma)
 		return 0;
 	}
 
+	if (chip->charger_current_pre == current_ma) {
+		pr_info("charger_current_pre = %d.\n", current_ma);
+		return 0;
+	} else {
+		chip->charger_current_pre = current_ma;
+	}
+
 	/*first: icl down to 500mA, step from pre icl*/
 	pre_icl = sy6974b_get_usb_icl();
 	for (pre_icl_index = ARRAY_SIZE(sy6974b_usb_icl) - 1; pre_icl_index >= 0; pre_icl_index--) {
@@ -629,8 +637,10 @@ aicl_rerun:
 		chip->before_suspend_icl = sy6974b_usb_icl[i];
 		chg_err("during aicl, force input current to 100mA,before=%dmA\n", chip->before_suspend_icl);
 		rc = sy6974b_input_current_limit_without_aicl(SUSPEND_IBUS_MA);
+		chip->charger_current_pre = SUSPEND_IBUS_MA;
 	} else {
 		rc = sy6974b_input_current_limit_without_aicl(sy6974b_usb_icl[i]);
+		chip->charger_current_pre = sy6974b_usb_icl[i];
 	}
 	rc = sy6974b_set_vindpm_vol(chip->hw_aicl_point);
 	return rc;
@@ -1334,6 +1344,7 @@ int sy6974b_unsuspend_charger(void)
 			chg_err("ignore set icl [%d %d]\n", chip->before_suspend_icl, chip->before_unsuspend_icl);
 		} else {
 			sy6974b_input_current_limit_without_aicl(chip->before_suspend_icl);
+			chip->charger_current_pre = chip->before_suspend_icl;
 		}
 
 		rc = sy6974b_config_interface(chip, REG00_SY6974B_ADDRESS,
@@ -1689,6 +1700,11 @@ int sy6974b_set_iindet(void)
 		chg_err("Couldn't set REG07_SY6974B_IINDET_EN_MASK rc = %d\n", rc);
 	}
 
+	msleep(45); /*Modify the delay within 30ms to 50ms*/
+	rc = sy6974b_config_interface(chip, REG07_SY6974B_ADDRESS,
+                                        REG07_SY6974B_IINDET_DIS_FORCE_DET,
+					REG07_SY6974B_IINDET_EN_MASK);
+
 	return rc;
 }
 
@@ -2034,6 +2050,7 @@ int sy6974b_hardware_init(void)
 		return 0;
 	} else {
 		sy6974b_input_current_limit_without_aicl(DEFAULT_IBUS_MA);
+		chip->charger_current_pre = DEFAULT_IBUS_MA;
 	}
 
 	return true;
@@ -2180,6 +2197,7 @@ static int oplus_sy6974b_hardware_init(void)
 			chg_err("oplus_sy6974b_hardware_init enable charging failed \n");
 		} else {
 			sy6974b_input_current_limit_without_aicl(DEFAULT_IBUS_MA);
+			chip->charger_current_pre = DEFAULT_IBUS_MA;
 		}
 	}
 	return ret;
@@ -2349,6 +2367,8 @@ static int sy6974b_set_vchg(struct charger_device *chg_dev, u32 volt)
 
 static int sy6974b_set_icl(struct charger_device *chg_dev, u32 curr)
 {
+	struct chip_sy6974b *chip = charger_ic;
+	chip->charger_current_pre = curr/1000;
 	return sy6974b_input_current_limit_without_aicl(curr/1000);
 }
 
@@ -2967,6 +2987,7 @@ static irqreturn_t sy6974b_irq_handler(int irq, void *data)
 		chip->bc12_retried = 0;
 		chip->bc12_delay_cnt = 0;
 		chip->oplus_charger_type = POWER_SUPPLY_TYPE_UNKNOWN;
+		chip->charger_current_pre = -1;
 		oplus_chg_track_check_wired_charging_break(0);
 		#ifdef CONFIG_OPLUS_CHARGER_MTK
 		sy6974b_inform_charger_type(chip);
@@ -3267,6 +3288,7 @@ static int sy6974b_charger_probe(struct i2c_client *client,
 	chip->bc12_done = false;
 	chip->bc12_retried = 0;
 	chip->bc12_delay_cnt = 0;
+	chip->charger_current_pre = -1;
 	chip->chg_consumer =
 		charger_manager_get_by_name(&client->dev, "sy6974b");
 

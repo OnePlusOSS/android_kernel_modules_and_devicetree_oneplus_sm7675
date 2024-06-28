@@ -41,8 +41,8 @@
 		status = "okay";
 		vdd-type = <0>; /*0: internal LDO , 1: external LOD*/
 		vdd-supply = <&pm_humu_l9>;
-		vdd-min-vol = <3300000>;
-		vdd-max-vol = <3300000>;
+		vdd-min-vol = <2100000>;
+		vdd-max-vol = <2100000>;
 	};
 	//#endif /*OPLUS_FEATURE_SENSOR_SMEM*/
 };

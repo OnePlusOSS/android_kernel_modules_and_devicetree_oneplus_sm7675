@@ -73,6 +73,18 @@ enum virtual_sensor_handle {
 	#ifdef CONFIG_OPLUS_FEATURE_LAY_DETECT
         lay_detect,
 	#endif
+	#ifdef CONFIG_OPLUS_FEATURE_PALM_DETECT
+        palm_detect,
+	#endif
+#ifdef CONFIG_OPLUS_FEATURE_PHONE_PROX
+        phone_prox,
+#endif
+#ifdef CONFIG_OPLUS_FEATURE_GESTURE_PROX
+        gesture_prox,
+#endif
+#ifdef CONFIG_OPLUS_FEATURE_AMBIENTE_PROX
+        ambiente_prox,
+#endif
     max_virtual_sensor_support,
 };
 

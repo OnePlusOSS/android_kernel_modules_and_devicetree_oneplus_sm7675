@@ -125,6 +125,15 @@ config OPLUS_FEATURE_FRAME_BOOST
 	  This moduler is used to improve frame missing by aggregating key-threads in one group,
 	  then adjust cpu frequence and placement.
 
+config OPLUS_FEATURE_SF_SLIDE_BOOST
+	tristate "sf slide boost"
+	default n
+	depends on OPLUS_FEATURE_SCHED_ASSIST
+	depends on OPLUS_FEATURE_FRAME_BOOST
+	help
+	  Only applicable to SM6375 camry, when animation, gpu composition and slide scenes,
+	  surfaceflinger prefer to use big core.
+
 config OPLUS_CPU_AUDIO_PERF
 	tristate "boost audio task in scheduler"
 	default n
@@ -180,3 +189,9 @@ config OPLUS_CAMERA_UX
  	default n
  	help
  	  config camera ux.
+
+config OPLUS_FEATURE_AUDIO_OPT
+	tristate "camera optimization in audio mode"
+	default n
+	help
+	  Turning off the camera's ux attribute in audio mode

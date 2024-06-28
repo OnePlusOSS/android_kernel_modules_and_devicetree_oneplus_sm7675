@@ -351,6 +351,23 @@ void oplus_panel_backlight_demura_dbv_switch(struct dsi_panel *panel, u32 bl_lvl
 			panel->oplus_priv.bl_demura_mode = 2;
 			bl_demura_mode = DSI_CMD_DEMURA_DBV_MODE2;
 		}
+	} else if (!strcmp(panel->name, "AC172 P 7 A0001 dsc cmd mode panel")) {
+		if ((bl_lvl >= 0x08) && (bl_lvl < 0x1F5)) {
+			panel->oplus_priv.bl_demura_mode = 0;
+			bl_demura_mode = DSI_CMD_DEMURA_DBV_MODE0;
+		} else if ((bl_lvl >= 0x1F6) && (bl_lvl < 0x3F1)) {
+			panel->oplus_priv.bl_demura_mode = 1;
+			bl_demura_mode = DSI_CMD_DEMURA_DBV_MODE1;
+		} else if ((bl_lvl >= 0x3F2) && (bl_lvl < 0x561)) {
+			panel->oplus_priv.bl_demura_mode = 2;
+			bl_demura_mode = DSI_CMD_DEMURA_DBV_MODE2;
+		} else if ((bl_lvl >= 0x562) && (bl_lvl < 0xDBA)) {
+			panel->oplus_priv.bl_demura_mode = 3;
+			bl_demura_mode = DSI_CMD_DEMURA_DBV_MODE3;
+		} else if (bl_lvl >= 0xDBB) {
+			panel->oplus_priv.bl_demura_mode = 4;
+			bl_demura_mode = DSI_CMD_DEMURA_DBV_MODE4;
+		}
 	} else {
 
 		if (bl_lvl <= 3515)

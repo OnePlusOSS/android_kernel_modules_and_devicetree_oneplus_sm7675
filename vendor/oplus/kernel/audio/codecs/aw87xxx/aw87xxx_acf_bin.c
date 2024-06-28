@@ -486,6 +486,51 @@ parse_bin_failed:
 	return ret;
 }
 
+static int aw_dev_prof_parse_multi_bin(struct device *dev,
+		uint8_t *data, uint32_t data_len, struct aw_prof_desc *prof_desc)
+{
+	struct aw_bin *aw_bin = NULL;
+	int i;
+	int ret;
+
+	aw_bin = devm_kzalloc(dev,
+		data_len + sizeof(struct aw_bin), GFP_KERNEL);
+	if (aw_bin == NULL)
+		return -ENOMEM;
+
+
+	aw_bin->info.len = data_len;
+	memcpy(aw_bin->info.data, data, data_len);
+
+	ret = aw87xxx_parsing_bin_file(aw_bin);
+	if (ret < 0) {
+		AW_DEV_LOGE(dev, "parse bin failed");
+		goto parse_bin_failed;
+	}
+
+	for (i = 0; i < aw_bin->all_bin_parse_num; i++) {
+		if (aw_bin->header_info[i].bin_data_type == DATA_TYPE_REGISTER) {
+			prof_desc->data_container.len = aw_bin->header_info[i].valid_data_len;
+			prof_desc->data_container.data = data + aw_bin->header_info[i].valid_data_addr;
+			break;
+		}
+	}
+	if (i == aw_bin->all_bin_parse_num) {
+		AW_DEV_LOGE(dev, "the expected data type was not found,pls check");
+		goto parse_bin_failed;
+	}
+
+	devm_kfree(dev, aw_bin);
+	aw_bin = NULL;
+	prof_desc->prof_st = AW_PROFILE_OK;
+	return 0;
+
+parse_bin_failed:
+	devm_kfree(dev, aw_bin);
+	aw_bin = NULL;
+	return ret;
+}
+
 static int aw_parse_monitor_config(struct device *dev,
 				char *monitor_data, uint32_t data_len)
 {
@@ -579,6 +624,15 @@ static int aw_parse_data_by_sec_type_v_0_0_0_1(struct device *dev,
 					prof_hdr->data_size,
 					profile_prof_desc);
 		break;
+	case AW_BIN_TYPE_MUTLBIN:
+		snprintf(profile_prof_desc->dev_name, sizeof(prof_hdr->dev_name),
+			"%s", prof_hdr->dev_name);
+		profile_prof_desc->prof_name = aw_get_prof_name(prof_hdr->dev_profile);
+		AW_DEV_LOGD(dev, "parse mutil type data enter,profile=%s",
+			aw_get_prof_name(prof_hdr->dev_profile));
+		ret = aw_dev_prof_parse_multi_bin(dev, cfg_data,
+					prof_hdr->data_size,
+					profile_prof_desc);
 	}
 
 	return ret;
@@ -1191,6 +1245,15 @@ static int aw_parse_data_by_sec_type_v_1_0_0_0(struct device *dev,
 		ret = aw_parse_reg_with_hdr(dev, cfg_data,
 				prof_hdr->data_size, prof_desc);
 		break;
+	case AW_BIN_TYPE_MUTLBIN:
+		snprintf(prof_desc->dev_name, sizeof(prof_hdr->dev_name),
+			"%s", prof_hdr->dev_name);
+		prof_desc->prof_name = aw_get_prof_name(prof_hdr->dev_profile);
+		AW_DEV_LOGD(dev, "parse mutil type data enter,profile=%s",
+			aw_get_prof_name(prof_hdr->dev_profile));
+		ret = aw_dev_prof_parse_multi_bin(dev, cfg_data,
+					prof_hdr->data_size,
+					prof_desc);
 	}
 
 	return ret;

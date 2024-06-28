@@ -386,11 +386,11 @@ next_link:
 			goto free_skb;
 		}
 
-//		hdd_debug("%d tpc for bssid "QDF_MAC_ADDR_FMT" 6ghz pwr type %d ap_constraint_power %d",
-//			  i, link_bssid[i].bytes, reg_tpc_info[i].is_psd_power,
-//			  reg_tpc_info[i].reg_max[0],
-//			  reg_tpc_info[i].power_type_6g,
-//			  reg_tpc_info[i].ap_constraint_power);
+		//hdd_debug("%d tpc for bssid "QDF_MAC_ADDR_FMT" is_psd %d reg power %d 6ghz pwr type %d ap_constraint_power %d",
+		//	  i, link_bssid[i].bytes, reg_tpc_info[i].is_psd_power,
+		//	  reg_tpc_info[i].reg_max[0],
+		//	  reg_tpc_info[i].power_type_6g,
+		//	  reg_tpc_info[i].ap_constraint_power);
 
 		levels_attr = nla_nest_start(
 			reply_skb, QCA_WLAN_VENDOR_ATTR_TPC_PWR_LEVEL);

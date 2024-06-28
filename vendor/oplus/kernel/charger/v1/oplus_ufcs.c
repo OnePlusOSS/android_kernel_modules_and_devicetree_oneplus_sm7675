@@ -536,6 +536,20 @@ static int oplus_ufcs_delay_exit(void)
 	return 0;
 }
 
+static int oplus_ufcs_boot_delay(void)
+{
+	struct oplus_ufcs_chip *chip = g_ufcs_chip;
+
+	if (!chip || !chip->ufcs_support_type || !chip->ufcs_boot_delay_ms || oplus_chg_get_boot_completed() ||
+	    oplus_is_power_off_charging(NULL))
+		return 0;
+
+	ufcs_err("ufcs boot delay ms:%d\n", chip->ufcs_boot_delay_ms);
+	msleep(chip->ufcs_boot_delay_ms);
+	chip->ufcs_boot_delay_ms = 0;
+	return 0;
+}
+
 static int oplus_ufcs_parse_charge_strategy(struct oplus_ufcs_chip *chip)
 {
 	int rc;
@@ -561,6 +575,10 @@ static int oplus_ufcs_parse_charge_strategy(struct oplus_ufcs_chip *chip)
 	rc = of_property_read_u32(node, "oplus,ufcs_exit_pth", &chip->ufcs_exit_pth);
 	if (rc)
 		chip->ufcs_exit_pth = 1000;
+
+	rc = of_property_read_u32(node, "oplus,ufcs_boot_delay_ms", &chip->ufcs_boot_delay_ms);
+	if (rc)
+		chip->ufcs_boot_delay_ms = 0;
 
 	chip->ufcs_bcc_support = of_property_read_bool(node, "oplus,ufcs_bcc_support");
 
@@ -3021,10 +3039,22 @@ static int oplus_ufcs_action_status_start(struct oplus_ufcs_chip *chip)
 static int oplus_ufcs_action_open_mos(struct oplus_ufcs_chip *chip)
 {
 	int ret = 0;
+	int cnt = 0;
+	int cp_ibus = 0;
+
 	if (!chip)
 		return -ENODEV;
 
 	ret = oplus_ufcs_charging_enable_master(chip, true);
+	/* wait ibus raised after enable MOS */
+	for (cnt = 0; cnt < UFCS_ENALBE_CHECK_CNTS; cnt++) {
+		msleep(50);
+		cp_ibus = chip->ops->ufcs_get_cp_master_ibus();
+		if (cp_ibus < UFCS_DISCONNECT_IOUT_MIN)
+			ufcs_err("ibus not raised, ibus[%d], cnt[%d]\n", cp_ibus, cnt);
+		else
+			break;
+	}
 
 	chip->ufcs_status = OPLUS_UFCS_STATUS_VOLT_CHANGE;
 	chip->timer.batt_curve_time = 0;
@@ -4153,6 +4183,8 @@ bool oplus_ufcs_switch_ufcs_check(void)
 	int reset_status = UFCS_RESET_FAIL;
 	if (!chip)
 		return false;
+
+	oplus_ufcs_boot_delay();
 
 	if (oplus_ufcs_start_prepare() == false)
 		goto fail;

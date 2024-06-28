@@ -28,5 +28,6 @@ endif # blair supported
 ifeq ($(call is-board-platform-in-list,bengal), true)
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_sipa.ko
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_sipa_tuning.ko
+PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_aw87xxx.ko
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_pa_manager.ko
 endif # bengal supported

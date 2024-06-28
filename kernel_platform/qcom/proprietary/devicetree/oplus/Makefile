@@ -13,10 +13,13 @@ OPLUS_PINEAPPLE_BOARDS += waffle-22825-pineapple-overlay.dtbo\
                           huying-23001-pineapple-overlay.dtbo\
                           corvette-23814-pineapple-overlay.dtbo\
                           caihong-23926-pineapple-overlay.dtbo\
+                          caihong-23976-pineapple-overlay.dtbo\
                           audi-23803-cliffs-overlay.dtbo\
                           audi-23865-cliffs-overlay.dtbo\
                           bale-23609-cliffs-overlay.dtbo\
+                          bale-23622-cliffs-overlay.dtbo\
                           bale-23718-cliffs-overlay.dtbo\
+                          bale-24687-cliffs-overlay.dtbo\
                           divo-23631-pineapple-overlay.dtbo\
                           divo-24672-pineapple-overlay.dtbo
 

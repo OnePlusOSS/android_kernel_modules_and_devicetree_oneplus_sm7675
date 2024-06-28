@@ -7,6 +7,8 @@
 /* add sia pa extend driver*/
 #define CONFIG_SND_SOC_SIPA 1
 #define CONFIG_SND_SOC_SIPA_TUNING 1
+/* add aw87xxx pa extend driver*/
+#define CONFIG_SND_SOC_AW87XXX 1
 /* add oplus pa manager*/
 #define CONFIG_SND_SOC_OPLUS_PA_MANAGER 1
 

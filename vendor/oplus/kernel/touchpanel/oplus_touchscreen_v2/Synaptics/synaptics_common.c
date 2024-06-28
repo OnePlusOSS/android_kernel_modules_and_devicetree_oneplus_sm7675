@@ -116,11 +116,11 @@ static int synaptics_doing_black_screen_autotest(struct seq_file *s,
 	syna_test_ops = (struct syna_auto_test_operations *)
 		       com_test_data_p->chip_test_ops;
 
-	if (!syna_test_ops->syna_auto_test_preoperation) {
+	if (!syna_test_ops->syna_auto_black_screen_test_preoperation) {
 		TPD_INFO("not support nvt_test_ops->black_screen_test_preoperation callback\n");
 
 	} else {
-		ret = syna_test_ops->syna_auto_test_preoperation(s, ts->chip_data,
+		ret = syna_test_ops->syna_auto_black_screen_test_preoperation(s, ts->chip_data,
 				p_nvt_testdata, p_test_item_info);
 
 		if (ret < 0) {
@@ -164,11 +164,11 @@ static int synaptics_doing_black_screen_autotest(struct seq_file *s,
 	tp_kfree((void **)&p_test_item_info);
 
 
-	if (!syna_test_ops->syna_auto_test_preoperation) {
+	if (!syna_test_ops->syna_auto_black_screen_test_endoperation) {
 		TPD_INFO("not support nvt_test_ops->black_screen_test_endoperation callback\n");
 
 	} else {
-		ret = syna_test_ops->syna_auto_test_preoperation(s, ts->chip_data,
+		ret = syna_test_ops->syna_auto_black_screen_test_endoperation(s, ts->chip_data,
 				p_nvt_testdata, p_test_item_info);
 
 		if (ret < 0) {

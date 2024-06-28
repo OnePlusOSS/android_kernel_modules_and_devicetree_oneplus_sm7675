@@ -6,6 +6,7 @@
         compatible = "oplus-nfc-chipset";
         chipset-23609 = "SN220T";
 	chipset-23622 = "SN220T";
+	chipset-24687 = "SN220T";
     };
 };
 

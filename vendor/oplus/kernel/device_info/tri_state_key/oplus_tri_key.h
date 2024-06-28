@@ -229,6 +229,7 @@ struct extcon_dev_data {
 	bool        bus_ready;              /*spi or i2c resume status*/
 	bool        is_suspended;
 	bool        turn_upside_down_support;
+	bool        new_posupdate_support;
 	/* framebuffer callbacks notifier */
 #if IS_ENABLED(CONFIG_DRM_OPLUS_PANEL_NOTIFY)
 	struct drm_panel *active_panel;

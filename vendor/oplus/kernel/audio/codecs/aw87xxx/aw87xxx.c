@@ -52,6 +52,7 @@
 #include "aw87xxx_acf_bin.h"
 #include "aw87xxx_bin_parse.h"
 #include "aw87xxx_dsp.h"
+#include <linux/miscdevice.h>
 
 #ifdef CONFIG_SND_SOC_OPLUS_PA_MANAGER
 #include "../../qcom/oplus_speaker_manager/oplus_speaker_manager.h"
@@ -95,7 +96,7 @@ int aw87xxx_spk_low_voltage_status = 0;
  * aw87xxx marco
  ******************************************************************/
 #define AW87XXX_I2C_NAME	"aw87xxx_pa"
-#define AW87XXX_DRIVER_VERSION	"v2.10.1"
+#define AW87XXX_DRIVER_VERSION	"v2.12.0"
 #define AW87XXX_FW_BIN_NAME	"aw87xxx_acf.bin"
 
 /*************************************************************************
@@ -126,6 +127,18 @@ static struct aw_componet_codec_ops aw_componet_codec_ops = {
  * aw87xxx device update profile
  *
  ************************************************************************/
+#ifdef AW_ALGO_AUTH_DSP
+static void aw87xxx_algo_auth_work(struct work_struct *work)
+{
+	struct aw87xxx *aw87xxx = container_of(work,
+			struct aw87xxx, auth_work.work);
+
+	AW_DEV_LOGI(aw87xxx->dev, "enter");
+
+	aw87xxx_dev_algo_authentication(&aw87xxx->aw_dev);
+}
+#endif
+
 static void aw87xxx_update_voltage_max(struct aw87xxx *aw87xxx,
 				struct aw_data_container *data_container)
 {
@@ -192,6 +205,12 @@ static int aw87xxx_power_down(struct aw87xxx *aw87xxx, char *profile)
 	}
 
 	aw87xxx->current_profile = prof_desc->prof_name;
+
+#ifdef AW_ALGO_AUTH_DSP
+	g_algo_auth_st = AW_ALGO_AUTH_WAIT;
+	cancel_delayed_work_sync(&aw87xxx->auth_work);
+#endif
+
 	return 0;
 
 pwr_off_failed:
@@ -251,12 +270,15 @@ static int aw87xxx_power_on(struct aw87xxx *aw87xxx, char *profile)
 	}
 
 	aw87xxx->current_profile = prof_desc->prof_name;
+
+#ifdef AW_ALGO_AUTH_DSP
+	INIT_DELAYED_WORK(&aw87xxx->auth_work, aw87xxx_algo_auth_work);
+	schedule_delayed_work(&aw87xxx->auth_work, msecs_to_jiffies(3000));
+#endif
 	AW_DEV_LOGD(aw87xxx->dev, "load profile[%s] succeed", profile);
 
 	return 0;
 }
-
-
 
 int aw87xxx_update_profile(struct aw87xxx *aw87xxx, char *profile)
 {
@@ -572,7 +594,6 @@ int aw87xxx_voltage_get(struct oplus_speaker_device *speaker_device)
 	return aw87xxx_spk_low_voltage_status;
 }
 
-
 bool is_mute_status = false;
 void aw87xxx_speaker_mute_set(struct oplus_speaker_device *speaker_device, int enable)
 {
@@ -595,6 +616,180 @@ void aw87xxx_speaker_mute_get(struct oplus_speaker_device *speaker_device, int *
 	*enable = is_mute_status;
 }
 #endif /*CONFIG_SND_SOC_OPLUS_PA_MANAGER*/
+
+/*********************************algo_auth_misc*************************************/
+static int aw87xxx_algo_auth_misc_ops_write(struct aw87xxx *aw87xxx,
+		unsigned int cmd, unsigned long arg)
+{
+	int ret = 0;
+	unsigned int data_len = _IOC_SIZE(cmd);
+	struct aw_device *aw_dev = &aw87xxx->aw_dev;
+	struct algo_auth_data algo_data;
+
+	AW_DEV_LOGD(aw_dev->dev, "write algo auth data, len=%d", data_len);
+
+	if (copy_from_user(&algo_data, (void __user *)arg, data_len))
+		ret = -EFAULT;
+
+	aw87xxx_dev_algo_auth_mode(aw_dev, &algo_data);
+
+	AW_DEV_LOGD(aw_dev->dev, "ret=%d,mode=%d,reg_crc=0x%x,random=0x%x,id=0x%x,res=%d",
+		ret, algo_data.auth_mode, algo_data.reg_crc, algo_data.random,
+		algo_data.chip_id, algo_data.check_result);
+
+	return ret;
+}
+
+static int aw87xxx_algo_auth_misc_ops_read(struct aw87xxx *aw87xxx,
+		unsigned int cmd, unsigned long arg)
+{
+	int ret = 0;
+	int16_t data_len = _IOC_SIZE(cmd);
+	struct aw_device *aw_dev = &aw87xxx->aw_dev;
+	struct algo_auth_data algo_data;
+
+	AW_DEV_LOGD(aw_dev->dev, "read algo auth data, len=%d", data_len);
+	memset(&algo_data, 0x0, sizeof(struct algo_auth_data));
+
+	algo_data.auth_mode = aw_dev->auth_desc.auth_mode;
+	algo_data.chip_id = aw_dev->auth_desc.chip_id;
+	algo_data.random = aw_dev->auth_desc.random;
+	algo_data.reg_crc = aw_dev->auth_desc.reg_crc;
+	algo_data.check_result = aw_dev->auth_desc.check_result;
+
+	if (copy_to_user((void __user *)arg, (char *)&algo_data, data_len))
+		ret = -EFAULT;
+
+	AW_DEV_LOGD(aw_dev->dev, "ret=%d,mode=%d,reg_crc=0x%x,random=0x%x,id=0x%x,res=%d",
+		ret, algo_data.auth_mode, algo_data.reg_crc, algo_data.random,
+		algo_data.chip_id, algo_data.check_result);
+
+	return ret;
+}
+
+static int aw87xxx_algo_auth_misc_ops(struct aw87xxx *aw87xxx,
+			unsigned int cmd, unsigned long arg)
+{
+	int ret = 0;
+
+	switch (cmd) {
+	case AW_IOCTL_SET_ALGO_AUTH: {
+		ret = aw87xxx_algo_auth_misc_ops_write(aw87xxx, cmd, arg);
+	} break;
+	case AW_IOCTL_GET_ALGO_AUTH: {
+		ret = aw87xxx_algo_auth_misc_ops_read(aw87xxx, cmd, arg);
+	} break;
+	default:
+		AW_DEV_LOGE(aw87xxx->dev, "unsupported  cmd %d", cmd);
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+static long aw87xxx_algo_auth_misc_unlocked_ioctl(struct file *file,
+			unsigned int cmd, unsigned long arg)
+{
+	int ret = 0;
+	struct aw87xxx *aw87xxx = NULL;
+
+	if (((_IOC_TYPE(cmd)) != (AW_IOCTL_MAGIC_S))) {
+		AW_LOGE("cmd magic err");
+		return -EINVAL;
+	}
+	aw87xxx = (struct aw87xxx *)file->private_data;
+	ret = aw87xxx_algo_auth_misc_ops(aw87xxx, cmd, arg);
+	if (ret)
+		return -EINVAL;
+
+	return 0;
+}
+
+#ifdef CONFIG_COMPAT
+static long aw87xxx_algo_auth_misc_compat_ioctl(struct file *file,
+	unsigned int cmd, unsigned long arg)
+{
+	int ret = 0;
+	struct aw87xxx *aw87xxx = NULL;
+
+	if (((_IOC_TYPE(cmd)) != (AW_IOCTL_MAGIC_S))) {
+		AW_LOGE("cmd magic err");
+		return -EINVAL;
+	}
+	aw87xxx = (struct aw87xxx *)file->private_data;
+	ret = aw87xxx_algo_auth_misc_ops(aw87xxx, cmd, arg);
+	if (ret)
+		return -EINVAL;
+
+	return 0;
+}
+#endif
+
+static int aw87xxx_algo_auth_misc_open(struct inode *inode, struct file *file)
+{
+	struct list_head *pos = NULL;
+	struct aw87xxx *list_aw87xxx = NULL;
+
+	list_for_each(pos, &g_aw87xxx_list) {
+		list_aw87xxx = list_entry(pos, struct aw87xxx, list);
+		if (list_aw87xxx->dev_index == 0)
+			break;
+	}
+
+	if (list_aw87xxx == NULL) {
+		AW_LOGE("can't find dev num %d", 0);
+		return -EINVAL;
+	}
+
+	file->private_data = (void *)list_aw87xxx;
+
+	AW_DEV_LOGD(list_aw87xxx->dev, "misc open success");
+
+	return 0;
+}
+
+static int aw87xxx_algo_auth_misc_release(struct inode *inode, struct file *file)
+{
+	file->private_data = (void *)NULL;
+
+	AW_LOGD("misc release success");
+	return 0;
+}
+
+static const struct file_operations aw_algo_auth_misc_fops = {
+	.owner = THIS_MODULE,
+	.open = aw87xxx_algo_auth_misc_open,
+	.release = aw87xxx_algo_auth_misc_release,
+	.unlocked_ioctl = aw87xxx_algo_auth_misc_unlocked_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = aw87xxx_algo_auth_misc_compat_ioctl,
+#endif
+};
+
+static struct miscdevice misc_algo_auth = {
+	.name = "awinic_ctl",
+	.minor = MISC_DYNAMIC_MINOR,
+	.fops  = &aw_algo_auth_misc_fops,
+};
+
+static int aw87xxx_algo_auth_misc_init(struct aw_device *aw_dev)
+{
+	int ret;
+
+	ret = misc_register(&misc_algo_auth);
+	if (ret)
+		AW_DEV_LOGE(aw_dev->dev, "misc register fail: %d\n", ret);
+
+	return ret;
+}
+
+static void aw87xxx_algo_auth_misc_deinit(struct aw_device *aw_dev)
+{
+	misc_deregister(&misc_algo_auth);
+
+	AW_DEV_LOGD(aw_dev->dev, " misc unregister done");
+}
 
 /****************************************************************************
  *
@@ -802,6 +997,68 @@ static int aw87xxx_monitor_switch_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int aw87xxx_algo_auth_info(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_BYTES;
+	uinfo->count = sizeof(struct algo_auth_data);
+	return 0;
+}
+
+/*op_flag: SNDRV_CTL_TLV_OP_READ = 0, SNDRV_CTL_TLV_OP_WRITE = 1*/
+static int aw87xxx_algo_auth_tlv_rw(struct snd_kcontrol *kcontrol, int op_flag,
+			unsigned int size, unsigned int __user *tlv)
+{
+	int ret = 0;
+	struct aw87xxx *aw87xxx = (struct aw87xxx *)kcontrol->private_value;
+	struct aw_device *aw_dev = &aw87xxx->aw_dev;
+	struct algo_auth_data algo_data;
+
+	AW_DEV_LOGD(aw87xxx->dev, "op_flag = [%d]", op_flag);
+
+	if (!tlv) {
+		AW_DEV_LOGE(aw87xxx->dev, "tlv is NULL");
+		return -EINVAL;
+	}
+
+	if (size != sizeof(struct algo_auth_data)) {
+		AW_DEV_LOGE(aw87xxx->dev, "size != algo_auth_data");
+		return -EINVAL;
+	}
+
+	switch (op_flag) {
+	case SNDRV_CTL_TLV_OP_READ:
+		AW_DEV_LOGD(aw87xxx->dev, "get algo auth data");
+		memset(&algo_data, 0x0, sizeof(struct algo_auth_data));
+
+		algo_data.auth_mode = aw_dev->auth_desc.auth_mode;
+		algo_data.chip_id = aw_dev->auth_desc.chip_id;
+		algo_data.random = aw_dev->auth_desc.random;
+		algo_data.reg_crc = aw_dev->auth_desc.reg_crc;
+		algo_data.check_result = aw_dev->auth_desc.check_result;
+
+		if (copy_to_user((void __user *)tlv, (char *)&algo_data, size))
+			ret = -EFAULT;
+		break;
+	case SNDRV_CTL_TLV_OP_WRITE:
+		AW_DEV_LOGD(aw87xxx->dev, "set algo auth data");
+		if (copy_from_user(&algo_data, (void __user *)tlv, size))
+			ret = -EFAULT;
+
+		aw87xxx_dev_algo_auth_mode(aw_dev, &algo_data);
+		break;
+	default:
+		AW_DEV_LOGD(aw_dev->dev, "unsupport op flag[0x%x]", op_flag);
+		return -EINVAL;
+	}
+
+	AW_DEV_LOGD(aw87xxx->dev, "mode=%d,reg_crc=0x%x,random=0x%x,id=0x%x,res=%d",
+		algo_data.auth_mode, algo_data.reg_crc, algo_data.random,
+		algo_data.chip_id, algo_data.check_result);
+
+	return ret;
+}
+
 static int aw87xxx_spin_switch_info(struct snd_kcontrol *kcontrol,
 			struct snd_ctl_elem_info *uinfo)
 {
@@ -999,7 +1256,6 @@ static int aw87xxx_public_kcontrol_create(struct aw87xxx *aw87xxx,
 	aw87xxx_kcontrol[0].put = aw87xxx_spin_switch_put;
 	aw87xxx_kcontrol[0].private_value = (unsigned long)aw87xxx;
 
-
 	kctl_name[1] = devm_kzalloc(aw87xxx->dev, AW_NAME_BUF_MAX,
 			GFP_KERNEL);
 	if (kctl_name[1] == NULL)
@@ -1014,6 +1270,19 @@ static int aw87xxx_public_kcontrol_create(struct aw87xxx *aw87xxx,
 	aw87xxx_kcontrol[1].get = aw87xxx_hal_monitor_time_get;
 	aw87xxx_kcontrol[1].private_value = (unsigned long)aw87xxx;
 
+	kctl_name[2] = devm_kzalloc(aw87xxx->dev, AW_NAME_BUF_MAX,
+			GFP_KERNEL);
+	if (kctl_name[2] == NULL)
+		return -ENOMEM;
+
+	snprintf(kctl_name[2], AW_NAME_BUF_MAX, "aw_algo_auth");
+
+	aw87xxx_kcontrol[2].name = kctl_name[2];
+	aw87xxx_kcontrol[2].iface = SNDRV_CTL_ELEM_IFACE_MIXER;
+	aw87xxx_kcontrol[2].access = SNDRV_CTL_ELEM_ACCESS_TLV_CALLBACK|SNDRV_CTL_ELEM_ACCESS_TLV_READWRITE;
+	aw87xxx_kcontrol[2].info = aw87xxx_algo_auth_info;
+	aw87xxx_kcontrol[2].tlv.c = aw87xxx_algo_auth_tlv_rw;
+	aw87xxx_kcontrol[2].private_value = (unsigned long)aw87xxx;
 
 	ret = aw_componet_codec_ops.add_codec_controls(aw87xxx->codec,
 				aw87xxx_kcontrol, kcontrol_num);
@@ -1023,8 +1292,9 @@ static int aw87xxx_public_kcontrol_create(struct aw87xxx *aw87xxx,
 		return ret;
 	}
 
-	AW_DEV_LOGI(aw87xxx->dev, "add public codec controls[%s]",
-		aw87xxx_kcontrol[0].name);
+	AW_DEV_LOGI(aw87xxx->dev, "add public codec controls[%s,%s,%s]",
+		aw87xxx_kcontrol[0].name, aw87xxx_kcontrol[1].name,
+		aw87xxx_kcontrol[2].name);
 
 	return 0;
 }
@@ -1743,6 +2013,9 @@ static int aw87xxx_i2c_probe(struct i2c_client *client,
 	/* enable wake source */
 	device_init_wakeup(aw87xxx->dev, true);
 
+	if (aw87xxx->dev_index == 0)
+		aw87xxx_algo_auth_misc_init(&aw87xxx->aw_dev);
+
 	/*add device to total list */
 	mutex_lock(&g_aw87xxx_mutex_lock);
 	g_aw87xxx_dev_cnt++;
@@ -1801,7 +2074,11 @@ exit_check_functionality_failed:
 	return ret;
 }
 
+#ifdef AW_KERNEL_VER_OVER_6_1_0
 static void aw87xxx_i2c_remove(struct i2c_client *client)
+#else
+static int aw87xxx_i2c_remove(struct i2c_client *client)
+#endif
 {
 	struct aw87xxx *aw87xxx = i2c_get_clientdata(client);
 
@@ -1811,6 +2088,9 @@ static void aw87xxx_i2c_remove(struct i2c_client *client)
 
 	if (gpio_is_valid(aw87xxx->aw_dev.rst_gpio))
 		gpio_free(aw87xxx->aw_dev.rst_gpio);
+
+	if (aw87xxx->dev_index == 0)
+		aw87xxx_algo_auth_misc_deinit(&aw87xxx->aw_dev);
 
 	aw87xxx_monitor_exit(&aw87xxx->monitor);
 
@@ -1827,7 +2107,10 @@ static void aw87xxx_i2c_remove(struct i2c_client *client)
 	devm_kfree(&client->dev, aw87xxx);
 	aw87xxx = NULL;
 
-	return;
+#ifdef AW_KERNEL_VER_OVER_6_1_0
+#else
+	return 0;
+#endif
 }
 
 static void aw87xxx_i2c_shutdown(struct i2c_client *client)

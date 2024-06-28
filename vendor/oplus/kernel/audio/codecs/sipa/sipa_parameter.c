@@ -46,31 +46,6 @@ static void sipa_fw_load_retry(sipa_dev_t *si_pa)
 		si_pa->fw_load_count = 0;
 	}
 }
-
-static void *my_memcpy(void *dest, const void *src, size_t count)
-{
-	int bytelen = count/sizeof(dest);
-	int slice   = count%sizeof(dest);
-	unsigned long* d = (unsigned long*)dest;
-	unsigned long* s = (unsigned long*)src;
-
-	if (((char*)dest > ((char*)src + count)) || (dest < src)) {
-		while (bytelen--) {
-			*d++ = *s++;
-		}
-		while (slice--) {
-			*(char *)d++ = *(char *)s++;
-		}
-	} else {
-		char *d_1 = (char *)dest + count - 1;
-		char *s_1 = (char *)src + count - 1;
-
-		while (count --) {
-			*d_1-- = *s_1--;
-		}
-	}
-	return dest;
-}
 #ifndef LOAD_FW_BY_WORK_DELAY
 static void sipa_container_loaded(
 	const struct firmware *cont,
@@ -185,6 +160,7 @@ static void sipa_fw_load_work_delay(struct work_struct *work)
 	const SIPA_PARAM_FW *param = NULL;
 	sipa_dev_t *si_pa = container_of(work, sipa_dev_t, fw_load_work.work);
 	const struct firmware *cont = NULL;
+	void *fw = NULL;
 
 	pr_debug("[debug][%s] %s: enter load\r\n", LOG_FLAG, __func__);
 
@@ -247,7 +223,8 @@ static void sipa_fw_load_work_delay(struct work_struct *work)
 		goto load_error;
 	}
 
-	my_memcpy(&sipa_parameters->fw, cont->data, sz);
+	fw = (void*)&sipa_parameters->fw;
+	memcpy(fw, cont->data, sz);
 	release_firmware(cont);
 	sipa_fw_loaded = 1;
 

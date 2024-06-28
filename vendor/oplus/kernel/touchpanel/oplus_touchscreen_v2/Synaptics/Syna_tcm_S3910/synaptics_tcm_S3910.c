@@ -6972,6 +6972,29 @@ static void syna_force_water_mode(void *chip_data, bool enable)
 	TP_INFO(tcm_info->tp_index, "%s: now reg_val=0x%x", __func__, regval);
 }
 
+static void syna_read_water_flag(void *chip_data)
+{
+	int retval = 0;
+	unsigned short regval = 0;
+
+	struct syna_tcm_data *tcm_info = (struct syna_tcm_data *)chip_data;
+	struct touchpanel_data *ts = spi_get_drvdata(tcm_info->client);
+
+	TP_INFO(tcm_info->tp_index, "%s: water flag.\n", __func__);
+
+	retval = syna_tcm_get_dynamic_config(tcm_info, DC_MOIS_MODE, &regval);
+	if (retval < 0) {
+		TP_INFO(tcm_info->tp_index, "Failed to get water flag config\n");
+		return;
+	}
+	TP_INFO(tcm_info->tp_index, "%s:  water flag 0x%x", __func__, regval);
+	if ((regval & 0x11) == 0x11) {
+		ts->water_mode = 1;
+	} else {
+		ts->water_mode = 0;
+	}
+}
+
 static int syna_glove_mode(void *chip_data, bool enable)
 {
 	int retval = 0;
@@ -7975,6 +7998,7 @@ static struct oplus_touchpanel_operations syna_tcm_ops = {
 	.get_touch_direction		= syna_get_touch_direction,
 	.freq_hop_trigger		= syna_freq_hop_trigger,
 	.force_water_mode		= syna_force_water_mode,
+	.get_water_mode			= syna_read_water_flag,
 	.enable_gesture_mask		= syna_tcm_enable_gesture_mask,
 	.speed_up_resume_prepare	= syna_resume_prepare,
 	.specific_resume_operate	= syna_specific_resume_operate,

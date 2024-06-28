@@ -8,7 +8,7 @@
 #include <linux/gpio.h>
 #include <linux/string.h>
 #include <linux/err.h>
-
+#include <linux/thermal.h>
 #include "ft3683g_core.h"
 
 struct chip_data_ft3683g *g_fts_data = NULL;
@@ -1110,8 +1110,8 @@ static int focal_dump_reg_state(void *chip_data, char *buf)
 	count += sprintf(buf + count, "Gesture Mode:0x%02x\n", regvalue);
 
 	/* 3 charge in*/
-	fts_read_reg(FTS_REG_CHARGER_MODE_EN, &regvalue);
-	count += sprintf(buf + count, "charge stat:0x%02x\n", regvalue);
+	fts_read_reg(FTS_REG_CTRL, &regvalue);
+	count += sprintf(buf + count, "Control stat:0x%02x\n", regvalue);
 
 	/*Interrupt counter*/
 	fts_read_reg(FTS_REG_INT_CNT, &regvalue);
@@ -2098,8 +2098,8 @@ static void fts_main_register_read(struct seq_file *s, void *chip_data)
 		  val[1], val[2], val[3], val[4], val[5], val[6], val[7], val[8]);
 
 	/*charge in*/
-	fts_read_reg(FTS_REG_CHARGER_MODE_EN, &regvalue);
-	seq_printf(s, "charge state:0x%02x\n", regvalue);
+	fts_read_reg(FTS_REG_CTRL, &regvalue);
+	seq_printf(s, "Control state:0x%02x\n", regvalue);
 
 	/*edge limit*/
 	fts_read_reg(FTS_REG_EDGE_LIMIT, &regvalue);
@@ -2224,22 +2224,27 @@ static int fts_enable_edge_limit(struct chip_data_ft3683g *ts_data, int enable)
 	/*0:Horizontal, 1:Vertical*/
 	if (enable == VERTICAL_SCREEN) {
 		edge_mode = 0;
+		SET_REG(FTS_REG_EDGE_LIMIT_BIT, 0x00);
 
 	} else if (enable == LANDSCAPE_SCREEN_90) {
 		edge_mode = 1;
+		SET_REG(FTS_REG_EDGE_LIMIT_BIT, 0x01);
 
 	} else if (enable == LANDSCAPE_SCREEN_270) {
 		edge_mode = 2;
+		SET_REG(FTS_REG_EDGE_LIMIT_BIT, 0x02);
 	}
 
-	TPD_INFO("MODE_EDGE, write 0x8C=%d", edge_mode);
-	return fts_write_reg(FTS_REG_EDGE_LIMIT, edge_mode);
+	TPD_INFO("MODE_EDGE, write 0x8B|45=0x%x", ts_data->ctrl_reg_state);
+	return fts_write_reg(FTS_REG_CTRL, ts_data->ctrl_reg_state);
 }
 
 static int fts_enable_charge_mode(struct chip_data_ft3683g *ts_data, bool enable)
 {
-	TPD_INFO("MODE_CHARGE, write 0x8B=%d", enable);
-	return fts_write_reg(FTS_REG_CHARGER_MODE_EN, enable);
+	SET_REG(FTS_REG_CHARGER_MODE_EN_BIT, enable);
+	TPD_INFO("MODE_CHARGE, write 0x8B|01=0x%x", ts_data->ctrl_reg_state);
+	ts_data->charger_connected = enable;
+	return fts_write_reg(FTS_REG_CTRL, ts_data->ctrl_reg_state);
 }
 
 static int fts_enable_game_mode(struct chip_data_ft3683g *ts_data, bool enable)
@@ -2288,9 +2293,9 @@ static int fts_enable_game_mode(struct chip_data_ft3683g *ts_data, bool enable)
 		report_rate = FTS_120HZ_REPORT_RATE;
 	}
 
-	SET_REG(FTS_REG_GAME_MODE_EN_BIT, enable);
+	SET_REG(FTS_REG_GAME_MODE_EN_BIT, game_mode);
 	TPD_INFO("MODE_GAME, write 0x8B|23=0x%x, 0x88=%d", ts_data->ctrl_reg_state, report_rate);
-	ret = fts_write_reg(FTS_REG_GAME_MODE_EN, ts_data->ctrl_reg_state);
+	ret = fts_write_reg(FTS_REG_CTRL, ts_data->ctrl_reg_state);
 	mdelay(15);
 	ret = fts_write_reg(FTS_REG_REPORT_RATE, report_rate);
 	return ret;
@@ -2299,8 +2304,9 @@ static int fts_enable_game_mode(struct chip_data_ft3683g *ts_data, bool enable)
 static int fts_enable_headset_mode(struct chip_data_ft3683g *ts_data,
                                    bool enable)
 {
-	TPD_INFO("MODE_HEADSET, write 0xC3=%d \n", enable);
-	return fts_write_reg(FTS_REG_HEADSET_MODE_EN, enable);
+	SET_REG(FTS_REG_HEADSET_MODE_EN_BIT, enable);
+	TPD_INFO("MODE_HEADSET, write 0x8B|6=0x%x \n", enable);
+	return fts_write_reg(FTS_REG_CTRL, ts_data->ctrl_reg_state);
 }
 
 static int fts_mode_switch(void *chip_data, work_mode mode, int flag)
@@ -2400,6 +2406,49 @@ mode_err:
 	return ret;
 }
 
+static int fts_send_temperature(void *chip_data, int temp, bool normal_mode);
+
+#ifndef CONFIG_ARCH_QTI_VM
+static int get_now_temp(struct chip_data_ft3683g *ts_data)
+{
+	struct touchpanel_data *ts = spi_get_drvdata(ts_data->ft_spi);
+	int result = -40000;
+	int ret = 0;
+
+#ifdef CONFIG_TOUCHPANEL_TRUSTED_TOUCH
+	if (atomic_read(&ts->trusted_touch_enabled) == 1) {
+		TPD_INFO("%s: Trusted touch is already enabled, do not get temp\n", __func__);
+		return ret;
+	}
+#endif
+
+	if (ts->is_suspended) {
+		TPD_INFO("%s : !ts->is_suspended\n", __func__);
+		return ret;
+	}
+
+	ts->oplus_shell_themal = thermal_zone_get_zone_by_name("shell_back");
+
+	if (IS_ERR(ts->oplus_shell_themal)) {
+		TPD_INFO("%s Can't get shell_back\n", __func__);
+		ts->oplus_shell_themal = NULL;
+		ret = -1;
+	}
+
+	TPD_DEBUG("%s get shell_back ret:%d\n", __func__, ret);
+
+	ret = thermal_zone_get_temp(ts->oplus_shell_themal, &result);
+	if (ret < 0)
+		TPD_INFO("%s can't thermal_zone_get_temp, ret=%d\n", __func__, ret);
+
+	result = result / 1000;
+	TPD_INFO("%s : temp is %d\n", __func__, result);
+
+	fts_send_temperature(ts->chip_data, result, true);
+
+	return ret;
+}
+#endif
 
 
 /*
@@ -2413,6 +2462,11 @@ static int fts_reset(void *chip_data)
 	TPD_INFO("%s:call\n", __func__);
 	fts_hw_reset(ts_data, RESET_TO_NORMAL_TIME);
 
+	if (ts_data->ts->temperature_detect_shellback_support == true) {
+#ifndef CONFIG_ARCH_QTI_VM
+		get_now_temp(ts_data);
+#endif
+	}
 	if (ts_data->tp_data_record_support) {
 		if (ts_data->differ_mode == FTS_REG_WORK_MODE_SNR_MODE) {
 			ret = fts_write_reg(FTS_REG_WORK_MODE, FTS_REG_WORK_MODE_SNR_MODE);
@@ -2608,6 +2662,10 @@ static u32 fts_u32_trigger_reason(void *chip_data, int gesture_enable,
 			}
 		}
 		ret = fts_read(&cmd, 1, &touch_buf[0], ts_data->touch_size);
+		for (j = 0; j < FTS_MAX_POINTS_SUPPORT; j++) {
+			TPD_DEBUG("read touchbuf point[%d] 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x", j, touch_buf[2 + 6*j], touch_buf[3 + 6*j], \
+				touch_buf[4 + 6*j], touch_buf[5 + 6*j], touch_buf[6 + 6*j], touch_buf[7 + 6*j]);
+		}
 		if (ret < 0) {
 			TPD_INFO("read touch point one fail");
 			return IRQ_IGNORE;
@@ -2797,16 +2855,65 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 		break;
 
 	case TOUCH_PROTOCOL_v2:
-			event_num = touch_buf[FTS_TOUCH_E_NUM] & 0x0F;
-			if (!event_num || (event_num > max_num)) {
-				TPD_INFO("invalid touch event num(%d)", event_num);
-				return -EINVAL;
+
+		if (ts_data->differ_read_every_frame) {
+			TPD_DEBUG("mutual diff data count:%u\n", ts_data->snr_count);
+			for (i = 0; i < tx_num; i++) {
+				TPD_DEBUG("[%2d] %5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d", i, \
+						ts_data->diff_buf[i * rx_num], ts_data->diff_buf[i * rx_num + 1], ts_data->diff_buf[i * rx_num + 2], ts_data->diff_buf[i * rx_num + 3], \
+						ts_data->diff_buf[i * rx_num + 4], ts_data->diff_buf[i * rx_num + 5], ts_data->diff_buf[i * rx_num + 6], ts_data->diff_buf[i * rx_num + 7], \
+						ts_data->diff_buf[i * rx_num + 8], ts_data->diff_buf[i * rx_num + 9], ts_data->diff_buf[i * rx_num + 10], ts_data->diff_buf[i * rx_num + 11], \
+						ts_data->diff_buf[i * rx_num + 12], ts_data->diff_buf[i * rx_num + 13], ts_data->diff_buf[i * rx_num + 14], ts_data->diff_buf[i * rx_num + 15], \
+						ts_data->diff_buf[i * rx_num + 16], ts_data->diff_buf[i * rx_num + 17], ts_data->diff_buf[i * rx_num + 18], ts_data->diff_buf[i * rx_num + 19], \
+						ts_data->diff_buf[i * rx_num + 20], ts_data->diff_buf[i * rx_num + 21], ts_data->diff_buf[i * rx_num + 22], ts_data->diff_buf[i * rx_num + 23], \
+						ts_data->diff_buf[i * rx_num + 24], ts_data->diff_buf[i * rx_num + 25], ts_data->diff_buf[i * rx_num + 26], ts_data->diff_buf[i * rx_num + 27], \
+						ts_data->diff_buf[i * rx_num + 28], ts_data->diff_buf[i * rx_num + 29], ts_data->diff_buf[i * rx_num + 30], ts_data->diff_buf[i * rx_num + 31], \
+						ts_data->diff_buf[i * rx_num + 32], ts_data->diff_buf[i * rx_num + 33], ts_data->diff_buf[i * rx_num + 34], ts_data->diff_buf[i * rx_num + 35], \
+						ts_data->diff_buf[i * rx_num + 36]);
 			}
+
+			TPD_DEBUG("sc_water diff data:\n");
+			TPD_DEBUG("%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d", ts_data->sc_water[0], \
+					ts_data->sc_water[1], ts_data->sc_water[2], ts_data->sc_water[3], ts_data->sc_water[4], ts_data->sc_water[5], ts_data->sc_water[6], \
+					ts_data->sc_water[7], ts_data->sc_water[8], ts_data->sc_water[9], ts_data->sc_water[10], ts_data->sc_water[11], ts_data->sc_water[12], \
+					ts_data->sc_water[13], ts_data->sc_water[14], ts_data->sc_water[15], ts_data->sc_water[16], ts_data->sc_water[17], ts_data->sc_water[18], \
+					ts_data->sc_water[19], ts_data->sc_water[20], ts_data->sc_water[21], ts_data->sc_water[22], ts_data->sc_water[23], ts_data->sc_water[24], \
+					ts_data->sc_water[25], ts_data->sc_water[26], ts_data->sc_water[27], ts_data->sc_water[28], ts_data->sc_water[29], ts_data->sc_water[30], \
+					ts_data->sc_water[31], ts_data->sc_water[32], ts_data->sc_water[33], ts_data->sc_water[34], ts_data->sc_water[35], ts_data->sc_water[36]);
+
+
+			TPD_DEBUG("%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d", ts_data->sc_water[37], ts_data->sc_water[38], ts_data->sc_water[39], \
+					ts_data->sc_water[40], ts_data->sc_water[41], ts_data->sc_water[42], ts_data->sc_water[43], ts_data->sc_water[44], ts_data->sc_water[45], \
+					ts_data->sc_water[46], ts_data->sc_water[47], ts_data->sc_water[48], ts_data->sc_water[49], ts_data->sc_water[50], ts_data->sc_water[51], \
+					ts_data->sc_water[52], ts_data->sc_water[53]);
+
+			TPD_DEBUG("sc_nomal diff data:\n");
+			TPD_DEBUG("%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d", ts_data->sc_nomal[0], \
+					ts_data->sc_nomal[1], ts_data->sc_nomal[2], ts_data->sc_nomal[3], ts_data->sc_nomal[4], ts_data->sc_nomal[5], ts_data->sc_nomal[6], \
+					ts_data->sc_nomal[7], ts_data->sc_nomal[8], ts_data->sc_nomal[9], ts_data->sc_nomal[10], ts_data->sc_nomal[11], ts_data->sc_nomal[12], \
+					ts_data->sc_nomal[13], ts_data->sc_nomal[14], ts_data->sc_nomal[15], ts_data->sc_nomal[16], ts_data->sc_nomal[17], ts_data->sc_nomal[18], \
+					ts_data->sc_nomal[19], ts_data->sc_nomal[20], ts_data->sc_nomal[21], ts_data->sc_nomal[22], ts_data->sc_nomal[23], ts_data->sc_nomal[24], \
+					ts_data->sc_nomal[25], ts_data->sc_nomal[26], ts_data->sc_nomal[27], ts_data->sc_nomal[28], ts_data->sc_nomal[29], ts_data->sc_nomal[30], \
+					ts_data->sc_nomal[31], ts_data->sc_nomal[32], ts_data->sc_nomal[33], ts_data->sc_nomal[34], ts_data->sc_nomal[35], ts_data->sc_nomal[36]);
+
+			TPD_DEBUG("%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d", ts_data->sc_nomal[37], \
+					ts_data->sc_nomal[38], ts_data->sc_nomal[39], ts_data->sc_nomal[40], ts_data->sc_nomal[41], ts_data->sc_nomal[42], ts_data->sc_nomal[43], \
+					ts_data->sc_nomal[44], ts_data->sc_nomal[45] , ts_data->sc_nomal[46], ts_data->sc_nomal[47], ts_data->sc_nomal[48], ts_data->sc_nomal[49], \
+					ts_data->sc_nomal[50], ts_data->sc_nomal[51], ts_data->sc_nomal[52], ts_data->sc_nomal[53]);
+
+			TPD_DEBUG("end\n");
+		}
+		event_num = touch_buf[FTS_TOUCH_E_NUM] & 0x0F;
+		if (!event_num || (event_num > max_num)) {
+			TPD_INFO("invalid touch event num(%d)", event_num);
+			return -EINVAL;
+		}
 
 			/*ts_data->touch_event_num = event_num;*/
 
 			for (i = 0; i < event_num; i++) {
 				base = FTS_ONE_TCH_LEN_V2 * i + 4;
+				base_prevent = 4 * i;
 				pointid = (touch_buf[FTS_TOUCH_OFF_ID_YH + base]) >> 4;
 				if (pointid >= max_num) {
 					TPD_INFO("touch point ID(%d) beyond max_touch_number(%d)",
@@ -2842,9 +2949,9 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 						points[pointid].tx_er = 0;
 						points[pointid].rx_er = 0;
 					}
-					/*TPD_INFO("grip info points[%d] tx_press=%d rx_press=%d tx_er=%d rx_er=%d",
+					TPD_DEBUG("grip info points[%d] tx_press=%d rx_press=%d tx_er=%d rx_er=%d",
 							pointid, points[pointid].tx_press, points[pointid].rx_press,
-							points[pointid].tx_er, points[pointid].rx_er);*/
+							points[pointid].tx_er, points[pointid].rx_er);
 				}
 
 				if (points[pointid].touch_major <= 0) points[pointid].touch_major = 0x09;
@@ -2864,55 +2971,6 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 			}
 
 			break;
-	}
-
-	if (ts_data->differ_read_every_frame) {
-		TPD_DEBUG("mutual diff data count:%u\n", ts_data->snr_count);
-		for (i = 0; i < tx_num; i++) {
-			TPD_DEBUG("[%2d] %5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d", i, \
-				ts_data->diff_buf[i * rx_num], ts_data->diff_buf[i * rx_num + 1], ts_data->diff_buf[i * rx_num + 2], ts_data->diff_buf[i * rx_num + 3], \
-				ts_data->diff_buf[i * rx_num + 4], ts_data->diff_buf[i * rx_num + 5], ts_data->diff_buf[i * rx_num + 6], ts_data->diff_buf[i * rx_num + 7], \
-				ts_data->diff_buf[i * rx_num + 8], ts_data->diff_buf[i * rx_num + 9], ts_data->diff_buf[i * rx_num + 10], ts_data->diff_buf[i * rx_num + 11], \
-				ts_data->diff_buf[i * rx_num + 12], ts_data->diff_buf[i * rx_num + 13], ts_data->diff_buf[i * rx_num + 14], ts_data->diff_buf[i * rx_num + 15], \
-				ts_data->diff_buf[i * rx_num + 16], ts_data->diff_buf[i * rx_num + 17], ts_data->diff_buf[i * rx_num + 18], ts_data->diff_buf[i * rx_num + 19], \
-				ts_data->diff_buf[i * rx_num + 20], ts_data->diff_buf[i * rx_num + 21], ts_data->diff_buf[i * rx_num + 22], ts_data->diff_buf[i * rx_num + 23], \
-				ts_data->diff_buf[i * rx_num + 24], ts_data->diff_buf[i * rx_num + 25], ts_data->diff_buf[i * rx_num + 26], ts_data->diff_buf[i * rx_num + 27], \
-				ts_data->diff_buf[i * rx_num + 28], ts_data->diff_buf[i * rx_num + 29], ts_data->diff_buf[i * rx_num + 30], ts_data->diff_buf[i * rx_num + 31], \
-				ts_data->diff_buf[i * rx_num + 32], ts_data->diff_buf[i * rx_num + 33], ts_data->diff_buf[i * rx_num + 34], ts_data->diff_buf[i * rx_num + 35], \
-				ts_data->diff_buf[i * rx_num + 36], ts_data->diff_buf[i * rx_num + 37], ts_data->diff_buf[i * rx_num + 38]);
-		}
-
-		TPD_DEBUG("sc_water diff data:\n");
-		TPD_DEBUG("%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d", ts_data->sc_water[0], \
-			ts_data->sc_water[1], ts_data->sc_water[2], ts_data->sc_water[3], ts_data->sc_water[4], ts_data->sc_water[5], ts_data->sc_water[6], \
-			ts_data->sc_water[7], ts_data->sc_water[8], ts_data->sc_water[9], ts_data->sc_water[10], ts_data->sc_water[11], ts_data->sc_water[12], \
-			ts_data->sc_water[13], ts_data->sc_water[14], ts_data->sc_water[15], ts_data->sc_water[16], ts_data->sc_water[17], ts_data->sc_water[18], \
-			ts_data->sc_water[19], ts_data->sc_water[20], ts_data->sc_water[21], ts_data->sc_water[22], ts_data->sc_water[23], ts_data->sc_water[24], \
-			ts_data->sc_water[25], ts_data->sc_water[26], ts_data->sc_water[27], ts_data->sc_water[28], ts_data->sc_water[29], ts_data->sc_water[30], \
-			ts_data->sc_water[31], ts_data->sc_water[32], ts_data->sc_water[33], ts_data->sc_water[34], ts_data->sc_water[35], ts_data->sc_water[36], \
-			ts_data->sc_water[37], ts_data->sc_water[38]);
-
-		TPD_DEBUG("%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d", ts_data->sc_water[39], \
-			ts_data->sc_water[40], ts_data->sc_water[41], ts_data->sc_water[42], ts_data->sc_water[43], ts_data->sc_water[44], ts_data->sc_water[45], \
-			ts_data->sc_water[46], ts_data->sc_water[47], ts_data->sc_water[48], ts_data->sc_water[49], ts_data->sc_water[50], ts_data->sc_water[51], \
-			ts_data->sc_water[52], ts_data->sc_water[53], ts_data->sc_water[54], ts_data->sc_water[55], ts_data->sc_water[56]);
-
-		TPD_DEBUG("sc_nomal diff data:\n");
-		TPD_DEBUG("%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d", ts_data->sc_nomal[0], \
-			ts_data->sc_nomal[1], ts_data->sc_nomal[2], ts_data->sc_nomal[3], ts_data->sc_nomal[4], ts_data->sc_nomal[5], ts_data->sc_nomal[6], \
-			ts_data->sc_nomal[7], ts_data->sc_nomal[8], ts_data->sc_nomal[9], ts_data->sc_nomal[10], ts_data->sc_nomal[11], ts_data->sc_nomal[12], \
-			ts_data->sc_nomal[13], ts_data->sc_nomal[14], ts_data->sc_nomal[15], ts_data->sc_nomal[16], ts_data->sc_nomal[17], ts_data->sc_nomal[18], \
-			ts_data->sc_nomal[19], ts_data->sc_nomal[20], ts_data->sc_nomal[21], ts_data->sc_nomal[22], ts_data->sc_nomal[23], ts_data->sc_nomal[24], \
-			ts_data->sc_nomal[25], ts_data->sc_nomal[26], ts_data->sc_nomal[27], ts_data->sc_nomal[28], ts_data->sc_nomal[29], ts_data->sc_nomal[30], \
-			ts_data->sc_nomal[31], ts_data->sc_nomal[32], ts_data->sc_nomal[33], ts_data->sc_nomal[34], ts_data->sc_nomal[35], ts_data->sc_nomal[36], \
-			ts_data->sc_nomal[37], ts_data->sc_nomal[38]);
-
-		TPD_DEBUG("%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d%5d", ts_data->sc_nomal[39], \
-			ts_data->sc_nomal[40], ts_data->sc_nomal[41], ts_data->sc_nomal[42], ts_data->sc_nomal[43], ts_data->sc_nomal[44], ts_data->sc_nomal[45], \
-			ts_data->sc_nomal[46], ts_data->sc_nomal[47] , ts_data->sc_nomal[48], ts_data->sc_nomal[49], ts_data->sc_nomal[50], ts_data->sc_nomal[51], \
-			ts_data->sc_nomal[52], ts_data->sc_nomal[53], ts_data->sc_nomal[54], ts_data->sc_nomal[55], ts_data->sc_nomal[56]);
-
-		TPD_DEBUG("end\n");
 	}
 
 	if (ts_data->touch_analysis_support && ts_data->ta_flag) {
@@ -2940,6 +2998,16 @@ static void fts_health_report(void *chip_data, struct monitor_data *mon_data)
 
 	ret = fts_read_reg(0x01, &val);
 	val = ts_data->touch_buf[0];
+
+	if (val & 0x01) {
+		ts_data->water_mode = 1;
+		TPD_INFO("%s:water flag =%d", __func__, ts_data->water_mode);
+	}
+	else {
+		ts_data->water_mode = 0;
+		TPD_INFO("%s:water flag error", __func__);
+	}
+
 	TPD_INFO("Health register(0x01):0x%x", val);
 	if (((val & 0x01) && !ts_data->is_in_water)
 	    || ts_data->monitor_data->health_simulate_trigger) {
@@ -3647,6 +3715,19 @@ int fts_set_spi_max_speed(unsigned int speed, char mode)
 	return rc;
 }
 
+static void fts_get_water_mode(void *chip_data)
+{
+	struct chip_data_ft3683g *ts_data = (struct chip_data_ft3683g *)chip_data;
+	struct touchpanel_data *ts = spi_get_drvdata(ts_data->ft_spi);
+	TPD_INFO("%s: water flag %d!\n", __func__, ts_data->water_mode);
+	if (ts_data->water_mode == 1) {
+		ts->water_mode = 1;
+	}
+	else {
+		ts->water_mode = 0;
+	}
+}
+
 static struct oplus_touchpanel_operations fts_ops = {
 	.power_control              = fts_power_control,
 	.get_vendor                 = fts_get_vendor,
@@ -3676,6 +3757,7 @@ static struct oplus_touchpanel_operations fts_ops = {
 	.freq_hop_trigger           = fts_freq_hop_trigger,
 	.force_water_mode           = fts_force_water_mode,
 	.set_high_frame_rate        = fts_set_high_frame_rate,
+	.get_water_mode            = fts_get_water_mode,
 };
 
 static struct focal_auto_test_operations ft3683g_test_ops = {

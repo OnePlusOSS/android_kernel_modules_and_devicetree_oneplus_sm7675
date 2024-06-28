@@ -83,9 +83,30 @@ struct typec_switch_priv {
 	struct delayed_work hp_plugout_check_work;
 #endif /* CONFIG_OPLUS_MTK_HEADSET_RECHECK */
 
+	/* 2024/1/8, add for supporting type-c headphone detect bypass */
+	bool hp_bypass;
 	int charger_plugged;
 	struct completion resume_ack;
 };
+#ifdef OPLUS_ARCH_EXTENDS
+/* 2024/1/8, add for supporting type-c headphone detect bypass */
+int (*ptypec_ext_eint_handler)(void) = NULL;
+
+void typec_ext_eint_handler(void)
+{
+    if (ptypec_ext_eint_handler) {
+        ptypec_ext_eint_handler();
+    } else {
+        pr_err("ext_eint_handler not register");
+    }
+}
+
+void register_ext_eint_handler(int (*phandler)(void))
+{
+    ptypec_ext_eint_handler = phandler;
+}
+EXPORT_SYMBOL(register_ext_eint_handler);
+#endif
 
 #define RESUME_TIMEDOUT_MS	1000
 static int typec_switch_wait_resume(struct typec_switch_priv *switch_priv)
@@ -115,17 +136,32 @@ static const struct regmap_config typec_switch_regmap_config = {
 
 static const struct typec_switch_reg_val dio4483_i2c_reg[] = {
 	{DIO4483_REG_SWITCH_SELECT, 0x18},
+	/* v1.2 s1~s5 do not set these reg
 	{DIO4483_REG_SLOW_L, 0x00},
 	{DIO4483_REG_SLOW_R, 0x00},
 	{DIO4483_REG_SLOW_MIC, 0x00},
 	{DIO4483_REG_SLOW_SENSE, 0x00},
 	{DIO4483_REG_SLOW_GND, 0x00},
-	{DIO4483_REG_DELAY_L_R, 0x00},
-	{DIO4483_REG_DELAY_L_MIC, 0x00},
+	{DIO4483_REG_DELAY_L_R, 0x2f},
+	{DIO4483_REG_DELAY_L_MIC, 0x1f},
 	{DIO4483_REG_DELAY_L_SENSE, 0x00},
 	{DIO4483_REG_DELAY_L_AGND, 0x09},
+	*/
 	{DIO4483_REG_SWITCH_SETTINGS, 0x98},
 	{DIO4483_REG_FUN_EN, 0x00},
+	{DIO4483_REG_TIMING_DELAY, 0x2f},
+	///* v1.4 s9
+	{0x1c, 0x2a},
+	{0x1f, 0x0f},
+	{0x2e, 0x8f},
+	{0x2f, 0x44},
+	{0x2e, 0x72},
+	{0x0f, 0x00},
+	{0x10, 0x00},
+	{0x0e, 0x0b},
+	{0x0d, 0x0f},
+	{0x21, 0x0f},
+	//*/
 };
 
 static const struct typec_switch_reg_val default_i2c_reg[] = {
@@ -183,7 +219,7 @@ int typec_switch_write_register(struct regmap *regmap, unsigned int addr, unsign
 
 #ifdef DEBUG
 /*2021/04/12, add for type-c switch debug*/
-static unsigned int debug_reg[32];
+static unsigned int debug_reg[48];
 static void typec_switch_dump_reg(void)
 {
 	struct typec_switch_priv *switch_priv = g_typec_switch_priv;
@@ -191,7 +227,7 @@ static void typec_switch_dump_reg(void)
 
 	dev_info(switch_priv->dev,"%s, %d dump reg >>>\n",__func__, __LINE__);
 
-	for (i = 0 ;i <= 0x1f ;i++) {
+	for (i = 0 ;i <= 0x2f ;i++) {
 		regmap_read(switch_priv->regmap, i, &debug_reg[i]);
 	}
 
@@ -203,6 +239,10 @@ static void typec_switch_dump_reg(void)
 	dev_info(switch_priv->dev,"reg:0x14:0x%02x,0x15:0x%02x,0x16:0x%02x,0x17:0x%02x\n", debug_reg[20],debug_reg[21],debug_reg[22],debug_reg[23]);
 	dev_info(switch_priv->dev,"reg:0x18:0x%02x,0x19:0x%02x,0x1A:0x%02x,0x1B:0x%02x\n", debug_reg[24],debug_reg[25],debug_reg[26],debug_reg[27]);
 	dev_info(switch_priv->dev,"reg:0x1C:0x%02x,0x1D:0x%02x,0x1E:0x%02x,0x1F:0x%02x\n", debug_reg[28],debug_reg[29],debug_reg[30],debug_reg[31]);
+	dev_info(switch_priv->dev,"reg:0x20:0x%02x,0x21:0x%02x,0x22:0x%02x,0x23:0x%02x\n", debug_reg[32],debug_reg[33],debug_reg[34],debug_reg[35]);
+	dev_info(switch_priv->dev,"reg:0x24:0x%02x,0x25:0x%02x,0x26:0x%02x,0x27:0x%02x\n", debug_reg[36],debug_reg[37],debug_reg[38],debug_reg[39]);
+	dev_info(switch_priv->dev,"reg:0x28:0x%02x,0x29:0x%02x,0x2A:0x%02x,0x2B:0x%02x\n", debug_reg[40],debug_reg[41],debug_reg[42],debug_reg[43]);
+	dev_info(switch_priv->dev,"reg:0x2C:0x%02x,0x2D:0x%02x,0x2E:0x%02x,0x2F:0x%02x\n", debug_reg[44],debug_reg[45],debug_reg[46],debug_reg[47]);
 
 	dev_info(switch_priv->dev,"%s, %d dump reg <<<\n",__func__, __LINE__);
 }
@@ -657,30 +697,35 @@ static int typec_switch_usbc_analog_setup_switches(struct typec_switch_priv *swi
 			typec_switch_status = 0;
 		} else if (switch_priv->vendor == DIO4483) {
 			/* activate switches */
-			reg_val = 0;
-			SET_BIT(reg_val, DIO4483_I2C_RESET);
-			dev_info(dev, "%s, %d, write 0x%02x = 0x%02x", __func__, __LINE__, DIO4483_REG_FUN_EN, reg_val);
+			/* reg_val = 0; */
+			/* SET_BIT(reg_val, DIO4483_I2C_RESET); */
+			/* dev_info(dev, "%s, %d, write 0x%02x = 0x%02x", __func__, __LINE__, DIO4483_REG_FUN_EN, reg_val); */
 
-			ret = typec_switch_write_register(switch_priv->regmap, DIO4483_REG_RESET, reg_val); // reset DIO4483
-			usleep_range(1000, 1005);
+			/* ret = typec_switch_write_register(switch_priv->regmap, DIO4483_REG_RESET, reg_val); // reset DIO4483 */
+			/* usleep_range(1000, 1005); */
 
-			reg_val = 0x40; // 4.6V
-			SET_BIT(reg_val, DIO4483_FUNCTION_MIC_AUTO_TURN_OUT);
-			SET_BIT(reg_val, DIO4483_FUNCTION_AUDIO_JACK_DECTION);
+			/* reg_val = 0x40; // 4.6V */
+			/* SET_BIT(reg_val, DIO4483_FUNCTION_MIC_AUTO_TURN_OUT); */
+			/* SET_BIT(reg_val, DIO4483_FUNCTION_AUDIO_JACK_DECTION); */
+			reg_val = 0x09;
 			dev_info(dev, "%s, %d, write 0x%02x = 0x%02x", __func__, __LINE__, DIO4483_REG_FUN_EN, reg_val);
 			ret = typec_switch_write_register(switch_priv->regmap, DIO4483_REG_FUN_EN, reg_val);
 
 			for (i = 0;i < 100 ;i++) {
 				usleep_range(10*1000, 10*1005);
-				regmap_read(switch_priv->regmap, 0x18, &reg_val);
+				regmap_read(switch_priv->regmap, DIO4483_REG_DETECTION_FLAG, &reg_val);
 				if (GET_BIT(reg_val, DIO4483_DETECTION_FLAG_AUDIO_JACK_DETECTION_CONFIGURATION_OCCURRED)) {
 					dev_info(dev, "%s: Audio jack detection and configuration has occurred.\n", __func__);
 
 					break;
 				}
 			}
-
-			dev_info(dev, "%s, %d, set reg[0x%02x] done.\n", __func__, __LINE__, DIO4483_REG_FUN_EN);
+			regmap_read(switch_priv->regmap, DIO4483_REG_SWITCH_STATUS0, &reg_val);
+			dev_info(dev, "v1.4 s9 %s, %d, read 0x%02x = 0x%02x", __func__, __LINE__, DIO4483_REG_SWITCH_STATUS0, reg_val);
+			regmap_read(switch_priv->regmap, DIO4483_REG_SWITCH_STATUS1, &reg_val);
+			dev_info(dev, "v1.4 s9 %s, %d, read 0x%02x = 0x%02x", __func__, __LINE__, DIO4483_REG_SWITCH_STATUS1, reg_val);
+			regmap_read(switch_priv->regmap, DIO4483_REG_JACK_STATUS, &reg_val);
+			dev_info(dev, "v1.4 s9 %s, %d, read 0x%02x = 0x%02x", __func__, __LINE__, DIO4483_REG_JACK_STATUS, reg_val);
 			typec_switch_status = 0;
 		} else if (switch_priv->vendor == WAS4783) {
 			reg_val = 0x00;
@@ -766,24 +811,11 @@ static int typec_switch_usbc_analog_setup_switches(struct typec_switch_priv *swi
 			dev_info(dev, "%s, %d, read reg[0x%02x] = 0x%02x.\n", __func__, __LINE__, DIO4483_REG_JACK_STATUS, jack_status);
 
 			if (jack_status == 0x01) {
-				dev_info(dev, "%s: error status,swap MIC_GND\n", __func__);
-				reg_val = 0;
-				SET_BIT(reg_val, DIO4483_I2C_RESET);
-				dev_info(dev, "%s, %d, reg_val = 0x%02x", __func__, __LINE__, reg_val);
-				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_RESET, reg_val);//reset DIO4483
-				usleep_range(1000, 1005);
-				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SELECT, 0x00);//GND - GSBU1, MIC - SBU2
+				dev_info(dev, "V1.2 %s: error status,swap MIC_GND\n", __func__);
+				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SELECT, 0x00);
+				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SETTINGS, 0x9f);
 
-				reg_val = 0;
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_DEVICE_ENABLE);
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_DN_L_TO_DN_or_L);
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_DN_R_TO_DP_or_R);
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_SENSE_TO_GSBUx);
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_MIC_TO_SBUx);
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_AGND_TO_SBUx);
-				dev_info(dev, "%s, %d, reg_val = 0x%02x", __func__, __LINE__, reg_val);
-				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SETTINGS, reg_val);
-				usleep_range(10000, 10005);
+				usleep_range(3000, 3005);
 				typec_switch_status = 1;
 			}
 		} else {
@@ -835,6 +867,12 @@ static int typec_switch_usbc_analog_setup_switches(struct typec_switch_priv *swi
 
 		}
 
+#ifdef OPLUS_ARCH_EXTENDS
+/* 2024/1/8, add for supporting type-c headphone detect bypass */
+		if (switch_priv->hp_bypass) {
+			typec_ext_eint_handler();
+		} else {
+#endif /*OPLUS_ARCH_EXTENDS*/
 		if (gpio_is_valid(switch_priv->hs_det_pin)) {
 			#if IS_ENABLED(CONFIG_OPLUS_MTK_HEADSET_RECHECK)
 			/* Add for check cable state after plug in/out 2s and force accdet irq. */
@@ -861,7 +899,17 @@ static int typec_switch_usbc_analog_setup_switches(struct typec_switch_priv *swi
 			schedule_delayed_work(&switch_priv->hp_plugin_check_work, msecs_to_jiffies(2000));
 			#endif /* CONFIG_OPLUS_MTK_HEADSET_RECHECK */
 		}
+#ifdef OPLUS_ARCH_EXTENDS
+/* 2024/1/8, add for supporting type-c headphone detect bypass */
+		}
+#endif /*OPLUS_ARCH_EXTENDS*/
 	} else {
+#ifdef OPLUS_ARCH_EXTENDS
+/* 2024/1/8, add for supporting type-c headphone detect bypass */
+		if (switch_priv->hp_bypass) {
+			typec_ext_eint_handler();
+		} else {
+#endif /*OPLUS_ARCH_EXTENDS*/
 		pr_info("plugout regulator_get_voltage(%d)\n", regulator_get_voltage(vio28_reg));
 		if (gpio_is_valid(switch_priv->hs_det_pin)) {
 			#if IS_ENABLED(CONFIG_OPLUS_MTK_HEADSET_RECHECK)
@@ -879,7 +927,10 @@ static int typec_switch_usbc_analog_setup_switches(struct typec_switch_priv *swi
 			schedule_delayed_work(&switch_priv->hp_plugout_check_work, msecs_to_jiffies(2000));
 			#endif /* CONFIG_OPLUS_MTK_HEADSET_RECHECK */
 		}
-
+#ifdef OPLUS_ARCH_EXTENDS
+/* 2024/1/8, add for supporting type-c headphone detect bypass */
+		}
+#endif /*OPLUS_ARCH_EXTENDS*/
 		if (switch_priv->vendor == DIO4480) {
 			ret = typec_switch_write_register(switch_priv->regmap, DIO4480_REG_RESET, 0x01);//reset DIO4480
 			usleep_range(1000, 1005);
@@ -887,24 +938,23 @@ static int typec_switch_usbc_analog_setup_switches(struct typec_switch_priv *swi
 			ret = typec_switch_write_register(switch_priv->regmap, DIO4480_REG_SWITCH_SETTINGS, 0x98);
 			dev_info(dev, "%s: plugout. set to usb mode\n", __func__);
 		} else if (switch_priv->vendor == DIO4483) {
-			reg_val = 0;
-			SET_BIT(reg_val, DIO4483_I2C_RESET);
-			dev_info(dev, "%s, %d, write 0x%02x = 0x%02x", __func__, __LINE__, DIO4483_REG_RESET, reg_val);
-			ret = typec_switch_write_register(switch_priv->regmap, DIO4483_REG_RESET, reg_val);//reset DIO4483
+			// /*v1.2
+			typec_switch_write_register(switch_priv->regmap, DIO4483_REG_RESET, 0x01);//reset DIO4483
 			usleep_range(1000, 1005);
+			typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SELECT, 0x18);
+			typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SETTINGS, 0x98);
 
-			reg_val = 0;
-			SET_BIT(reg_val, DIO4483_SWITCH_SELECT_DN_L_TO_DN_or_L);
-			SET_BIT(reg_val, DIO4483_SWITCH_SELECT_DN_R_TO_DP_or_R);
-			dev_info(dev, "%s, %d, write 0x%02x = 0x%02x", __func__, __LINE__, DIO4483_REG_SWITCH_SELECT, reg_val);
-			ret = typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SELECT, reg_val);
-
-			reg_val = 0;
-			SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_DEVICE_ENABLE);
-			SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_DN_L_TO_DN_or_L);
-			SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_DN_R_TO_DP_or_R);
-			dev_info(dev, "%s, %d, write 0x%02x = 0x%02x", __func__, __LINE__, DIO4483_REG_SWITCH_SETTINGS, reg_val);
-			ret = typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SETTINGS, reg_val);
+			typec_switch_write_register(switch_priv->regmap, 0x1c, 0x2a);
+			typec_switch_write_register(switch_priv->regmap, 0x1f, 0x0f);
+			typec_switch_write_register(switch_priv->regmap, 0x2e, 0x8f);
+			typec_switch_write_register(switch_priv->regmap, 0x2f, 0x44);
+			typec_switch_write_register(switch_priv->regmap, 0x2e, 0x72);
+			typec_switch_write_register(switch_priv->regmap, 0x0f, 0x00);
+			typec_switch_write_register(switch_priv->regmap, 0x10, 0x00);
+			typec_switch_write_register(switch_priv->regmap, 0x0e, 0x0b);
+			typec_switch_write_register(switch_priv->regmap, 0x0d, 0x0f);
+			typec_switch_write_register(switch_priv->regmap, 0x21, 0x0f);
+			// */v1.2 end
 			dev_info(dev, "%s, %d, plugout. set to usb mode\n", __func__, __LINE__);
 		} else {
 			reg_val = 0;
@@ -1023,24 +1073,9 @@ int typec_switch_event(struct device_node *node,
 		} else if (switch_priv->vendor == DIO4483) {
 			if (typec_switch_status) {
 				pr_info("%s - switch event: %d delay 0ms\n", __func__, event);
-				reg_val = 0;
-				SET_BIT(reg_val, DIO4483_I2C_RESET);
-				dev_info(switch_priv->dev, "%s, %d, reg_val = 0x%02x", __func__, __LINE__, reg_val);
-				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_RESET, reg_val);
-				usleep_range(1000, 1005);
-
-				// TODO Readonly?
-				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SELECT, 0x07); //GND - GSBU2, MIC - SBU1
-
-				reg_val = 0;
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_DEVICE_ENABLE);
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_DN_L_TO_DN_or_L);
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_DN_R_TO_DP_or_R);
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_SENSE_TO_GSBUx);
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_MIC_TO_SBUx);
-				SET_BIT(reg_val, DIO4483_SWITCH_SETTINGS_AGND_TO_SBUx);
-				dev_info(switch_priv->dev, "%s, %d, reg_val = 0x%02x", __func__, __LINE__, reg_val);
-				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SETTINGS, reg_val);
+				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SETTINGS, 0x87);
+				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SELECT, 0x07);
+				typec_switch_write_register(switch_priv->regmap, DIO4483_REG_SWITCH_SETTINGS, 0x9f);
 				typec_switch_status = 0;
 			}
 		} else {
@@ -1088,6 +1123,10 @@ static int typec_switch_parse_dt(struct typec_switch_priv *switch_priv,
 	int hs_det_level = 0;
 	int state = 0;
 	int sense_to_ground = 0;
+#ifdef OPLUS_ARCH_EXTENDS
+/* 2024/1/8, add for supporting type-c headphone detect bypass */
+	int hp_bypass = 0;
+#endif
 
 /*2020/08/20, adjust the voltage of Headset DET */
 	vio28_reg = regulator_get(dev, "dio_audio");
@@ -1142,6 +1181,19 @@ static int typec_switch_parse_dt(struct typec_switch_priv *switch_priv,
 	} else {
 		switch_priv->b_dynamic_sense_to_ground = sense_to_ground;
 	}
+
+#ifdef OPLUS_ARCH_EXTENDS
+/* 2024/1/8, add for supporting type-c headphone detect bypass */
+	ret = of_property_read_u32(dNode,
+			"oplus,hp-bypass", &hp_bypass);
+	pr_info("%s: hp_bypass = %d\n", __func__, hp_bypass);
+	if (ret) {
+		pr_info("%s: read prop hp-bypass fail\n", __func__);
+		switch_priv->hp_bypass = false;
+	} else {
+		switch_priv->hp_bypass = hp_bypass;
+	}
+#endif /*OPLUS_ARCH_EXTENDS*/
 
 	if (gpio_is_valid(switch_priv->hs_det_pin)) {
 		ret = gpio_request(switch_priv->hs_det_pin, "typec_switch_hs_det");
@@ -1407,6 +1459,7 @@ static int typec_switch_probe(struct i2c_client *i2c,
 	switch_priv->tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
 	if (!switch_priv->tcpc_dev) {
 		pr_err("%s get tcpc device type_c_port0 fail\n", __func__);
+		rc = -EPROBE_DEFER;
 		goto err_data;
 	}
 
@@ -1577,6 +1630,11 @@ static void typec_switch_shutdown(struct i2c_client *i2c) {
 	switch_priv = (struct typec_switch_priv *)i2c_get_clientdata(i2c);
 
 	pr_info("%s: recover all register while shutdown\n", __func__);
+
+	if (!switch_priv) {
+		pr_err("switch_priv is null\n");
+		return;
+	}
 
 	if (switch_priv->vendor == DIO4480 || switch_priv->vendor == DIO4483) {
 		typec_switch_write_register(switch_priv->regmap, DIO4483_REG_RESET, 0x01);//reset DIO4483

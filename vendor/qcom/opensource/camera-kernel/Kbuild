@@ -272,6 +272,7 @@ camera-$(CONFIG_SPECTRA_OPLUS) += \
 	drivers/oplus/cam_sensor_module/cam_eeprom/oplus_cam_eeprom_core.o \
 	drivers/oplus/cam_sensor_module/cam_eeprom/oplus_cam_eeprom_soc.o \
 	drivers/oplus/cam_sensor_module/cam_eeprom/oplus_cam_eeprom_dev.o \
+	drivers/oplus/cam_sensor_module/cam_eeprom/oplus_cam_insensor_eeprom_dev.o \
 	drivers/oplus/cam_sensor_module/cam_ois/onsemi_fw/fw_download_interface.o \
 	drivers/oplus/cam_sensor_module/cam_ois/onsemi_fw/LC898124/DownloadCmd.o \
 	drivers/oplus/cam_sensor_module/cam_ois/onsemi_fw/LC898129/PhoneUpdate.o \

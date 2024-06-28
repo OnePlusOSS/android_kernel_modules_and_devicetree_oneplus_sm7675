@@ -984,6 +984,7 @@ struct touchpanel_data {
 	struct esd_information  esd_info;                    /*debug info esd check*/
 	struct freq_hop_info    freq_hop_info;                /*debug info freq_hop*/
 	bool in_force_water_mode;                /*debug info force_water_mode*/
+	unsigned short water_mode;                /*debug info force_water_mode*/
 	/*struct proc_dir_entry of "/proc/touchpanel"*/
 	struct proc_dir_entry *prEntry_tp;
 	/*struct proc_dir_entry of "/proc/touchpanel/debug_info"*/
@@ -1143,6 +1144,9 @@ struct touchpanel_data {
 	u32 smooth_level_default;
 	u32 sensitive_level_default;
 
+	/******For smooth report_threshold area********/
+	bool diaphragm_touch_support;
+	u32 diaphragm_touch_level_chosen;
 
 	/******For lcd fps area********/
 	bool lcd_tp_refresh_support;                      /*lcd nofity tp refresh fps switch*/
@@ -1245,6 +1249,7 @@ struct oplus_touchpanel_operations {
 
 	void (*freq_hop_trigger)(void *chip_data); /*trigger frequency-hopping*/
 	void (*force_water_mode)(void *chip_data, bool enable); /*force enter water mode*/
+	void (*get_water_mode)(void *chip_data); /*force enter water mode*/
 	void (*set_noise_modetest)(void *chip_data, bool enable);
 	uint8_t (*get_noise_modetest)(void *chip_data);
 	/*If the tp ic need do something, use this!*/
@@ -1256,6 +1261,7 @@ struct oplus_touchpanel_operations {
 	void (*rate_white_list_ctrl)(void *chip_data, int value);
 	int (*smooth_lv_set)(void *chip_data, int level);
 	int (*sensitive_lv_set)(void *chip_data, int level);
+	int (*diaphragm_touch_lv_set)(void *chip_data, int level);
 	int (*send_temperature)       (void *chip_data, int value, bool status);
 	int (*tp_refresh_switch)(void *chip_data, int fps);
 	void (*set_gesture_state)(void *chip_data, int state);

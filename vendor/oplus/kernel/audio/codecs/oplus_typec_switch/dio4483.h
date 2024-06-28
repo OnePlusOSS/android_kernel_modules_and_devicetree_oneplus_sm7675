@@ -20,6 +20,7 @@
 #define DIO4483_REG_JACK_STATUS												0x17
 #define DIO4483_REG_DETECTION_FLAG											0x18
 #define DIO4483_REG_RESET													0x1E
+#define DIO4483_REG_TIMING_DELAY											0x21
 #define DIO4483_REG_MASK													0xFF
 
 /* bits definitions */

@@ -48,6 +48,12 @@ config SND_SOC_TFA9874
 	  multi-band DRC, equalizer function. It would
 	  be set to yes if device with TFA9874 on it.
 
+config SND_SOC_AW87XXX_2_X_0
+        tristate "SoC Audio for awinic AW87XXX Smart K PA"
+        depends on I2C
+        help
+          This option enables support for AW87XXX Smart K PA.
+
 config SND_SOC_AW882XX
 	tristate "Support AW882XX speaker amplifier"
 	depends on I2C
@@ -56,6 +62,12 @@ config SND_SOC_AW882XX
 	  amplifier which contain speaker protection,
 	  multi-band DRC, equalizer function. It would
 	  be set to yes if device with AW882XX on it.
+
+config SND_SOC_AW87XXX
+        tristate "SoC Audio for awinic AW87XXX Smart K PA"
+        depends on I2C
+        help
+          This option enables support for AW87XXX Smart K PA.
 
 config SND_SOC_OPLUS_TYPEC_SWITCH
 	tristate "TypeC Switch for DIO 448x or WAS 7483"

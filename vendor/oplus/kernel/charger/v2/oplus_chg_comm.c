@@ -132,8 +132,11 @@ struct oplus_comm_spec_config {
 	int32_t tbatt_power_off_cali_temp;
 	int32_t gauge_stuck_threshold;
 	int32_t gauge_stuck_time;
+	int32_t poweroff_high_batt_temp;
+	int32_t poweroff_emergency_batt_temp;
 	int32_t sub_vbat_uv_thr_mv;
 	int32_t sub_vbat_charging_uv_thr_mv;
+	bool support_hot_enter_kpoc;
 } __attribute__ ((packed));
 
 struct oplus_comm_config {
@@ -4939,6 +4942,36 @@ static bool oplus_comm_reserve_soc_by_rus(struct oplus_chg_comm *chip)
 	return false;
 }
 
+static bool oplus_comm_parse_from_cmdline(struct oplus_chg_comm *chip)
+{
+	struct device_node *np;
+	const char *bootparams = NULL;
+	char *str;
+	int ret = 0;
+	struct oplus_comm_spec_config *spec = &chip->spec;
+
+	if (chip == NULL)
+		return false;
+
+	np = of_find_node_by_path("/chosen");
+	if (np) {
+		ret = of_property_read_string(np, "bootargs", &bootparams);
+		if (!bootparams || ret < 0) {
+			chg_err("failed to get bootargs property");
+			return false;
+		}
+
+		str = strstr(bootparams, "support_hot_enter_kpoc=1");
+		if (str) {
+			spec->support_hot_enter_kpoc = true;
+		} else {
+			spec->support_hot_enter_kpoc = false;
+		}
+	}
+	chg_err("support_hot_enter_kpoc=%d", spec->support_hot_enter_kpoc);
+	return false;
+}
+
 static void oplus_comm_parse_smooth_soc_dt(struct oplus_chg_comm *chip)
 {
 	struct device_node *node = chip->dev->of_node;
@@ -5378,6 +5411,20 @@ static int oplus_comm_parse_dt(struct oplus_chg_comm *comm_dev)
 		chg_info("removed_bat_decidegc = %d \n", spec->removed_bat_decidegc);
 	}
 
+	rc = of_property_read_u32(node, "oplus_spec,poweroff_high_batt_temp",
+				  &spec->poweroff_high_batt_temp);
+	if (rc < 0) {
+		chg_err("get oplus_spec,poweroff_high_batt_temp property error, rc=%d\n", rc);
+		spec->poweroff_high_batt_temp = OPCHG_PWROFF_HIGH_BATT_TEMP;
+	}
+
+	rc = of_property_read_u32(node, "oplus_spec,poweroff_emergency_batt_temp",
+				  &spec->poweroff_emergency_batt_temp);
+	if (rc < 0) {
+		chg_err("get oplus_spec,poweroff_emergency_batt_temp property error, rc=%d\n", rc);
+		spec->poweroff_emergency_batt_temp = OPCHG_PWROFF_EMERGENCY_BATT_TEMP;
+	}
+
 	rc = of_property_read_u32(node, "oplus,ui_soc_decimal_speedmin",
 				  &config->ui_soc_decimal_speedmin);
 	if (rc < 0) {
@@ -5390,6 +5437,8 @@ static int oplus_comm_parse_dt(struct oplus_chg_comm *comm_dev)
 		of_property_read_bool(node, "oplus,vooc_show_ui_soc_decimal");
 
 	oplus_comm_parse_smooth_soc_dt(comm_dev);
+
+	oplus_comm_parse_from_cmdline(comm_dev);
 
 	return 0;
 }
@@ -5688,8 +5737,8 @@ static int oplus_comm_tbatt_power_off_kthread(void *arg)
 	struct oplus_chg_comm *chip = (struct oplus_chg_comm *)arg;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO - 1 };
 	union mms_msg_data data = { 0 };
-	int pwroff_over_temp_th = OPCHG_PWROFF_HIGH_BATT_TEMP;
-	int pwroff_emerg_th = OPCHG_PWROFF_EMERGENCY_BATT_TEMP;
+	int pwroff_over_temp_th = chip->spec.poweroff_high_batt_temp;
+	int pwroff_emerg_th = chip->spec.poweroff_emergency_batt_temp;
 	int temp = 0;
 
 	sched_setscheduler(current, SCHED_FIFO, &param);
@@ -5736,15 +5785,18 @@ static int oplus_comm_tbatt_power_off_kthread(void *arg)
 #ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 		if (get_eng_version() != HIGH_TEMP_AGING) {
 #endif
-			if (over_temp_count >= OPLUS_TBATT_HIGH_PWROFF_COUNT ||
-			    emergency_count >=
-				    OPLUS_TBATT_EMERGENCY_PWROFF_COUNT) {
-				chg_err("battery temperature is too high, goto power off\n");
+			if (oplus_is_power_off_charging() && chip->spec.support_hot_enter_kpoc) {
+			} else {
+				if (over_temp_count >= OPLUS_TBATT_HIGH_PWROFF_COUNT ||
+					emergency_count >=
+						OPLUS_TBATT_EMERGENCY_PWROFF_COUNT) {
+					chg_err("battery temperature is too high, goto power off\n");
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0))
-				machine_power_off();
+					machine_power_off();
 #else
-				kernel_power_off();
+					kernel_power_off();
 #endif
+				}
 			}
 #ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 		}

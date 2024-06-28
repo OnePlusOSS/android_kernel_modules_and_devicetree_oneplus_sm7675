@@ -144,16 +144,17 @@ static int bl_ic_ktz8866_enable(bool enable)
 	if (enable) {
 		if (!bl_ic_ktz8866_enabled) {
 			/* config i2c0 and i2c3 */
-			/* BL_CFG1；OVP=31.5V，线性调光，PWM Disabled */
-			ktz8866_ic_write_byte_dual(0x02, 0X52);//caba 0ff 0x7A cabc on 0x7B
+			/* BL_CFG1；OVP=34.0V，线性调光，PWM Disabled */
+			ktz8866_ic_write_byte_dual(0x02, 0XD2);//caba 0ff 0x7A cabc on 0x7B
 			/* Current ramp 256ms pwm_hyst 10lsb */
 			//ktz8866_ic_write_byte_dual(0x03, 0XCD);
 			/* BL_OPTION2；电感10uH，BL_CURRENT_LIMIT 2.5A */
 			ktz8866_ic_write_byte_dual(0x11, 0xF7);
 			/* turn on-off ramp */
 			ktz8866_ic_write_byte_dual(0x14, 0x44);
-			/* Backlight Full-scale LED Current 15.6mA/CH */
-			ktz8866_ic_write_byte_dual(0x15, 0x68);
+			/* Backlight Full-scale LED Current 20.4mA/CH */
+			pr_err("[LCD]bl_ic_ktz8866 set LED Current 20.4mA/CH\n");
+			ktz8866_ic_write_byte_dual(0x15, 0x98);
 
 			bl_ic_ktz8866_enabled = true;
 			pr_err("[LCD]bl_ic_ktz8866 enable\n");
@@ -214,11 +215,6 @@ int bl_ic_ktz8866_set_lcd_bias_by_gpio(bool enable)
 		mdelay(1);
 		/* enable bl bais enp */
 		if (gpio_is_valid(ktz8866_bais_enp_gpio_num)) {
-			rc = gpio_request(ktz8866_bais_enp_gpio_num, KTZ8866_BAIS_ENP_GPIO_NAME);
-			if (rc) {
-				pr_err("[LCD]request for bl_bais_enp failed, rc=%d\n", rc);
-				return rc;
-			}
 			rc = gpio_direction_output(ktz8866_bais_enp_gpio_num, true);
 			if (rc) {
 				pr_err("[LCD]unable to set bl_bais_enp to high rc=%d\n", rc);
@@ -228,11 +224,6 @@ int bl_ic_ktz8866_set_lcd_bias_by_gpio(bool enable)
 		mdelay(1);
 		/* enable bl bais enn */
 		if (gpio_is_valid(ktz8866_bais_enn_gpio_num)) {
-			rc = gpio_request(ktz8866_bais_enn_gpio_num, KTZ8866_BAIS_ENN_GPIO_NAME);
-			if (rc) {
-				pr_err("[LCD]request for bl_bais_enn failed, rc=%d\n", rc);
-				return rc;
-			}
 			rc = gpio_direction_output(ktz8866_bais_enn_gpio_num, true);
 			if (rc) {
 				pr_err("[LCD]unable to set bl_bais_enn to high rc=%d\n", rc);
@@ -240,9 +231,9 @@ int bl_ic_ktz8866_set_lcd_bias_by_gpio(bool enable)
 			}
 		}
 		/* ktz8866 bias config master only */
-  		ktz8866_ic_write_byte_single(g_i2c_m_client, 0x02, 0x52);//set ovp 31.5v pwm enable
+		ktz8866_ic_write_byte_single(g_i2c_m_client, 0x02, 0xD2);//set ovp 34.0v pwm enable
   		ktz8866_ic_write_byte_single(g_i2c_m_client, 0x11, 0xF7);//10uH
-		ktz8866_ic_write_byte_single(g_i2c_m_client, 0x15, 0x68);//15.6mA 500nit limit
+		ktz8866_ic_write_byte_single(g_i2c_m_client, 0x15, 0x98);//15.6mA 500nit limit
 	} else {
 		pr_err("[LCD]%s:disable lcd_enable_bias by gpio\n", __func__);
 		/* disable bl bais enn */

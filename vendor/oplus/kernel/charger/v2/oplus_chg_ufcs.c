@@ -1739,7 +1739,7 @@ static void oplus_ufcs_switch_check_work(struct work_struct *work)
 	for (i = 0; i < chip->pdo_num; i++) {
 		int target_vbus = chip->config.target_vbus_mv;
 		if (i > 0) {
-			if (UFCS_OUTPUT_MODE_VOL_MIN(chip->pdo[i]) !=
+			if (UFCS_OUTPUT_MODE_VOL_MIN(chip->pdo[i]) >
 			    UFCS_OUTPUT_MODE_VOL_MAX(chip->pdo[i - 1])) {
 				chg_err("the output voltage range is discontinuous\n");
 				break;

@@ -25,7 +25,8 @@
 #define SC6607_CHG_CURRENT_MAX_MA	(4000)
 
 #define SC6607_AICL_POINT_VOL_9V 		7600
-#define SC6607_AICL_POINT_VOL_5V_HIGH	4250
+#define SC6607_DUAL_AICL_POINT_VOL_9V		8500
+#define SC6607_AICL_POINT_VOL_5V_HIGH		4250
 #define SC6607_AICL_POINT_VOL_5V_MID		4150
 #define SC6607_AICL_POINT_VOL_5V_LOW		4100
 #define SC6607_HW_AICL_POINT_VOL_5V_PHASE1 	4400
@@ -117,6 +118,7 @@ enum SC6607_VINDPM {
 	SC6607_VINDPM_4500,
 	SC6607_VINDPM_4600,
 	SC6607_VINDPM_4700,
+	SC6607_VINDPM_4800,
 	SC6607_VINDPM_7600,
 	SC6607_VINDPM_8200,
 	SC6607_VINDPM_8400,
@@ -755,6 +757,7 @@ struct sc6607 {
 	unsigned long long hvdcp_detect_time;
 	unsigned long long hvdcp_detach_time;
 	struct delayed_work sc6607_vol_convert_work;
+	struct delayed_work check_charger_out_work;
 
 	int  bc12_timeouts;
 	struct timer_list bc12_timeout;
@@ -820,5 +823,6 @@ int oplus_sc6607_read_vbus(void);
 int oplus_sc6607_read_ibus(void);
 int oplus_sc6607_read_vac(void);
 int oplus_sc6607_read_vsys(void);
+int oplus_sc6607_read_vbat(void);
 #endif /*__SC6607_H__*/
 

@@ -104,8 +104,13 @@ struct msm_pinctrl {
 	struct pinctrl_desc desc;
 	struct notifier_block restart_nb;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	struct irq_chip irq_chip;
+#endif
 	int irq;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	int n_dir_conns;
+#endif
 
 	bool intr_target_use_scm;
 
@@ -115,13 +120,16 @@ struct msm_pinctrl {
 	DECLARE_BITMAP(enabled_irqs, MAX_NR_GPIO);
 	DECLARE_BITMAP(skip_wake_irqs, MAX_NR_GPIO);
 	DECLARE_BITMAP(disabled_for_mux, MAX_NR_GPIO);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+	DECLARE_BITMAP(ever_gpio, MAX_NR_GPIO);
+#endif
 
 	const struct msm_pinctrl_soc_data *soc;
 	void __iomem *regs[MAX_NR_TILES];
 	u32 phys_base[MAX_NR_TILES];
 };
 #endif /*CONFIG_OPLUS_SM8350_CHARGER*/
-#endif
+#endif /* IS_ENABLED(CONFIG_PINCTRL_MSM) */
 
 struct test_kit {
 	struct miscdevice test_dev;

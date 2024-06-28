@@ -16,12 +16,16 @@ def define_oplus_local_modules():
 		"rtmutex.c",
 		"*.h",
         ]),
+        conditional_srcs = {
+            "CONFIG_LOCKING_PROTECT": {
+                True:  ["sched_assist_locking.c"],
+            }
+        },
         includes = ["."],
         local_defines = [
 		"CONFIG_OPLUS_LOCKING_STRATEGY",
 		"CONFIG_OPLUS_LOCKING_OSQ",
 		"CONFIG_OPLUS_LOCKING_MONITOR",
-		"CONFIG_OPLUS_LOCKING_PIFUTEX",
 	],
     )
 

@@ -670,6 +670,9 @@ static ssize_t oplus_display_get_panel_serial_number(struct kobject *obj,
 		panel_serial_info.reg_index = display->panel->oplus_ser.serial_number_index;
 
 		panel_serial_info.year = (read[panel_serial_info.reg_index] & 0xF0) >> 0x4;
+		if (!strcmp(display->panel->name, "AC172 P 7 A0001 dsc cmd mode panel")) {
+			panel_serial_info.year += 10;
+		}
 
 		panel_serial_info.month		= read[panel_serial_info.reg_index]	& 0x0F;
 		panel_serial_info.day		= read[panel_serial_info.reg_index + 1]	& 0x1F;

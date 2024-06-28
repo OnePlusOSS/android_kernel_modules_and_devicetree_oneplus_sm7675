@@ -77,7 +77,7 @@
 			aboard-gpio0 = <&tlmm 97 0>;
 			aboard-patterns = <0 0 0 0>;	/*0[high-resistance] 1[pull-down] 2[pull-up]*/
 			/*main board*/
-			match-projects = <23609 23678 23622 23718>;
+			match-projects = <23609 24687 23622 23718>;
 		};
 	};
 };
@@ -117,7 +117,7 @@
 		compatible = "synaptics-s3910";
 		reg = <0x0>;
 		chip-name = "S3910";
-		status = "okay";
+		status = "disabled";
 		spi-max-frequency = <19000000>;
 
 		/* Interrupt && Irq-gpio */
@@ -200,7 +200,7 @@
 		panel_type = <3 7>;
 		// type of tp_dev ,TP-SAMSUNG = 8;
 		//firmware_name = "AA545";
-		platform_support_project = <23609 23678 23622 23718>;
+		platform_support_project = <23609 24687 23622 23718>;
 		platform_support_project_dir = <23609 23609 23609 23609>;
 		platform_support_project_commandline = "mdss_dsi_panel_bale_P_3_AB714_dsc_cmd", "mdss_dsi_panel_bale_P_7_AB715_dsc_cmd";
 
@@ -262,13 +262,76 @@
 			normal_config_version = <2>;
 			extreme_game_report_rate = <360>;//360Hz
 		};
+
+		S3910_PANEL7 {
+			interrupts = <129 0x2008>;
+			irq-gpio = <&tlmm 129 0x2008>;
+			reset-gpio = <&tlmm 128 0x1>;
+
+			touchpanel,max-num-support = <10>;
+			touchpanel,tx-rx-num = <18 39>;
+			touchpanel,panel-coords = <12640 27800>;
+			touchpanel,display-coords = <1264 2780>;
+			touchpanel,touchmajor-limit = <256 256>;
+			touchpanel,int-mode = <1>; /*0: interrupt and disable, 1:interrupt and not disable*/
+			touchpanel,curved-size = <45>;
+			touchpanel,smooth-level = <0 1 2 4 7 9>;
+			touchpanel,smooth-level-charging = <0 2 4 7 8 9>;
+			touchpanel,sensitive-level = <0 70 55 40 25 10>;
+			touchpanel,single-optimized-time = <8>;
+			touchpanel,high-frame-rate-time = <60>;
+
+			prevention,curved_screen_V2;
+			prevention,grip_disable_level = <6>;
+			prevention,updelay_time_ms = <20>;
+			prevention,makeup_cnt_weight = <4 1 2 2 2>;
+			prevention,large_corner_range = <1400 3400>;
+			prevention,large_corner_judge_condition = <500 400 1170 7 7>;
+			prevention,trx_reject_condition = <9 8 8>;
+			prevention,trx_strict_reject_condition = <8 7 7>;
+			prevention,large_judge_time_ms = <500 50 30>;
+			prevention,large_exit_condition = <8 8 2>;
+			prevention,single_channel_width = <375 375>;
+			prevention,normal_tap_condition = <10 350>;
+			prevention,long_edge_condition = <179 90 120 80>;
+			prevention,long_strict_edge_condition = <160 60>;
+			prevention,long_fingerhold_condition = <70 6 4 4>;
+			prevention,short_edge_condition = <179 90 120 80>;
+			prevention,short_strict_edge_condition = <160 60>;
+			prevention,large_strict_exit_condition = <6 6>;
+			prevention,top_corner_config = <585 1738 562>;
+			prevention,edge_swipe_config = <352 1390>;
+
+			prevention,curved_screen_V4;
+			prevention,long_eliminate_point_type = <2 12640 9270 352 27800 300 1>;
+			prevention,long_fingerhold_condition2 = <714 2000 0 0>;
+			prevention,top_corner_config2 =<3 80 375 702 0>;
+			prevention,hor_long_top_corner_config =<702 2317 0 0>;
+			prevention,top_middle_config =<12640 1158 1158 0>;
+			prevention,corner_eliminate_point_type =<0 1404 2780 1>;
+			prevention,finger_hold_differ_size = <1 0 352 300>;
+			prevention,finger_hold_max_rx_exit_distance = <5 352 2317>;
+			prevention,max_rx_exit_distance = <1 5 120 352 2317>;
+			prevention,dynamic_finger_hold_exit_distance = <1 352 2317 410>;
+			prevention,edge_sliding_matched_support = <1 200 3 1>;
+
+			//grip v4.2 reclining mode
+			prevention,reclining_mode_support = <1>;
+			prevention,long_eliminate_point_type_recli = <2 12640 9270 352 27800 500 1>;
+			prevention,finger_hold_differ_size_recli = <1 0 352 300>;
+			prevention,finger_hold_max_rx_exit_distance_recli = <5 352 2317>;
+			prevention,max_rx_exit_distance_recli = <1 5 120 352 2317>;
+			prevention,dynamic_finger_hold_exit_distance_recli = <1 352 2317 410>;
+			prevention,edge_sliding_matched_support_recli = <1 150 3 0>;
+			prevention,long_edge_condition_recli = <179 90 120 80>;
+		};
 	};
 
 	synaptics_tcm_hbp@0{
 		compatible = "synaptics,tcm-spi-hbp";
 		reg = <0x0>;
 		chip-name = "S3910";
-		status = "disabled";
+		status = "okay";
 		spi-max-frequency = <19000000>;
 		qcom,rt;
 
@@ -295,7 +358,7 @@
 		panel_type = <3 7>;
 		// type of tp_dev ,TP-SAMSUNG = 8;
 		firmware_name = "AB714";
-		platform_support_project = <23609 23678 23622 23718>;
+		platform_support_project = <23609 24687 23622 23718>;
 		platform_support_project_dir = <23609 23609 23609 23609>;
 		platform_support_project_commandline = "mdss_dsi_panel_bale_P_3_AB714_dsc_cmd", "mdss_dsi_panel_bale_P_7_AB715_dsc_cmd";
 
@@ -308,6 +371,13 @@
 		synaptics,spi-mode = <0>;
 		synaptics,spi-byte-delay-us = <0>;
 		synaptics,spi-block-delay-us = <0>;
+
+		/* SW Support Feature Control */
+		tp_data_record_support;
+
+		S3910_PANEL7 {
+			touchpanel,tx-rx-num = <18 39>;
+		};
 	};
 
 };

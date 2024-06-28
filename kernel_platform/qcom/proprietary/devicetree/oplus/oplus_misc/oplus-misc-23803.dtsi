@@ -27,49 +27,6 @@
 			};
 		};
 	};
-
-	qupv3_se3_i2c_pins: qupv3_se3_i2c_pins {
-		qupv3_se3_i2c_sda_active: qupv3_se3_i2c_sda_active {
-			mux {
-				pins = "gpio12";
-				function = "qup0_se3_l0";
-			};
-
-			config {
-				pins = "gpio12";
-				drive-strength = <2>;
-				bias-pull-up;
-				qcom,i2c_pull;
-			};
-		};
-
-		qupv3_se3_i2c_scl_active: qupv3_se3_i2c_scl_active {
-			mux {
-				pins = "gpio13";
-				function = "qup0_se3_l1";
-			};
-
-			config {
-				pins = "gpio13";
-				drive-strength = <2>;
-				bias-pull-up;
-				qcom,i2c_pull;
-			};
-		};
-
-		qupv3_se3_i2c_sleep: qupv3_se3_i2c_sleep {
-			mux {
-				pins = "gpio12", "gpio13";
-				function = "gpio";
-			};
-
-			config {
-				pins = "gpio12", "gpio13";
-				drive-strength = <2>;
-				bias-disable;
-			};
-		};
-	};
 };
 
 &pm7550ba_vib {
@@ -77,9 +34,6 @@
 };
 
 &qupv3_se3_i2c {
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&qupv3_se3_i2c_sda_active>, <&qupv3_se3_i2c_scl_active>;
-	pinctrl-1 = <&qupv3_se3_i2c_sleep>;
 	qcom,clk-freq-out = <1000000>;
 	status = "ok";
 	/* AWINIC AW8697 Haptic */

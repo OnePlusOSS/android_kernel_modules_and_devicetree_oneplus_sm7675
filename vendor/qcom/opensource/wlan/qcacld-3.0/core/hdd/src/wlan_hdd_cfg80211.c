@@ -22384,10 +22384,10 @@ static void wlan_hdd_dump_iface_combinations(uint32_t num,
 			for (k = 0; k < combination[i].limits[j].max; k++) {
 				if (combination[i].limits[j].types)
 					len += qdf_scnprintf(buf + len,
-					       IFACE_DUMP_SIZE - len,
-					       k == 0 && j == 0 ? "%s" : "+%s",
-					       wlan_hdd_iface_debug_string(
-					       combination[i].limits[j].types));
+					IFACE_DUMP_SIZE - len,
+					k == 0 && j == 0 ? "%s" : "+%s",
+					wlan_hdd_iface_debug_string(
+					combination[i].limits[j].types));
 			}
 		}
 

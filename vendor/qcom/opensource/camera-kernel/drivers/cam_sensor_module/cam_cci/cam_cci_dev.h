@@ -63,6 +63,7 @@
 #endif
 
 #define CCI_ENABLE_THRESHOLD_IRQ 1
+
 #define CCI_I2C_MAX_BYTE_COUNT 65535
 
 #define CAMX_CCI_DEV_NAME "cam-cci-driver"

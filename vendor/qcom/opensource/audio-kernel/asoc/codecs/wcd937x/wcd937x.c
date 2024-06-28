@@ -1861,6 +1861,14 @@ static int wcd937x_event_notify(struct notifier_block *block,
 		}
 		wcd937x->mbhc->wcd_mbhc.deinit_in_progress = false;
 		break;
+	#ifdef OPLUS_ARCH_EXTENDS
+	/* Add for update the codec RX clk. CR3723850 */
+	case BOLERO_SLV_EVT_CLK_NOTIFY:
+		snd_soc_component_update_bits(component,
+			WCD937X_DIGITAL_TOP_CLK_CFG, 0x06,
+				((val >> 0x10) << 0x01));
+		break;
+	#endif /* OPLUS_ARCH_EXTENDS */
 	default:
 		dev_err(component->dev, "%s: invalid event %d\n", __func__,
 			event);

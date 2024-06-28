@@ -51,6 +51,7 @@ struct tp_dev_name tp_dev_names[] = {
 	{TP_HLT, "HLT"},
 	{TP_DJN, "DJN"},
 	{TP_VXN, "VXN"},
+	{TP_TXD, "TXD"},
 	{TP_UNKNOWN, "UNKNOWN"},
 };
 

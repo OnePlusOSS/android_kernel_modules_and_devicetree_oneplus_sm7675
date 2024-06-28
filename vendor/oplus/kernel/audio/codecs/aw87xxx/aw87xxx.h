@@ -31,7 +31,7 @@
 #define AW87XXX_OFF_BIN_OK		(1)
 
 #define AW87XXX_PRIVATE_KCONTROL_NUM	(3)
-#define AW87XXX_PUBLIC_KCONTROL_NUM	(2)
+#define AW87XXX_PUBLIC_KCONTROL_NUM	(3)
 
 #define AW_I2C_RETRIES			(5)
 #define AW_I2C_RETRY_DELAY		(2)
@@ -55,6 +55,10 @@
  ***********************************************************/
 #if KERNEL_VERSION(4, 19, 1) <= LINUX_VERSION_CODE
 #define AW_KERNEL_VER_OVER_4_19_1
+#endif
+
+#if KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE
+#define AW_KERNEL_VER_OVER_6_1_0
 #endif
 
 #ifdef AW_KERNEL_VER_OVER_4_19_1
@@ -129,6 +133,9 @@ struct aw87xxx {
 	struct list_head list;
 
 	struct aw_monitor monitor;
+#ifdef AW_ALGO_AUTH_DSP
+	struct delayed_work auth_work;
+#endif
 #ifdef CONFIG_SND_SOC_OPLUS_PA_MANAGER
 	struct oplus_spk_dev_node* oplus_dev_node;
 #endif

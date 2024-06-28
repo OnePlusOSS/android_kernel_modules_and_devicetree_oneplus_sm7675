@@ -38,6 +38,7 @@
 #define FTS_REG_CHARGER_MODE_EN                 0x8B
 #define FTS_REG_EDGE_LIMIT                      0x8C
 #define FTS_REG_SENSITIVE_LEVEL                 0x90
+#define FTS_REG_PALM_TO_SLEEP_STATUS            0x9B
 #define FTS_REG_HEADSET_MODE_EN                 0xC3
 #define FTS_REG_FOD_EN                          0xCF
 #define FTS_REG_FOD_INFO                        0xE1
@@ -65,6 +66,7 @@
 #define FTS_REG_SAMSUNG_SPECIFAL                0xFA
 #define FTS_REG_HEALTH_1                        0xFD
 #define FTS_REG_HEALTH_2                        0xFE
+#define FTS_REG_DIAPHRAGM_EN                    0xC3
 
 
 #define FTS_MAX_POINTS_SUPPORT                  10
@@ -132,6 +134,27 @@
 
 #define FTS_120HZ_REPORT_RATE                   0x0C
 #define FTS_180HZ_REPORT_RATE                   0x12
+#define FTS_240HZ_REPORT_RATE                   0x24
+#define FTS_360HZ_REPORT_RATE                   0x24
+#define FTS_720HZ_REPORT_RATE                   0x24
+
+#define FTS_WRITE_RATE_120                      120
+#define FTS_WRITE_RATE_180                      180
+#define FTS_WRITE_RATE_240                      240
+#define FTS_WRITE_RATE_360                      360
+#define FTS_WRITE_RATE_720                      720
+
+#define GET_LEN_BY_WIDTH_MAJOR(width_major, len)\
+({\
+	if (width_major > 10 && width_major < 14)\
+		*len = 5;\
+	if (width_major > 12 && width_major < 16)\
+		*len = 5;\
+	if (width_major > 16 && width_major < 20)\
+		*len = 7;\
+	if (width_major > 18 && width_major < 22)\
+		*len = 7;\
+})
 
 struct mc_sc_threshold {
 	int noise_coefficient;
@@ -235,14 +258,23 @@ struct chip_data_ft3518 {
 	struct fts_autotest_offset *fts_autotest_offset;
 	struct touchpanel_data *ts;
 	struct monitor_data *monitor_data;
+	struct resolution_info *chip_resolution_info;
 	int gesture_state;
 	bool black_gesture_indep;
 	bool high_resolution_support;
 	bool high_resolution_support_x8;
 	bool read_buffer_support;
 	bool ft3518_grip_v2_support;
+	bool snr_read_support;
+	bool water_mode;
 };
 
+enum diaphragm_mode {
+	DIAPHRAGM_DEFAULT_MODE = 0,
+	DIAPHRAGM_FILM_MODE = 1,
+	DIAPHRAGM_WATERPROO_MODE = 2,
+	DIAPHRAGM_FILM_WATERPROO_MODE = 3,
+};
 
 extern struct chip_data_ft3518 *g_fts_data;
 

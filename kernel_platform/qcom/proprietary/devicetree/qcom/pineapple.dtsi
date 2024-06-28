@@ -2641,6 +2641,12 @@
 			compatible = "qcom,altmode-glink";
 			#altmode-cells = <1>;
 		};
+
+/*#ifdef OPLUS_FEATURE_CHG_BASIC*/
+		wireless_pen_hboost: qcom,wireless_pen_hboost {
+			compatible = "qcom,wireless-pen-hboost";
+		};
+/*#endif OPLUS_FEATURE_CHG_BASIC*/
 	};
 
 	qcom,pmic_glink_log {

@@ -31,6 +31,8 @@ bool actuator_ois_eeprom_shared_mutex_init_flag = false;
 void cam_eeprom_parse_dt_oem(struct cam_eeprom_ctrl_t *e_ctrl, struct device_node *of_node) {
 	int id = 0;
 	int ret = 0;
+	struct cam_eeprom_soc_private  *soc_private =
+						(struct cam_eeprom_soc_private *)e_ctrl->soc_info.soc_private;
 
 	ret = of_property_read_u32(of_node, "actuator_ois_eeprom_merge", &id);
 	if (ret) {
@@ -45,6 +47,12 @@ void cam_eeprom_parse_dt_oem(struct cam_eeprom_ctrl_t *e_ctrl, struct device_nod
 			mutex_init(e_ctrl->actuator_ois_eeprom_merge_mutex);
 			actuator_ois_eeprom_shared_mutex_init_flag = true;
 		}
+	}
+
+	if (of_property_read_bool(of_node, "insensor-page-eeprom-support")) {
+		CAM_INFO(CAM_UTIL, "insensor-page-eeprom is Supported");
+		ret = of_property_read_string(of_node, "oplus-eeprom-name",
+			&soc_private->eeprom_name);
 	}
 }
 

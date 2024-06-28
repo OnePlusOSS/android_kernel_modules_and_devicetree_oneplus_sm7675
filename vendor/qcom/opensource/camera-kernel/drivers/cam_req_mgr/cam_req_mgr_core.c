@@ -1273,7 +1273,6 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 	char trace[64] = {0};
 #endif
 
-
 	apply_req.link_hdl = link->link_hdl;
 	apply_req.report_if_bubble = 0;
 	apply_req.re_apply = false;

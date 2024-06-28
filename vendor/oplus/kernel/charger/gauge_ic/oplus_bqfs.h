@@ -8,4 +8,5 @@
 
 void bq27426_modify_soc_smooth_parameter(struct chip_bq27541 *chip, bool on);
 void bqfs_init(struct chip_bq27541 *chip);
+int bqfs_fw_upgrade(struct chip_bq27541 *chip, bool init);
 #endif /* __OPLUS_BQFS_H__ */

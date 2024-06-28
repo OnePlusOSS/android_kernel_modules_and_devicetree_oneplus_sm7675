@@ -8,14 +8,14 @@
 #include "nfc/bale-nfc-sn220.dtsi"
 #include "oplus_misc/oplus-misc-23609.dtsi"
 #include "oplus_chg/oplus-chg-23609.dtsi"
-//#include "oplus_chg/oplus-chg-23609-pps.dtsi"
+#include "oplus_chg/oplus-chg-23609-pps.dtsi"
 #include "oplus_fp/oplus_fp_23609.dtsi"
 #include "sensor/bale-sensor-23609.dtsi"
 
 / {
     model = "Qualcomm Technologies, Inc. cliffs MTP,Bale";
 
-    oplus,project-id = <23609 23622>;
+    oplus,project-id = <23609>;
     oplus,hw-id = <OPLUS_EVB1 OPLUS_T0 OPLUS_EVT1 OPLUS_DVT1 OPLUS_PVT1>;
 };
 

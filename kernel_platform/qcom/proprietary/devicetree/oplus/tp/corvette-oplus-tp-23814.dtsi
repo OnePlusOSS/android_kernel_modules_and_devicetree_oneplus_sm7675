@@ -257,6 +257,9 @@
 		synaptics,spi-mode = <0>;
 		synaptics,spi-byte-delay-us = <0>;
 		synaptics,spi-block-delay-us = <0>;
+
+		/* SW Support Feature Control */
+		tp_data_record_support;
 	};
 };
 

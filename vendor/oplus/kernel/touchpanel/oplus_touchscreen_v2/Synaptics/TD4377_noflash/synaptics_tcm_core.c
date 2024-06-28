@@ -3689,6 +3689,98 @@ static int syna_black_screen_test_dynamic(struct seq_file *s, void *chip_data,
 	return error_count;
 }
 
+static int synaptics_auto_test_preoperation(struct seq_file *s, void *chip_data,
+		struct auto_testdata *syna_testdata,
+		struct test_item_info *p_test_item_info)
+{
+	int ret = 0;
+	struct syna_tcm_hcd *tcm_hcd = (struct syna_tcm_hcd *)chip_data;
+	struct touchpanel_data *ts = spi_get_drvdata(tcm_hcd->s_client);
+	const struct firmware *fw = NULL;
+	char *fw_name_test = NULL;
+	char *p_node = NULL;
+	char *postfix = "_TEST.img";
+	uint8_t copy_len = 0;
+
+	TPD_INFO("%s  is called\n", __func__);
+
+	fw_name_test = kzalloc(MAX_FW_NAME_LENGTH, GFP_KERNEL);
+		if (fw_name_test == NULL) {
+			TPD_INFO("fw_name_test kzalloc error!\n");
+			return -ENOMEM;
+		}
+
+	p_node = strstr(ts->panel_data.fw_name, ".");
+	copy_len = p_node - ts->panel_data.fw_name;
+	memcpy(fw_name_test, ts->panel_data.fw_name, copy_len);
+	strlcat(fw_name_test, postfix, MAX_FW_NAME_LENGTH);
+
+	ret = request_firmware(&fw, fw_name_test, ts->dev);
+	if (!ret) {
+		ts->loading_fw = true;
+			if (ts->ts_ops && ts->ts_ops->fw_update)
+				ret = ts->ts_ops->fw_update(ts->chip_data, fw, 1);
+			ts->loading_fw = false;
+	} else {
+		TPD_INFO("request_firmware(%s) fail and no need to download test fw !\n", fw_name_test);
+	}
+
+	if (fw) {
+		release_firmware(fw);
+		fw = NULL;
+	}
+
+	kfree(fw_name_test);
+
+	return 0;
+}
+
+static int synaptics_auto_test_endoperation(struct seq_file *s, void *chip_data,
+		struct auto_testdata *syna_testdata,
+		struct test_item_info *p_test_item_info)
+{
+	TPD_INFO("%s  is called\n", __func__);
+	return 0;
+}
+
+static int synaptics_auto_black_screen_test_preoperation(struct seq_file *s, void *chip_data,
+		struct auto_testdata *syna_testdata,
+		struct test_item_info *p_test_item_info)
+{
+	TPD_INFO("%s  is called\n", __func__);
+	return 0;
+}
+
+static int synaptics_auto_black_screen_test_endoperation(struct seq_file *s, void *chip_data,
+		struct auto_testdata *syna_testdata,
+		struct test_item_info *p_test_item_info)
+{
+	int ret = 0;
+	struct syna_tcm_hcd *tcm_hcd = (struct syna_tcm_hcd *)chip_data;
+	struct touchpanel_data *ts = spi_get_drvdata(tcm_hcd->s_client);
+	const struct firmware *fw = NULL;
+
+	TPD_INFO("%s  is called\n", __func__);
+
+	ret = request_firmware(&fw, ts->panel_data.fw_name, ts->dev);
+	if (!ret) {
+		ts->loading_fw = true;
+			if (ts->ts_ops && ts->ts_ops->fw_update)
+				ret = ts->ts_ops->fw_update(ts->chip_data, fw, 1);
+			ts->loading_fw = false;
+	} else {
+		TPD_INFO("request_firmware(%s) fail and upgrade to normal  firmware fail!\n", ts->panel_data.fw_name);
+	}
+
+	if (fw) {
+		release_firmware(fw);
+		fw = NULL;
+	}
+
+	return 0;
+}
+
+
 static int syna_testing_noise(struct seq_file *s, void *chip_data,
 				   struct auto_testdata *syna_testdata, struct test_item_info *p_test_item_info)
 {
@@ -4385,7 +4477,10 @@ static struct syna_auto_test_operations synaptics_test_ops = {
 	.test7       =  syna_testing_dynamic_range_NULL,
 	.syna_black_screen_test_noise    =  syna_black_screen_test_noise,
 	.syna_black_screen_test_dynamic  =  syna_black_screen_test_dynamic,
-	/*.syna_auto_test_endoperation  =  synaptics_auto_test_endoperation,*/
+	.syna_auto_test_preoperation  =  synaptics_auto_test_preoperation,
+	.syna_auto_test_endoperation  =  synaptics_auto_test_endoperation,
+	.syna_auto_black_screen_test_preoperation  =  synaptics_auto_black_screen_test_preoperation,
+	.syna_auto_black_screen_test_endoperation  =  synaptics_auto_black_screen_test_endoperation,
 };
 
 static struct engineer_test_operations syna_engineer_test_ops = {

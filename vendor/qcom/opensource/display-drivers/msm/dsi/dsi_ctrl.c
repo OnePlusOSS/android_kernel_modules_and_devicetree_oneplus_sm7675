@@ -3093,6 +3093,14 @@ void dsi_ctrl_enable_status_interrupt(struct dsi_ctrl *dsi_ctrl,
 		dsi_ctrl->hw.ops.enable_status_interrupts(&dsi_ctrl->hw,
 				dsi_ctrl->irq_info.irq_stat_mask);
 	}
+#ifdef OPLUS_FEATURE_DISPLAY
+	else {
+		if (intr_idx == DSI_SINT_CMD_MODE_DMA_DONE) {
+			SDE_EVT32(dsi_ctrl->cell_index, SDE_EVTLOG_ERROR);
+			DSI_WARN("maybe no add lock when send cmd to panel !!!\n");
+		}
+	}
+#endif
 
 	if (intr_idx == DSI_SINT_CMD_MODE_DMA_DONE)
 		dsi_ctrl->hw.ops.enable_status_interrupts(&dsi_ctrl->hw,

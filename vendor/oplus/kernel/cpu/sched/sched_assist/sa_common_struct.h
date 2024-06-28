@@ -89,6 +89,9 @@ struct oplus_task_struct {
 	s8 ux_priority;
 	s8 ux_nice;
 	s8 im_flag;
+	pid_t affinity_pid;
+	pid_t affinity_tgid;
+	unsigned long state;
 /*#if IS_ENABLED(CONFIG_OPLUS_FEATURE_ABNORMAL_FLAG)*/
 	int abnormal_flag;
 /*#endif*/

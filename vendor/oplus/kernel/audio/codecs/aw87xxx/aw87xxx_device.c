@@ -25,6 +25,7 @@
 #include <linux/timer.h>
 #include "aw87xxx.h"
 #include "aw87xxx_device.h"
+#include "aw87xxx_dsp.h"
 #include "aw87xxx_log.h"
 #include "aw87xxx_pid_9b_reg.h"
 #include "aw87xxx_pid_18_reg.h"
@@ -34,6 +35,13 @@
 #include "aw87xxx_pid_5a_reg.h"
 #include "aw87xxx_pid_76_reg.h"
 #include "aw87xxx_pid_60_reg.h"
+#include "aw87xxx_pid_c1_reg.h"
+#include "aw87xxx_pid_c2_reg.h"
+
+#ifdef AW_ALGO_AUTH_DSP
+static DEFINE_MUTEX(g_algo_auth_dsp_lock);
+int g_algo_auth_st;
+#endif
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 #include <soc/oplus/system/oplus_mm_kevent_fb.h>
@@ -91,6 +99,19 @@ const char *g_aw_pid_60_product[] = {
 	"aw87562",
 	"aw87501",
 	"aw87550",
+};
+
+const char *g_aw_pid_c1_product[] = {
+	"aw87391",
+	"aw87392",
+};
+
+const char *g_aw_pid_c2_product[] = {
+	"aw87565",
+	"aw87566",
+	"aw81564",
+	"aw87567",
+	"aw87568",
 };
 
 static int aw87xxx_dev_get_chipid(struct aw_device *aw_dev);
@@ -220,7 +241,7 @@ static int aw87xxx_dev_reg_update(struct aw_device *aw_dev,
 		AW_DEV_LOGI(aw_dev->dev, "reg=0x%02x, val = 0x%02x",
 			profile_data->data[i], profile_data->data[i + 1]);
 
-		//delay ms
+		/*delay ms*/
 		if (profile_data->data[i] == AW87XXX_DELAY_REG_ADDR) {
 			AW_DEV_LOGI(aw_dev->dev, "delay %d ms", profile_data->data[i + 1]);
 			usleep_range(profile_data->data[i + 1] * AW87XXX_REG_DELAY_TIME,
@@ -272,7 +293,7 @@ static int aw87xxx_dev_reg_update_mute(struct aw_device *aw_dev,
 	for (i = 0; i < profile_data->len; i = i + 2) {
 		AW_DEV_LOGI(aw_dev->dev, "reg=0x%02x, val = 0x%02x",
 			profile_data->data[i], profile_data->data[i + 1]);
-		//delay ms
+		/*delay ms*/
 		if (profile_data->data[i] == AW87XXX_DELAY_REG_ADDR) {
 			AW_DEV_LOGI(aw_dev->dev, "delay %d ms", profile_data->data[i + 1]);
 			usleep_range(profile_data->data[i + 1] * AW87XXX_REG_DELAY_TIME,
@@ -422,6 +443,9 @@ int aw87xxx_dev_default_pwr_off(struct aw_device *aw_dev,
 		}
 	}
 
+	if (aw_dev->chipid == AW_DEV_CHIPID_C2)
+		mdelay(5);
+
 	aw87xxx_dev_hw_pwr_ctrl(aw_dev, false);
 	AW_DEV_LOGD(aw_dev->dev, "down");
 	return 0;
@@ -445,6 +469,9 @@ int aw87xxx_dev_default_pwr_on(struct aw_device *aw_dev,
 
 	/*hw power on*/
 	aw87xxx_dev_hw_pwr_ctrl(aw_dev, true);
+
+	if (aw_dev->chipid == AW_DEV_CHIPID_C2)
+		mdelay(3);
 
 	ret = aw87xxx_dev_reg_update(aw_dev, profile_data);
 	if (ret < 0)
@@ -526,6 +553,140 @@ int aw87xxx_dev_check_reg_is_rec_mode(struct aw_device *aw_dev)
 	return 0;
 }
 
+/****************************************************************************
+ *
+ * aw87xxx algo_encryption
+ *
+ ****************************************************************************/
+int aw87xxx_dev_get_encrypted_value(struct aw_device *aw_dev,
+			unsigned int in, unsigned int *out)
+{
+	int ret = 0;
+	struct aw_auth_desc *desc = &aw_dev->auth_desc;
+	uint8_t out_l = 0;
+	uint8_t out_h = 0;
+
+	if ((desc->reg_in_l == AW_REG_NONE) || (desc->reg_in_h == AW_REG_NONE) ||
+		(desc->reg_out_l == AW_REG_NONE) || (desc->reg_out_h == AW_REG_NONE)) {
+		AW_DEV_LOGD(aw_dev->dev, "Missing encryption register");
+		return -EINVAL;
+	}
+
+	ret = aw87xxx_dev_i2c_write_byte(aw_dev, desc->reg_in_l, (in & 0xFF));
+	if (ret < 0)
+		return ret;
+
+	ret = aw87xxx_dev_i2c_write_byte(aw_dev, desc->reg_in_h, ((in >> 8) & 0xFF));
+	if (ret < 0)
+		return ret;
+
+	ret = aw87xxx_dev_i2c_read_byte(aw_dev, desc->reg_out_l, &out_l);
+	if (ret < 0)
+		return ret;
+
+	ret = aw87xxx_dev_i2c_read_byte(aw_dev, desc->reg_out_h, &out_h);
+
+	*out = out_l | (out_h << 8);
+
+	return ret;
+}
+
+int aw87xxx_dev_algo_auth_mode(struct aw_device *aw_dev, struct algo_auth_data *algo_data)
+{
+	int ret = 0;
+	unsigned int encrypted_out = 0;
+
+	AW_DEV_LOGD(aw_dev->dev, "algo auth mode: %d", algo_data->auth_mode);
+
+	aw_dev->auth_desc.auth_mode = algo_data->auth_mode;
+	aw_dev->auth_desc.random = algo_data->random;
+	aw_dev->auth_desc.chip_id = AW_ALGO_AUTH_MAGIC_ID;
+	aw_dev->auth_desc.check_result = algo_data->check_result;
+
+	switch (algo_data->auth_mode) {
+	case AW_ALGO_AUTH_MODE_MAGIC_ID:
+		aw_dev->auth_desc.reg_crc = algo_data->reg_crc;
+		break;
+	case AW_ALGO_AUTH_MODE_REG_CRC:
+		ret = aw87xxx_dev_get_encrypted_value(aw_dev, algo_data->random, &encrypted_out);
+		if (ret < 0)
+			AW_DEV_LOGE(aw_dev->dev, "get encrypted value failed");
+		aw_dev->auth_desc.reg_crc = encrypted_out;
+		break;
+	default:
+		AW_DEV_LOGE(aw_dev->dev, "unsupport auth mode[%d]", algo_data->auth_mode);
+		ret = -EINVAL;
+	}
+	return ret;
+}
+
+#ifdef AW_ALGO_AUTH_DSP
+int aw87xxx_dev_algo_auth_dsp_mode(struct aw_device *aw_dev, struct algo_auth_data *algo_data)
+{
+	int ret = 0;
+	unsigned int encrypted_out = 0;
+
+	AW_DEV_LOGD(aw_dev->dev, "algo auth mode: %d", algo_data->auth_mode);
+
+	algo_data->chip_id = AW_ALGO_AUTH_MAGIC_ID;
+
+	if (algo_data->auth_mode == AW_ALGO_AUTH_MODE_REG_CRC) {
+		ret = aw87xxx_dev_get_encrypted_value(aw_dev, algo_data->random, &encrypted_out);
+		if (ret < 0)
+			AW_DEV_LOGE(aw_dev->dev, "get encrypted value failed");
+		algo_data->reg_crc = encrypted_out;
+	}
+
+	return ret;
+}
+
+void aw87xxx_dev_algo_authentication(struct aw_device *aw_dev)
+{
+	int ret = 0;
+	struct algo_auth_data algo_data;
+
+	mutex_lock(&g_algo_auth_dsp_lock);
+
+	AW_DEV_LOGD(aw_dev->dev, "g_algo_auth_st=%d", g_algo_auth_st);
+
+	if (g_algo_auth_st == AW_ALGO_AUTH_OK) {
+		AW_DEV_LOGD(aw_dev->dev, "algo auth complete");
+		goto exit;
+	}
+
+	ret = aw87xxx_dsp_get_algo_auth_data(aw_dev, (char *)&algo_data, sizeof(struct algo_auth_data));
+	if (ret < 0)
+		goto exit;
+
+	ret = aw87xxx_dev_algo_auth_dsp_mode(aw_dev, &algo_data);
+	if (ret < 0)
+		goto exit;
+
+	ret = aw87xxx_dsp_set_algo_auth_data(aw_dev, (char *)&algo_data, sizeof(struct algo_auth_data));
+	if (ret < 0)
+		goto exit;
+
+	g_algo_auth_st = AW_ALGO_AUTH_OK;
+
+	AW_DEV_LOGI(aw_dev->dev, "g_algo_auth_st=%d", g_algo_auth_st);
+
+	AW_DEV_LOGD(aw_dev->dev, "mode=%d,reg_crc=0x%x,random=0x%x,id=0x%x,res=%d",
+		algo_data.auth_mode, algo_data.reg_crc, algo_data.random,
+		algo_data.chip_id, algo_data.check_result);
+
+exit:
+	mutex_unlock(&g_algo_auth_dsp_lock);
+}
+#endif
+
+static void aw_dev_auth_reg_none(struct aw_device *aw_dev)
+{
+	/*encryption info*/
+	aw_dev->auth_desc.reg_in_l = AW_REG_NONE;
+	aw_dev->auth_desc.reg_in_h = AW_REG_NONE;
+	aw_dev->auth_desc.reg_out_l = AW_REG_NONE;
+	aw_dev->auth_desc.reg_out_h = AW_REG_NONE;
+}
 
 /****************************************************************************
  *
@@ -562,7 +723,7 @@ static int aw_dev_pid_9b_reg_update(struct aw_device *aw_dev,
 	for (i = 1; i < AW_PID_9B_BIN_REG_CFG_COUNT; i++) {
 		AW_DEV_LOGI(aw_dev->dev, "reg=0x%02x, val = 0x%02x",
 			i, profile_data->data[i]);
-		//delay ms
+		/*delay ms*/
 		if (profile_data->data[i] == AW87XXX_DELAY_REG_ADDR) {
 			AW_DEV_LOGI(aw_dev->dev, "delay %d ms", profile_data->data[i + 1]);
 			usleep_range(profile_data->data[i + 1] * AW87XXX_REG_DELAY_TIME,
@@ -643,6 +804,8 @@ static void aw_dev_pid_9b_init(struct aw_device *aw_dev)
 	aw_dev->esd_desc.first_update_reg_val = AW87XXX_PID_9B_SYSCTRL_DEFAULT;
 
 	aw_dev->vol_desc.addr = AW_REG_NONE;
+
+	aw_dev_auth_reg_none(aw_dev);
 }
 
 static int aw_dev_pid_9a_init(struct aw_device *aw_dev)
@@ -732,8 +895,11 @@ static void aw_dev_chipid_18_init(struct aw_device *aw_dev)
 	/* esd reg info */
 	aw_dev->esd_desc.first_update_reg_addr = AW87XXX_PID_18_CLASSD_REG;
 	aw_dev->esd_desc.first_update_reg_val = AW87XXX_PID_18_CLASSD_DEFAULT;
+	aw_dev->ipeak_desc.reg = AW_REG_NONE;
 
 	aw_dev->vol_desc.addr = AW87XXX_PID_18_CPOC_REG;
+
+	aw_dev_auth_reg_none(aw_dev);
 }
 /********************** aw87xxx_pid_18 attributes end ***********************/
 
@@ -763,8 +929,11 @@ static void aw_dev_chipid_39_init(struct aw_device *aw_dev)
 	/* esd reg info */
 	aw_dev->esd_desc.first_update_reg_addr = AW87XXX_PID_39_REG_MODECTRL;
 	aw_dev->esd_desc.first_update_reg_val = AW87XXX_PID_39_MODECTRL_DEFAULT;
+	aw_dev->ipeak_desc.reg = AW_REG_NONE;
 
 	aw_dev->vol_desc.addr = AW87XXX_PID_39_REG_CPOVP;
+
+	aw_dev_auth_reg_none(aw_dev);
 }
 /********************* aw87xxx_pid_39 attributes end *************************/
 
@@ -795,8 +964,11 @@ static void aw_dev_chipid_59_5x9_init(struct aw_device *aw_dev)
 	/* esd reg info */
 	aw_dev->esd_desc.first_update_reg_addr = AW87XXX_PID_59_5X9_REG_ENCR;
 	aw_dev->esd_desc.first_update_reg_val = AW87XXX_PID_59_5X9_ENCRY_DEFAULT;
+	aw_dev->ipeak_desc.reg = AW_REG_NONE;
 
 	aw_dev->vol_desc.addr = AW_REG_NONE;
+
+	aw_dev_auth_reg_none(aw_dev);
 }
 /******************* aw87xxx_pid_59_5x9 attributes end ***********************/
 
@@ -826,8 +998,11 @@ static void aw_dev_chipid_59_3x9_init(struct aw_device *aw_dev)
 	/* esd reg info */
 	aw_dev->esd_desc.first_update_reg_addr = AW87XXX_PID_59_3X9_REG_ENCR;
 	aw_dev->esd_desc.first_update_reg_val = AW87XXX_PID_59_3X9_ENCR_DEFAULT;
+	aw_dev->ipeak_desc.reg = AW_REG_NONE;
 
 	aw_dev->vol_desc.addr = AW87XXX_PID_59_3X9_REG_CPOVP;
+
+	aw_dev_auth_reg_none(aw_dev);
 }
 /******************* aw87xxx_pid_59_3x9 attributes end ***********************/
 
@@ -857,8 +1032,12 @@ static void aw_dev_chipid_5a_init(struct aw_device *aw_dev)
 	/* esd reg info */
 	aw_dev->esd_desc.first_update_reg_addr = AW87XXX_PID_5A_REG_DFT3R_REG;
 	aw_dev->esd_desc.first_update_reg_val = AW87XXX_PID_5A_DFT3R_DEFAULT;
+	aw_dev->ipeak_desc.reg = AW87XXX_PID_5A_REG_BSTCPR2_REG;
+	aw_dev->ipeak_desc.mask = AW87XXX_PID_5A_REG_BST_IPEAK_MASK;
 
 	aw_dev->vol_desc.addr = AW_REG_NONE;
+
+	aw_dev_auth_reg_none(aw_dev);
 }
 /********************** aw87xxx_pid_5a attributes end ************************/
 
@@ -888,8 +1067,11 @@ static void aw_dev_chipid_76_init(struct aw_device *aw_dev)
 	/* esd reg info */
 	aw_dev->esd_desc.first_update_reg_addr = AW87XXX_PID_76_DFT_ADP1_REG;
 	aw_dev->esd_desc.first_update_reg_val = AW87XXX_PID_76_DFT_ADP1_CHECK;
+	aw_dev->ipeak_desc.reg = AW_REG_NONE;
 
 	aw_dev->vol_desc.addr = AW87XXX_PID_76_CPOVP_REG;
+
+	aw_dev_auth_reg_none(aw_dev);
 }
 /********************** aw87xxx_pid_76 attributes end ************************/
 
@@ -920,9 +1102,91 @@ static void aw_dev_chipid_60_init(struct aw_device *aw_dev)
 	aw_dev->esd_desc.first_update_reg_addr = AW87XXX_PID_60_NG3_REG;
 	aw_dev->esd_desc.first_update_reg_val = AW87XXX_PID_60_ESD_REG_VAL;
 
+	aw_dev->ipeak_desc.reg = AW_REG_NONE;
 	aw_dev->vol_desc.addr = AW_REG_NONE;
+
+	aw_dev_auth_reg_none(aw_dev);
 }
 /********************** aw87xxx_pid_60 attributes end ************************/
+
+/********************** aw87xxx_pid_c1 attributes ****************************/
+static void aw_dev_chipid_c1_init(struct aw_device *aw_dev)
+{
+	/* Product register permission info */
+	aw_dev->reg_max_addr = AW87XXX_PID_C1_REG_MAX;
+	aw_dev->reg_access = aw87xxx_pid_c1_reg_access;
+
+	/* software reset control info */
+	aw_dev->soft_rst_desc.len = sizeof(aw87xxx_pid_c1_softrst_access);
+	aw_dev->soft_rst_desc.access = aw87xxx_pid_c1_softrst_access;
+	aw_dev->soft_rst_enable = AW_DEV_SOFT_RST_ENABLE;
+
+	/* software power off control info */
+	aw_dev->soft_off_enable = AW_DEV_SOFT_OFF_ENABLE;
+
+	aw_dev->product_tab = g_aw_pid_c1_product;
+	aw_dev->product_cnt = AW87XXX_PID_C1_PROFUCT_MAX;
+
+	aw_dev->rec_desc.addr = AW87XXX_PID_C1_SYSCTRL_REG;
+	aw_dev->rec_desc.disable = AW87XXX_PID_C1_EN_SPK_SPK_MODE_ENABLE;
+	aw_dev->rec_desc.enable = AW87XXX_PID_C1_EN_SPK_SPK_MODE_DISABLE;
+	aw_dev->rec_desc.mask = AW87XXX_PID_C1_EN_SPK_MASK;
+
+	/* esd reg info */
+	aw_dev->esd_desc.first_update_reg_addr = AW87XXX_PID_C1_DFT_THGEN1_REG;
+	aw_dev->esd_desc.first_update_reg_val = AW87XXX_PID_C1_DFT_THGEN1_CHECK;
+
+	aw_dev->vol_desc.addr = AW_REG_NONE;
+
+	aw_dev->ipeak_desc.reg = AW_REG_NONE;
+
+	/*encryption info*/
+	aw_dev->auth_desc.reg_in_l = AW87XXX_PID_C1_TESTIN1_REG;
+	aw_dev->auth_desc.reg_in_h = AW87XXX_PID_C1_TESTIN2_REG;
+	aw_dev->auth_desc.reg_out_l = AW87XXX_PID_C1_TESTOUT1_REG;
+	aw_dev->auth_desc.reg_out_h = AW87XXX_PID_C1_TESTOUT2_REG;
+}
+/********************** aw87xxx_pid_c1 attributes end ************************/
+
+/********************** aw87xxx_pid_c2 attributes ****************************/
+static void aw_dev_chipid_c2_init(struct aw_device *aw_dev)
+{
+	/* Product register permission info */
+	aw_dev->reg_max_addr = AW87XXX_PID_C2_REG_MAX;
+	aw_dev->reg_access = aw87xxx_pid_c2_reg_access;
+
+	/* software reset control info */
+	aw_dev->soft_rst_desc.len = sizeof(aw87xxx_pid_c2_softrst_access);
+	aw_dev->soft_rst_desc.access = aw87xxx_pid_c2_softrst_access;
+	aw_dev->soft_rst_enable = AW_DEV_SOFT_RST_ENABLE;
+
+	/* software power off control info */
+	aw_dev->soft_off_enable = AW_DEV_SOFT_OFF_ENABLE;
+
+	aw_dev->product_tab = g_aw_pid_c2_product;
+	aw_dev->product_cnt = AW87XXX_PID_C2_PROFUCT_MAX;
+
+	aw_dev->rec_desc.addr = AW87XXX_PID_C2_SYSCTRL_REG;
+	aw_dev->rec_desc.disable = AW87XXX_PID_C2_RCV_MODE_DISABLE;
+	aw_dev->rec_desc.enable = AW87XXX_PID_C2_RCV_MODE_ENABLE;
+	aw_dev->rec_desc.mask = AW87XXX_PID_C2_RCV_MODE_MASK;
+
+	/* esd reg info */
+	aw_dev->esd_desc.first_update_reg_addr = AW87XXX_PID_C2_CP_REG;
+	aw_dev->esd_desc.first_update_reg_val = AW87XXX_PID_C2_CP_CHECK;
+
+	aw_dev->ipeak_desc.reg = AW87XXX_PID_C2_PEAKLIMIT_REG;
+	aw_dev->ipeak_desc.mask = AW87XXX_PID_C2_BST_IPEAK_MASK;
+
+	aw_dev->vol_desc.addr = AW_REG_NONE;
+
+	/*encryption info*/
+	aw_dev->auth_desc.reg_in_l = AW87XXX_PID_C2_TESTIN1_REG;
+	aw_dev->auth_desc.reg_in_h = AW87XXX_PID_C2_TESTIN2_REG;
+	aw_dev->auth_desc.reg_out_l = AW87XXX_PID_C2_CRCOUT0_REG;
+	aw_dev->auth_desc.reg_out_h = AW87XXX_PID_C2_CRCOUT1_REG;
+}
+/********************** aw87xxx_pid_c2 attributes end ************************/
 
 static int aw_dev_chip_init(struct aw_device *aw_dev)
 {
@@ -967,6 +1231,14 @@ static int aw_dev_chip_init(struct aw_device *aw_dev)
 	case AW_DEV_CHIPID_60:
 		aw_dev_chipid_60_init(aw_dev);
 		AW_DEV_LOGI(aw_dev->dev, "product is pid_60 class");
+		break;
+	case AW_DEV_CHIPID_C1:
+		aw_dev_chipid_c1_init(aw_dev);
+		AW_DEV_LOGI(aw_dev->dev, "product is pid_c1 class");
+		break;
+	case AW_DEV_CHIPID_C2:
+		aw_dev_chipid_c2_init(aw_dev);
+		AW_DEV_LOGI(aw_dev->dev, "product is pid_c2 class");
 		break;
 	default:
 		AW_DEV_LOGE(aw_dev->dev, "unsupported device revision [0x%x]",

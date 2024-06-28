@@ -328,6 +328,10 @@ void operate_mode_switch(struct touchpanel_data *ts)
 			ts->ts_ops->sensitive_lv_set(ts->chip_data, ts->sensitive_level_used_array[ts->sensitive_level_chosen]);
 		}
 
+		if (ts->diaphragm_touch_support && ts->ts_ops->diaphragm_touch_lv_set) {
+			ts->ts_ops->diaphragm_touch_lv_set(ts->chip_data, ts->diaphragm_touch_level_chosen);
+		}
+
 		if (ts->lcd_tp_refresh_support && ts->ts_ops->tp_refresh_switch) {
 			ts->ts_ops->tp_refresh_switch(ts->chip_data, ts->lcd_fps);
 		}
@@ -2199,6 +2203,7 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->suspend_work_support = of_property_read_bool(np, "suspend_work_support");
 	ts->fp_disable_after_resume = of_property_read_bool(np, "fp_disable_after_resume");
 	ts->edge_pull_out_support = of_property_read_bool(np, "edge_pull_out_support");
+	ts->diaphragm_touch_support = of_property_read_bool(np, "diaphragm_touch_support");
 
 #ifdef CONFIG_TOUCHPANEL_TRUSTED_TOUCH
 	ts->trusted_touch_support = of_property_read_bool(np, "trusted_touch_support");

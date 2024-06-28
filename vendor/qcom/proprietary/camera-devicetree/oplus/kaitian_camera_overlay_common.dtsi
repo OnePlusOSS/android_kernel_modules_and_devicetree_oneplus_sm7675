@@ -123,7 +123,7 @@
 
 &cam_csiphy1{
         cell-index = <1>;
-        compatible = "qcom,csiphy-v2.2.0-enhance1", "qcom,csiphy";
+        compatible = "qcom,csiphy-v2.2.0-enhance1_wide", "qcom,csiphy";
 };
 
 &cam_csiphy2{
@@ -133,7 +133,7 @@
 
 &cam_csiphy5{
         cell-index = <5>;
-        compatible = "qcom,csiphy-v2.2.0-enhance1", "qcom,csiphy";
+        compatible = "qcom,csiphy-v2.2.0-enhance1_tele2", "qcom,csiphy";
 };
 
 &L1N {

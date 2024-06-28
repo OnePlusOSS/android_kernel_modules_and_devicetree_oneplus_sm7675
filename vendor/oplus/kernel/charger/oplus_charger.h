@@ -1323,6 +1323,7 @@ struct oplus_chg_chip {
 	bool is_double_charger_support;
 	int pd_svooc;
 	int pd_chging;
+	int pps_to_pd_chging;
 	int soc_ajust;
 	int modify_soc;
 	ktime_t first_ktime;
@@ -1434,6 +1435,9 @@ struct oplus_chg_chip {
 	oplus_chg_track_trigger cool_down_match_err_load_trigger;
 	struct delayed_work cool_down_match_err_load_trigger_work;
 	struct delayed_work soc_update_when_resume_work;
+#if IS_ENABLED(CONFIG_DRM_PANEL_NOTIFY) || IS_ENABLED(CONFIG_OPLUS_CHG_DRM_PANEL_NOTIFY)
+	struct delayed_work panel_notify_reg_work;
+#endif
 
 	oplus_chg_track_trigger *mmi_chg_info_trigger;
 	oplus_chg_track_trigger *slow_chg_info_trigger;

@@ -13,5 +13,5 @@
 / {
 	model = "Qualcomm Technologies, Inc. cliffs MTP,Bale";
 	compatible = "qcom,cliffs-mtp", "qcom,cliffs", "qcom,mtp";
-	oplus,project-id = <23609 23622>;
+	oplus,project-id = <23609 23622 24687>;
 };

@@ -247,6 +247,12 @@ struct syna_auto_test_operations {
 	int (*syna_auto_test_endoperation)(struct seq_file *s, void *chip_data,
 					   struct auto_testdata *syna_testdata,
 					   struct test_item_info *p_test_item_info);
+	int (*syna_auto_black_screen_test_preoperation)(struct seq_file *s, void *chip_data,
+					   struct auto_testdata *syna_testdata,
+					   struct test_item_info *p_test_item_info);
+	int (*syna_auto_black_screen_test_endoperation)(struct seq_file *s, void *chip_data,
+					   struct auto_testdata *syna_testdata,
+					   struct test_item_info *p_test_item_info);
 	int (*syna_black_screen_test_noise)(struct seq_file *s, void *chip_data,
 					   struct auto_testdata *syna_testdata,
 					   struct test_item_info *p_test_item_info);

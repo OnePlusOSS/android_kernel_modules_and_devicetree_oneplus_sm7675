@@ -26,7 +26,8 @@ enum STUNE_BOOST_TYPE {
 	BOOST_UTIL_MIN_THRESHOLD,
 	BOOST_UTIL_MIN_OBTAIN_VIEW,
 	BOOST_UTIL_MIN_TIMEOUT,
-	BOOST_SF_IN_GPU,
+	BOOST_SF_MIGR,
+	BOOST_SF_FREQ,
 	BOOST_SF_MIGR_NONGPU,
 	BOOST_SF_FREQ_NONGPU,
 	BOOST_SF_MIGR_GPU,
@@ -47,9 +48,15 @@ extern int sysctl_frame_boost_enable;
 extern int sysctl_frame_boost_debug;
 extern int sysctl_slide_boost_enabled;
 extern int sysctl_input_boost_enabled;
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SF_SLIDE_BOOST)
+extern int sysctl_slide_min_util;
+#endif
 extern int stune_boost[BOOST_MAX_TYPE];
 extern struct fbg_vendor_hook fbg_hook;
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SF_SLIDE_BOOST)
+bool slide_rt_boost(struct task_struct *p);
+#endif
 void fbg_set_stune_boost(int value, unsigned int type);
 int fbg_get_stune_boost(unsigned int type);
 void fbg_sysctl_init(void);

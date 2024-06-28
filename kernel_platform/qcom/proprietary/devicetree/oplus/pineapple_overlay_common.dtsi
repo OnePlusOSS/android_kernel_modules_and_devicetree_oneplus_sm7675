@@ -10,6 +10,11 @@
         nvmem-names = "pon_log0", "pon_log1";
     };
 
+   oplus-ocp-state-log {
+        compatible = "oplus,pmic-ocp-log";
+        nvmem-cells = <&ocp_log>;
+        nvmem-cell-names = "ocp_log";
+    };
     //#ifdef CONFIG_OPLUS_OMRG
     oplus-omrg {
         compatible = "oplus,oplus-omrg";
@@ -86,6 +91,12 @@
 	pon_pmicwd@800 {
 		compatible = "oplus,pmicwd_qpnp-power-on";
 		qcom,pmicwd;
+	};
+
+	oplus_ocp_dev: oplus-ocp-dev@8200 {
+        compatible = "oplus,pmic-ocp-device";
+        reg = <0x8200>;
+	oplus-ocp-device;
 	};
 //#endif /* CONFIG_OPLUS_FEATURE_QCOM_PMICWD */
 };

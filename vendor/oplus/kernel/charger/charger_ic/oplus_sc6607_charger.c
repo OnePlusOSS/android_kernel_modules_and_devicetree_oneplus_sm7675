@@ -94,6 +94,7 @@ static int sc6607_voocphy_get_tsbat(void);
 static int sc6607_voocphy_get_tsbus(void);
 static void sc6607_check_ic_suspend(void);
 static void oplus_sc6607_set_mivr_by_battery_vol(void);
+static int oplus_sc6607_get_charger_subtype(void);
 static void sc6607_dump_regs(struct sc6607 *chip);
 static int oplus_sc6607_set_ichg(int cur);
 static int oplus_sc6607_get_vbus(void);
@@ -119,6 +120,7 @@ static void sc6607_aicr_setting_work_callback(struct work_struct *work);
 static int sc6607_voocphy_reset_voocphy(struct oplus_voocphy_manager *chip);
 irqreturn_t sc6607_protect_interrupt_handler(struct oplus_voocphy_manager *chip);
 static void oplus_notify_hvdcp_detach_stat(void);
+int sc6607_tsbus_tsbat_to_convert(u64 adc_value, int adc_module);
 
 
 #ifdef CONFIG_OPLUS_CHARGER_MTK
@@ -170,6 +172,7 @@ int get_boot_reason(void)
 #define PORT_PD_WITHOUT_USB 3
 #define TEMP_TABLE_100K_SIZE 180
 #define TEMP_TABLE_100K_SIZE2 360
+#define ADC_TSBUS_TSBAT_DEFAULT 0
 
 #define DECL_ALERT_HANDLER(xbit, xhandler) { \
 	.bit_mask = (1 << xbit), \
@@ -1176,9 +1179,9 @@ static int sc6607_hk_get_adc(struct sc6607 *chip, enum SC6607_ADC_MODULE id)
 	if (!adc_open) {
 		if (id == SC6607_ADC_TSBAT) {
 				if (chip->platform_data->ntc_suport_1000k)
-					return SC6607_ADC_TSBUS_25;
+					return sc6607_tsbus_tsbat_to_convert(SC6607_ADC_TSBUS_25, SC6607_ADC_TSBAT);
 				else
-					return SC6607_ADC_TSBAT_DEFAULT;
+					return sc6607_tsbus_tsbat_to_convert(SC6607_ADC_TSBAT_DEFAULT, ADC_TSBUS_TSBAT_DEFAULT);
 		} else if (id == SC6607_ADC_TSBUS) {
 			if (chip->platform_data->ntc_suport_1000k) {
 				ret = sc6607_field_write(g_chip, F_ADC_EN, true);
@@ -1197,14 +1200,13 @@ static int sc6607_hk_get_adc(struct sc6607 *chip, enum SC6607_ADC_MODULE id)
 				}
 				ret = val[1] + (val[0] << 8);
 				if (id == SC6607_ADC_TSBUS) {
-					ret = ret *sy6607_adc_step[id] / SC6607_ADC_TSBUS_200;
-					ret = SC6607_ADC_1000 *SC6607_ADC_1000 * ret / (SC6607_ADC_TSBUS_CONVERT - ret);
+					ret = sc6607_tsbus_tsbat_to_convert(ret, SC6607_ADC_TSBUS);
 				}
 				if (!chip->open_adc_by_vbus)
 					sc6607_field_write(g_chip, F_ADC_EN, false);
 				return ret;
 			} else
-				return SC6607_ADC_TSBUS_DEFAULT;
+				return sc6607_tsbus_tsbat_to_convert(SC6607_ADC_TSBAT_DEFAULT, ADC_TSBUS_TSBAT_DEFAULT);
 		} else
 			return 0;
 	}
@@ -1219,11 +1221,10 @@ static int sc6607_hk_get_adc(struct sc6607 *chip, enum SC6607_ADC_MODULE id)
 	ret = val[1] + (val[0] << 8);
 	if (id == SC6607_ADC_TDIE)
 		ret = (SC6607_ADC_IDTE_THD - ret) / 2;
-	else if (id == SC6607_ADC_TSBUS && chip->platform_data->ntc_suport_1000k) {
-			ret = ret *sy6607_adc_step[id] / SC6607_ADC_TSBUS_200;
-			ret = SC6607_ADC_1000 *SC6607_ADC_1000 * ret / (SC6607_ADC_TSBUS_CONVERT - ret);
-	} else if (id == SC6607_ADC_TSBAT && chip->platform_data->ntc_suport_1000k) {
-			ret = SC6607_ADC_TSBUS_25;
+	else if (id == SC6607_ADC_TSBUS) {
+			ret = sc6607_tsbus_tsbat_to_convert(ret, SC6607_ADC_TSBUS);
+	} else if (id == SC6607_ADC_TSBAT) {
+			ret = sc6607_tsbus_tsbat_to_convert(ret, SC6607_ADC_TSBAT);
 	} else {
 		ret *= sy6607_adc_step[id];
 	}
@@ -1233,17 +1234,29 @@ static int sc6607_hk_get_adc(struct sc6607 *chip, enum SC6607_ADC_MODULE id)
 static int sc6607_adc_read_ibus(struct sc6607 *chip)
 {
 	int ibus = 0;
+	int slave_ibus = 0;
+	int ibus_devation = 0;
+	bool reset_read_ibus = false;
 
-	if (!chip)
+	if (!chip || !oplus_voocphy_mg)
 		return -EINVAL;
-	if (oplus_voocphy_mg != NULL && oplus_voocphy_get_fastchg_commu_ing()) {
-		pr_err("svooc in communication, ignore.\n");
-		return oplus_voocphy_mg->master_cp_ichg;
-	}
-	ibus = sc6607_hk_get_adc(chip, SC6607_ADC_IBUS);
-	ibus /= SC6607_UA_PER_MA;
 
-	return ibus;
+	ibus = oplus_voocphy_mg->master_cp_ichg;
+	if (oplus_voocphy_mg->voocphy_dual_cp_support) {
+		slave_ibus = oplus_voocphy_mg->slave_cp_ichg;
+		ibus_devation = abs(ibus - slave_ibus);
+		if (ibus_devation > oplus_voocphy_mg->cp_ibus_devation)
+			reset_read_ibus = true;
+	}
+
+	if (oplus_voocphy_get_fastchg_commu_ing() && !reset_read_ibus) {
+		pr_err("svooc in communication, ignore.\n");
+		return ibus;
+	} else {
+		ibus = sc6607_hk_get_adc(chip, SC6607_ADC_IBUS);
+		ibus /= SC6607_UA_PER_MA;
+		return ibus;
+	}
 }
 
 static int sc6607_adc_read_vbus_volt(struct sc6607 *chip)
@@ -1318,8 +1331,6 @@ static int sc6607_adc_read_tsbus(struct sc6607 *chip)
 		return -EINVAL;
 
 	tsbus = sc6607_hk_get_adc(chip, SC6607_ADC_TSBUS);
-	if (!g_chip->platform_data->ntc_suport_1000k)
-		tsbus /= SC6607_UV_PER_MV;
 
 	return tsbus;
 }
@@ -1332,8 +1343,6 @@ static int sc6607_adc_read_tsbat(struct sc6607 *chip)
 		return -EINVAL;
 
 	tsbat = sc6607_hk_get_adc(chip, SC6607_ADC_TSBAT);
-	if (!g_chip->platform_data->ntc_suport_1000k)
-		tsbat /= SC6607_UV_PER_MV;
 
 	return tsbat;
 }
@@ -1383,6 +1392,18 @@ int oplus_sc6607_read_vsys(void)
 	vsys = sc6607_adc_read_vsys(g_chip);
 
 	return vsys;
+}
+
+int oplus_sc6607_read_vbat(void)
+{
+	int vbat = 0;
+
+	if (!g_chip)
+		return -EINVAL;
+
+	vbat = sc6607_adc_read_vbat(g_chip);
+
+	return vbat;
 }
 
 static int oplus_sc6607_set_ichg(int curr)
@@ -1497,6 +1518,8 @@ static int sc6607_set_input_volt_limit(struct sc6607 *chip, int volt)
 		val = SC6607_VINDPM_4600;
 	else if (volt <= SC6607_VINDPM_VOL_MV(4700))
 		val = SC6607_VINDPM_4700;
+	else if (volt <= SC6607_VINDPM_VOL_MV(5000))
+		val = SC6607_VINDPM_4800;
 	else if (volt <= SC6607_VINDPM_VOL_MV(7600))
 		val = SC6607_VINDPM_7600;
 	else if (volt <= SC6607_VINDPM_VOL_MV(8200))
@@ -2037,13 +2060,18 @@ static struct sc6607_platform_data *sc6607_parse_dt(struct device_node *np, stru
 
 static bool sc6607_check_rerun_detect_chg_type(struct sc6607 *chip, u8 type)
 {
+	bool need_rerun_bc12 = false;
+
 	if (!chip)
 		return false;
 
 	if (bc12_try_count == OPLUS_BC12_MAX_TRY_COUNT)
 		chip->bc12.first_noti_sdp = false;
 
-	if (chip->bc12.first_noti_sdp && (type == SC6607_VBUS_TYPE_SDP || type == SC6607_VBUS_TYPE_CDP)) {
+	/* If port type is pd_usb, do not need rerun bc12. Will cause input current overwrite */
+	need_rerun_bc12 = (type == SC6607_VBUS_TYPE_SDP || type == SC6607_VBUS_TYPE_CDP) &&
+				(oplus_check_pd_usb_type() != PORT_PD_WITH_USB);
+	if (chip->bc12.first_noti_sdp && need_rerun_bc12) {
 		Charger_Detect_Init();
 		sc6607_disable_hvdcp(chip);
 		sc6607_force_dpdm(chip, true);
@@ -2361,8 +2389,21 @@ static int sc6607_hk_irq_handle(struct sc6607 *chip)
 		oplus_chg_check_break(chip->power_good);
 	oplus_sc6607_set_mivr_by_battery_vol();
 
-	if ((oplus_vooc_get_fastchg_started() && oplus_vooc_get_adapter_update_status() != 1) || chg_chip->camera_on) {
-		pr_err("fastchg_started or camera_on\n");
+	if (chg_chip->camera_on) {
+		chg_info("camera_on\n");
+		goto out;
+	}
+
+	if ((oplus_vooc_get_fastchg_started() && oplus_vooc_get_adapter_update_status() != 1)) {
+		chg_info("fastchg_started\n");
+		if (oplus_chg_get_voocphy_support() == AP_SINGLE_CP_VOOCPHY ||
+		    oplus_chg_get_voocphy_support() == AP_DUAL_CP_VOOCPHY) {
+			if (chg_chip->is_abnormal_adapter != true && prev_pg && !chip->power_good) {
+				chg_info("!!!charger out but fastchg still true, need check charger out\n");
+				schedule_delayed_work(&chip->check_charger_out_work,
+								round_jiffies_relative(msecs_to_jiffies(3000)));
+			}
+		}
 		goto out;
 	}
 
@@ -2398,6 +2439,10 @@ static int sc6607_hk_irq_handle(struct sc6607 *chip)
 		if (atomic_read(&chip->charger_suspended))
 			oplus_sc6607_charger_suspend();
 		sc6607_inform_charger_type(chip);
+		if (oplus_voocphy_mg) {
+			oplus_voocphy_mg->cp_tsbus = sc6607_voocphy_get_tsbus();
+			oplus_voocphy_mg->cp_tsbat = sc6607_voocphy_get_tsbat();
+		}
 		if (oplus_is_prswap) {
 			chip->chg_type = CHARGER_UNKNOWN;
 			chip->oplus_chg_type = POWER_SUPPLY_TYPE_USB;
@@ -2995,6 +3040,9 @@ static int sc6607_init_device(struct sc6607 *chip)
 	bc12_try_count = 0;
 
 	sc6607_disable_watchdog_timer(chip);
+	ret = sc6607_read_byte(chip, SC6607_REG_HK_FLT_FLG, &val);
+	if (ret)
+		pr_err("clear SC6607_REG_HK_FLT_FLG failed, ret = %d\n", ret);
 
 	ret = sc6607_set_prechg_current(chip, chip->platform_data->iprechg);
 	if (ret)
@@ -3324,16 +3372,29 @@ int oplus_sc6607_kick_wdt(void)
 
 void oplus_sc6607_set_mivr(int vbatt)
 {
-	if (!g_chip)
+	int chg_vol = 0;
+	struct oplus_chg_chip *chip = oplus_chg_get_chg_struct();
+
+	if (!chip || !g_chip)
 		return;
 
-	if (g_chip->hw_aicl_point == SC6607_HW_AICL_POINT_VOL_5V_PHASE1 && vbatt > SC6607_AICL_POINT_VOL_5V_HIGH) {
-		g_chip->hw_aicl_point = SC6607_HW_AICL_POINT_VOL_5V_PHASE2;
-	} else if (g_chip->hw_aicl_point == SC6607_HW_AICL_POINT_VOL_5V_PHASE2 &&
-		   vbatt < SC6607_AICL_POINT_VOL_5V_MID) {
-		g_chip->hw_aicl_point = SC6607_HW_AICL_POINT_VOL_5V_PHASE1;
-	}
+	chg_vol = sc6607_adc_read_vbus_volt(g_chip);
+	if (chg_vol > SC6607_9V_THRES1_MV) {
+		if (chip->vbatt_num == 1)
+			g_chip->hw_aicl_point = SC6607_AICL_POINT_VOL_9V;
+		else
+			g_chip->hw_aicl_point = SC6607_DUAL_AICL_POINT_VOL_9V;
+	} else {
+		if (g_chip->hw_aicl_point > SC6607_HW_AICL_POINT_VOL_5V_PHASE2)
+			g_chip->hw_aicl_point = SC6607_HW_AICL_POINT_VOL_5V_PHASE2;
 
+		if (g_chip->hw_aicl_point == SC6607_HW_AICL_POINT_VOL_5V_PHASE1 && vbatt > SC6607_AICL_POINT_VOL_5V_HIGH) {
+			g_chip->hw_aicl_point = SC6607_HW_AICL_POINT_VOL_5V_PHASE2;
+		} else if (g_chip->hw_aicl_point == SC6607_HW_AICL_POINT_VOL_5V_PHASE2 &&
+		   vbatt < SC6607_AICL_POINT_VOL_5V_MID) {
+			g_chip->hw_aicl_point = SC6607_HW_AICL_POINT_VOL_5V_PHASE1;
+		}
+	}
 	sc6607_set_input_volt_limit(g_chip, g_chip->hw_aicl_point);
 }
 
@@ -3345,6 +3406,7 @@ static int oplus_sc6607_set_aicr(int current_ma)
 	int aicl_point_temp = 0;
 	int main_cur = 0;
 	int slave_cur = 0;
+	int charger_subtype = 0;
 	struct oplus_chg_chip *chip = oplus_chg_get_chg_struct();
 
 	if (!chip || !g_chip)
@@ -3358,11 +3420,22 @@ static int oplus_sc6607_set_aicr(int current_ma)
 		return 0;
 	}
 
-	if (chip->batt_volt > SC6607_AICL_POINT_VOL_5V_LOW)
-		aicl_point_temp = aicl_point = SC6607_SW_AICL_POINT_VOL_5V_PHASE2;
-	else
-		aicl_point_temp = aicl_point = SC6607_SW_AICL_POINT_VOL_5V_PHASE1;
+	charger_subtype = oplus_sc6607_get_charger_subtype();
+	chg_vol = sc6607_adc_read_vbus_volt(g_chip);
+	if ((chg_vol > SC6607_9V_THRES1_MV) &&
+		 (charger_subtype == CHARGER_SUBTYPE_PD || charger_subtype == CHARGER_SUBTYPE_QC)) {
+		if (chip->vbatt_num == 1)
+			aicl_point = SC6607_AICL_POINT_VOL_9V;
+		else
+			aicl_point = SC6607_DUAL_AICL_POINT_VOL_9V;
+	} else {
+		if (chip->batt_volt > SC6607_AICL_POINT_VOL_5V_LOW)
+			aicl_point = SC6607_SW_AICL_POINT_VOL_5V_PHASE2;
+		else
+			aicl_point = SC6607_SW_AICL_POINT_VOL_5V_PHASE1;
+	}
 
+	aicl_point_temp = aicl_point;
 	pr_info("usb input max current limit=%d, aicl_point_temp=%d, em_mode=%d\n", current_ma, aicl_point_temp,
 		chip->em_mode);
 
@@ -4998,6 +5071,47 @@ static int sc6607_dump_reg_info(char *dump_info, int len, struct sc6607_track_ch
 	return 0;
 }
 
+#define TRACK_TIME_SCHEDULE_BUCK_ERR 60000
+static int sc6607_track_upload_buck_err_info(struct sc6607 *chip)
+{
+	int index = 0;
+
+	if (!chip || !chip->track_init_done)
+		return -EINVAL;
+
+	mutex_lock(&chip->track_upload_lock);
+	if (chip->hk_err_uploading) {
+		pr_err("hk_err_uploading, should return\n");
+		mutex_unlock(&chip->track_upload_lock);
+		return -1;
+	}
+
+	if (chip->hk_err_load_trigger)
+		kfree(chip->hk_err_load_trigger);
+	chip->hk_err_load_trigger = kzalloc(sizeof(oplus_chg_track_trigger), GFP_KERNEL);
+	if (!chip->hk_err_load_trigger) {
+		pr_err("hk_err_load_trigger memery alloc fail\n");
+		mutex_unlock(&chip->track_upload_lock);
+		return -ENOMEM;
+	}
+
+	chip->hk_err_load_trigger->type_reason = TRACK_NOTIFY_TYPE_DEVICE_ABNORMAL;
+	chip->hk_err_load_trigger->flag_reason = TRACK_NOTIFY_FLAG_HK_ABNORMAL;
+	chip->hk_err_uploading = true;
+	mutex_unlock(&chip->track_upload_lock);
+
+	index += snprintf(&(chip->hk_err_load_trigger->crux_info[index]), OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			  "$$device_id@@%s", "sc6607");
+	index += snprintf(&(chip->hk_err_load_trigger->crux_info[index]), OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			  "$$err_scene@@%s", "buck_work_err");
+	index += snprintf(&(chip->hk_err_load_trigger->crux_info[index]), OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
+			  "$$err_reason@@%s", "ibat_ocp");
+
+	schedule_delayed_work(&chip->hk_err_load_trigger_work, msecs_to_jiffies(TRACK_TIME_SCHEDULE_BUCK_ERR));
+	pr_info("success\n");
+	return 0;
+}
+
 static int sc6607_track_upload_hk_err_info(struct sc6607 *chip, int err_type,
 					   struct sc6607_track_check_reg *p_check_reg, int check_reg_len)
 {
@@ -5372,10 +5486,9 @@ static int sc6607_voocphy_get_adapter_info(struct oplus_voocphy_manager *chip)
 
 static void sc6607_voocphy_update_data(struct oplus_voocphy_manager *chip)
 {
-	u8 data_block[8] = { 0 };
+	u8 data_block[18] = { 0 };
 	u8 data = 0;
 	u8 state = 0;
-
 	s32 ret = 0;
 
 	if (!g_chip) {
@@ -5397,7 +5510,7 @@ static void sc6607_voocphy_update_data(struct oplus_voocphy_manager *chip)
 	/*parse data_block for improving time of interrupt*/
 	mutex_lock(&g_chip->adc_read_lock);
 	sc6607_field_write(g_chip, F_ADC_FREEZE, 1);
-	ret = i2c_smbus_read_i2c_block_data(chip->client, SC6607_REG_HK_IBUS_ADC, 8, data_block);
+	ret = i2c_smbus_read_i2c_block_data(chip->client, SC6607_REG_HK_IBUS_ADC, 18, data_block);
 	sc6607_field_write(g_chip, F_ADC_FREEZE, 0);
 	mutex_unlock(&g_chip->adc_read_lock);
 	if (ret < 0) {
@@ -5419,11 +5532,19 @@ static void sc6607_voocphy_update_data(struct oplus_voocphy_manager *chip)
 			 data_block[7]) *
 			SC6607_VOOCPHY_VBAT_ADC_LSB;
 
+	chip->cp_tsbus = (((data_block[14] & SC6607_VOOCPHY_TSBAT_POL_H_MASK) << SC6607_VOOCPHY_TSBAT_POL_H_SHIFT) |
+			 data_block[15]);
+	chip->cp_tsbus = sc6607_tsbus_tsbat_to_convert(chip->cp_tsbus, SC6607_ADC_TSBUS);
+
+	chip->cp_tsbat = (((data_block[16] & SC6607_VOOCPHY_TSBAT_POL_H_MASK) << SC6607_VOOCPHY_TSBUS_POL_H_SHIFT) |
+			 data_block[17]);
+	chip->cp_tsbat = sc6607_tsbus_tsbat_to_convert(chip->cp_tsbat, SC6607_ADC_TSBAT);
+
 	chip->cp_vsys = sc6607_hk_get_adc(g_chip, SC6607_ADC_VSYS);
 	chip->cp_vsys /= SC6607_UV_PER_MV;
 
-	pr_info(" [%d, %d, %d, %d, %d, %d]", chip->cp_ichg,
-		chip->cp_vbus, chip->cp_vac, chip->cp_vbat, chip->cp_vsys, chip->int_flag);
+	pr_info(" [%d, %d, %d, %d, %d, %d, %d, %d]", chip->cp_ichg,
+		chip->cp_vbus, chip->cp_vac, chip->cp_vbat, chip->cp_vsys, chip->int_flag, chip->cp_tsbus, chip->cp_tsbat);
 }
 
 static int sc6607_voocphy_get_cp_ichg(struct oplus_voocphy_manager *chip)
@@ -5477,11 +5598,42 @@ static s32 sc6607_voocphy_thermistor_conver_temp(s32 res, struct sc6607_ntc_temp
 	return tap_value;
 }
 
+int sc6607_tsbus_tsbat_to_convert(u64 adc_value, int adc_module)
+{
+	static struct sc6607_ntc_temp ntc_param = {0};
+
+	if (!g_chip) {
+		pr_err("%s: g_chip null\n", __func__);
+		return 0;
+	}
+
+	if (g_chip->platform_data->ntc_suport_1000k) {
+		ntc_param.pst_temp_table = pst_temp_table_1000k;
+		ntc_param.table_size = (sizeof(pst_temp_table_1000k) / sizeof(struct sc6607_temp_param));
+	} else {
+		ntc_param.pst_temp_table = pst_temp_table;
+		ntc_param.table_size = (sizeof(pst_temp_table) / sizeof(struct sc6607_temp_param));
+	}
+
+	if (g_chip->platform_data->ntc_suport_1000k) {
+		if (adc_module == SC6607_ADC_TSBUS) {
+			adc_value = adc_value * sy6607_adc_step[adc_module] / SC6607_ADC_TSBUS_200;
+			adc_value = SC6607_ADC_1000 * SC6607_ADC_1000 * adc_value / (SC6607_ADC_TSBUS_CONVERT - adc_value);
+		} else if (adc_module == SC6607_ADC_TSBAT)
+			adc_value = SC6607_ADC_TSBUS_25;
+	} else if (adc_module == ADC_TSBUS_TSBAT_DEFAULT) {
+		adc_value = adc_value / SC6607_UV_PER_MV;
+	} else if (adc_module == SC6607_ADC_TSBUS || adc_module == SC6607_ADC_TSBAT) {
+		adc_value = adc_value * sy6607_adc_step[adc_module] / SC6607_UV_PER_MV;
+	}
+
+	adc_value = sc6607_voocphy_thermistor_conver_temp(adc_value, &ntc_param);
+	return adc_value;
+}
+
 int sc6607_voocphy_get_tsbus(void)
 {
 	int ret = 0;
-	static struct sc6607_ntc_temp ntc_param = {0};
-
 	if (!oplus_voocphy_mg)
 		return 0;
 
@@ -5490,15 +5642,11 @@ int sc6607_voocphy_get_tsbus(void)
 		return 0;
 	}
 
-	ret = sc6607_adc_read_tsbus(g_chip);
-	if (g_chip->platform_data->ntc_suport_1000k) {
-		ntc_param.pst_temp_table = pst_temp_table_1000k;
-		ntc_param.table_size = (sizeof(pst_temp_table_1000k) / sizeof(struct sc6607_temp_param));
-	} else {
-		ntc_param.pst_temp_table = pst_temp_table;
-		ntc_param.table_size = (sizeof(pst_temp_table) / sizeof(struct sc6607_temp_param));
+	if (oplus_voocphy_get_fastchg_commu_ing()) {
+		pr_err("svooc in communication, ignore.\n");
+		return oplus_voocphy_mg->cp_tsbus;
 	}
-	ret = sc6607_voocphy_thermistor_conver_temp(ret, &ntc_param);
+	ret = sc6607_adc_read_tsbus(g_chip);
 
 	return ret;
 }
@@ -5552,8 +5700,7 @@ static int register_charger_thermal(struct sc6607 *info)
 
 int sc6607_voocphy_get_tsbat(void)
 {
-	s32 ret = 0;
-	static struct sc6607_ntc_temp ntc_param = {0};
+	int ret = 0;
 
 	if (!oplus_voocphy_mg)
 		return ret;
@@ -5562,15 +5709,13 @@ int sc6607_voocphy_get_tsbat(void)
 		pr_err("%s: g_chip null\n", __func__);
 		return ret;
 	}
-	ret = sc6607_adc_read_tsbat(g_chip);
-	if (g_chip->platform_data->ntc_suport_1000k) {
-		ntc_param.pst_temp_table = pst_temp_table_1000k;
-		ntc_param.table_size = (sizeof(pst_temp_table_1000k) / sizeof(struct sc6607_temp_param));
-	} else {
-		ntc_param.pst_temp_table = pst_temp_table;
-		ntc_param.table_size = (sizeof(pst_temp_table) / sizeof(struct sc6607_temp_param));
+
+	if (oplus_voocphy_get_fastchg_commu_ing()) {
+		pr_info("svooc in communication, ignore.\n");
+		return oplus_voocphy_mg->cp_tsbat;
 	}
-	ret = sc6607_voocphy_thermistor_conver_temp(ret, &ntc_param);
+
+	ret = sc6607_adc_read_tsbat(g_chip);
 
 	return ret;
 }
@@ -5689,6 +5834,23 @@ static int sc6607_voopchy_get_adc_enable(struct oplus_voocphy_manager *chip, u8 
 	}
 
 	return ret;
+}
+
+static int sc6607_track_check_buck_err(struct sc6607 *chip)
+{
+	int ret;
+	u8 data;
+
+	ret = sc6607_read_byte(chip, SC6607_REG_CHG_FLT_FLG, &data);
+	if (ret < 0) {
+		pr_err("read 0x%x failed\n", SC6607_REG_CHG_FLT_FLG);
+		return -EINVAL;
+	}
+
+	pr_info("read reg[0x%0x] = 0x%x \n", SC6607_REG_CHG_FLT_FLG, data);
+	if (data & SC6607_BUCK_IBAT_OCP_FLG_MASK)
+		sc6607_track_upload_buck_err_info(chip);
+	return 0;
 }
 
 static int sc6607_track_match_hk_err(struct sc6607 *chip, u8 data)
@@ -6476,6 +6638,46 @@ static int sc6607_cp_get_tdie(struct i2c_client *client)
 	return cp_tdie;
 }
 
+static int sc6607_cp_get_threshold_info(struct i2c_client *client, int type)
+{
+	int ret = 0;
+	struct oplus_voocphy_manager *chip = NULL;
+
+	if (!client) {
+		pps_err("sc6607_cp_master_get_info not get i2c_client");
+		return 0;
+	}
+
+	chip = (struct oplus_voocphy_manager *) i2c_get_clientdata(client);
+	if (!chip) {
+		pps_err("device chip in clientdata is null");
+		return 0;
+	}
+
+	switch (type) {
+	case IBUS_MASTER_ALLOW_MAX:
+		ret = chip->voocphy_cp_max_ibus;
+		break;
+	case IBUS_SLAVE_DISABLE_HIGH:
+		ret =  chip->slave_cp_disable_thr_high;
+		break;
+	case IBUS_SLAVE_ENABLE_MIN:
+		ret =  chip->slave_cp_enable_thr_low;
+		break;
+	case IBUS_SLAVE_ENABLE_MAX:
+		ret =  chip->slave_cp_enable_thr;
+		break;
+	case IBUS_CP_IBUS_DEVATION:
+		ret =  chip->cp_ibus_devation;
+		break;
+	default:
+		ret = 0;
+		break;
+	}
+
+	return ret;
+}
+
 irqreturn_t sc6607_protect_interrupt_handler(struct oplus_voocphy_manager *chip)
 {
 	DEV_PROTECT_FLAG flag;
@@ -6489,13 +6691,13 @@ irqreturn_t sc6607_protect_interrupt_handler(struct oplus_voocphy_manager *chip)
 	}
 
 	ret = sc6607_voocphy_read_byte(chip->client, SC6607_REG_CP_FLT_FLG, &data); /*ibus ucp register*/
-	pr_info("SC6607_REG_CP_FLT_FLG data:0x%x", data);
+	pr_info("SC6607_REG_CP_FLT_FLG(0x6B) data:0x%x", data);
 	if (ret < 0) {
 		pr_err("SC6607_REG_CP_FLT_FLG failed ret=%d\n", ret);
 		return IRQ_HANDLED;
 	}
 	sc6607_voocphy_read_byte(chip->client, SC6607_REG_CP_PMID2OUT_FLG, &value);
-	pr_info("SC6607_REG_CP_PMID2OUT_FLG data:0x%x", value);
+	pr_info("SC6607_REG_CP_PMID2OUT_FLG(0x6C) data:0x%x", value);
 	if (ret < 0) {
 		pr_err("SC6607_REG_CP_PMID2OUT_FLG failed ret=%d\n", ret);
 		return IRQ_HANDLED;
@@ -6526,6 +6728,7 @@ static struct oplus_pps_cp_device_operations sc6607_cp_pps_ops = {
 	.oplus_get_cp_vout      = sc6607_cp_get_vout,
 	.oplus_get_cp_vbat      = sc6607_cp_get_vbat,
 	.oplus_get_cp_tdie      = sc6607_cp_get_tdie,
+	.oplus_get_cp_info      = sc6607_cp_get_threshold_info,
 };
 
 static int sc6607_pps_check_and_register(struct oplus_voocphy_manager *chip)
@@ -6586,6 +6789,16 @@ static int sc6607_voocphy_charger_choose(struct oplus_voocphy_manager *chip)
 		} else
 			return 1;
 	}
+}
+
+static void oplus_check_charger_out_func(struct work_struct *work)
+{
+	if ((oplus_vooc_get_fastchg_started() == true) ||
+	    (oplus_vooc_get_fastchg_to_normal() == true) ||
+	    (oplus_vooc_get_fastchg_to_warm() == true) ||
+	    (oplus_vooc_get_fastchg_dummy_started() == true))
+		oplus_voocphy_chg_out_check_event_handle(true);
+	return;
 }
 
 static struct of_device_id sc6607_charger_match_table[] = {
@@ -6678,6 +6891,7 @@ static int sc6607_charger_probe(struct i2c_client *client, const struct i2c_devi
 	INIT_DELAYED_WORK(&chip->init_status_work, sc6607_init_status_work);
 	INIT_DELAYED_WORK(&chip->sc6607_aicr_setting_work, sc6607_aicr_setting_work_callback);
 	INIT_DELAYED_WORK(&chip->sc6607_vol_convert_work, vol_convert_work);
+	INIT_DELAYED_WORK(&chip->check_charger_out_work, oplus_check_charger_out_func);
 
 	ret = sc6607_register_interrupt(node, chip);
 	if (ret) {
@@ -6769,6 +6983,7 @@ static int sc6607_charger_probe(struct i2c_client *client, const struct i2c_devi
 	if (oplus_is_rf_ftm_mode())
 		schedule_delayed_work(&chip->init_status_work,
 				msecs_to_jiffies(INIT_STATUS_TIME_5S));
+	sc6607_track_check_buck_err(chip);
 	pr_err("sc6607_voocphy_parse_dt successfully!\n");
 
 	return 0;

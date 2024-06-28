@@ -1138,6 +1138,16 @@ bool iris_abyp_switch_proc(struct dsi_display *display, int mode)
 		return rc;
 	}
 
+	if (pcfg->iris_chip_type == CHIP_IRIS7P) {
+		if (pcfg->panel->dyn_clk_caps.dyn_clk_support) {
+			if (pcfg->display->cached_clk_rate != pcfg->panel->cur_mode->priv_info->bit_clk_list.rates[1]) {
+				IRIS_LOGE("%s: clk_rate_hz:%u not supported! expect clk_rate_hz: %u.", __func__,
+					pcfg->display->cached_clk_rate, pcfg->panel->cur_mode->priv_info->bit_clk_list.rates[1]);
+				return 0;
+			}
+		}
+	}
+
 	if (_debug_on_opt & 0x1000)
 		ktime0 = ktime_get();
 

@@ -191,7 +191,6 @@ struct cam_sensor_ctrl_t {
 	int                            is_update_wide_to_sleep;
 	bool                           is_surpport_wr_burst;
 #endif
-
 };
 
 /**

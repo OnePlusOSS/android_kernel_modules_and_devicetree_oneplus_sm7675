@@ -145,7 +145,7 @@ static void parse_magnetic_sensor_dts(struct sensor_hw* hw, struct device_node *
 		return;
 	} else if (rc) {
 		int prj_id = 0;
-		int prj_dir[5];
+		int prj_dir[8];
 		struct device_node *node = ch_node;
 		struct device_node *ch_node_mag = NULL;
 		prj_id = get_project();
@@ -311,7 +311,13 @@ static void parse_light_sensor_dts(struct sensor_hw* hw, struct device_node *ch_
 		"ir_coef_val_4",
 		/*lb para end*/
 		"polling_use_majority",
-                "als_polling_timer"
+		"als_polling_timer",
+		"k51",
+		"k52",
+		"k53",
+		"k61",
+		"k62",
+		"k63"
 	};
 
 	for (di = 0; di < ARRAY_SIZE(als_feature); di++) {

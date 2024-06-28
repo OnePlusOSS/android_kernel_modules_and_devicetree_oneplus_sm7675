@@ -228,6 +228,7 @@ struct dsi_panel_oplus_privite {
 	bool oplus_bl_demura_dbv_support;
 	int bl_demura_mode;
 	bool vid_timming_switch_enabled;
+	bool dimming_setting_before_bl_0_enable;
 };
 
 struct dsi_panel_oplus_serial_number {
@@ -327,8 +328,15 @@ enum esd_check_status_mode {
 	ESD_MODE_REG_READ,
 	ESD_MODE_SW_BTA,
 	ESD_MODE_PANEL_TE,
+#ifdef OPLUS_FEATURE_DISPLAY
+	/* add for esd check MIPI ERR flag mode */
+	ESD_MODE_PANEL_MIPI_ERR_FLAG,
+#endif /* OPLUS_FEATURE_DISPLAY */
 	ESD_MODE_SW_SIM_SUCCESS,
 	ESD_MODE_SW_SIM_FAILURE,
+#ifdef OPLUS_FEATURE_DISPLAY
+	ESD_MODE_PANEL_ERROR_FLAG,
+#endif /* OPLUS_FEATURE_DISPLAY */
 	ESD_MODE_MAX
 };
 
@@ -346,6 +354,10 @@ struct drm_panel_esd_config {
 #ifdef OPLUS_FEATURE_DISPLAY
 	u32 status_match_modes;
 	bool esd_debug_enabled;
+	int esd_error_flag_gpio;
+	int esd_error_flag_gpio_slave;
+	/* add for esd check MIPI ERR flag mode, add gpio as irq*/
+	int mipi_err_flag_gpio;
 #endif /* OPLUS_FEATURE_DISPLAY */
 };
 

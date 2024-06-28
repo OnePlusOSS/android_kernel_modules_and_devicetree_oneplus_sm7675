@@ -29,6 +29,9 @@
 #define AW87XXX_PID_5A_PRODUCT_MAX	(6)
 #define AW87XXX_PID_76_PROFUCT_MAX	(5)
 #define AW87XXX_PID_60_PROFUCT_MAX	(5)
+#define AW87XXX_PID_C1_PROFUCT_MAX	(2)
+#define AW87XXX_PID_C2_PROFUCT_MAX	(5)
+
 #define AW_PRODUCT_NAME_LEN		(8)
 
 #define AW_GPIO_HIGHT_LEVEL		(1)
@@ -61,6 +64,36 @@
  *******************************************/
 struct aw_device;
 
+/*#define AW_ALGO_AUTH_DSP*/
+extern int g_algo_auth_st;
+
+enum AW_ALGO_AUTH_MODE {
+	AW_ALGO_AUTH_DISABLE = 0,
+	AW_ALGO_AUTH_MODE_MAGIC_ID,
+	AW_ALGO_AUTH_MODE_REG_CRC,
+};
+
+enum AW_ALGO_AUTH_ID {
+	AW_ALGO_AUTH_MAGIC_ID = 0x4157,
+};
+
+enum AW_ALGO_AUTH_STATUS {
+	AW_ALGO_AUTH_WAIT = 0,
+	AW_ALGO_AUTH_OK = 1,
+};
+
+#define AW_IOCTL_MAGIC_S			'w'
+#define AW_IOCTL_GET_ALGO_AUTH			_IOWR(AW_IOCTL_MAGIC_S, 1, struct algo_auth_data)
+#define AW_IOCTL_SET_ALGO_AUTH			_IOWR(AW_IOCTL_MAGIC_S, 2, struct algo_auth_data)
+
+struct algo_auth_data {
+	int32_t auth_mode;  /* 0: disable  1 : chip ID  2 : reg crc */
+	int32_t reg_crc;
+	int32_t random;
+	int32_t chip_id;
+	int32_t check_result;   /* 0 failed 1 success */
+};
+
 struct aw_device_ops {
 	int (*pwr_on_func)(struct aw_device *aw_dev, struct aw_data_container *data);
 	int (*pwr_off_func)(struct aw_device *aw_dev, struct aw_data_container *data);
@@ -76,6 +109,8 @@ enum aw_dev_chipid {
 	AW_DEV_CHIPID_9B = 0x9B,
 	AW_DEV_CHIPID_76 = 0x76,
 	AW_DEV_CHIPID_60 = 0x60,
+	AW_DEV_CHIPID_C1 = 0xC1,
+	AW_DEV_CHIPID_C2 = 0xC2,
 };
 
 enum aw_dev_hw_status {
@@ -135,6 +170,23 @@ struct aw_voltage_desc {
 	uint8_t vol_min;
 };
 
+struct aw_auth_desc {
+	uint8_t reg_in_l;
+	uint8_t reg_in_h;
+	uint8_t reg_out_l;
+	uint8_t reg_out_h;
+	int32_t auth_mode;
+	int32_t reg_crc;
+	int32_t random;
+	int32_t chip_id;
+	int32_t check_result;
+};
+
+struct aw_ipeak_desc {
+	unsigned int reg;
+	unsigned int mask;
+};
+
 struct aw_device {
 	uint8_t i2c_addr;
 	uint8_t chipid;
@@ -156,6 +208,8 @@ struct aw_device {
 	struct aw_esd_check_desc esd_desc;
 	struct aw_rec_mode_desc rec_desc;
 	struct aw_voltage_desc vol_desc;
+	struct aw_auth_desc auth_desc;
+	struct aw_ipeak_desc ipeak_desc;
 
 	struct aw_device_ops ops;
 };
@@ -178,5 +232,9 @@ int aw87xxx_dev_default_pwr_off(struct aw_device *aw_dev,
 int aw87xxx_dev_esd_reg_status_check(struct aw_device *aw_dev);
 int aw87xxx_dev_check_reg_is_rec_mode(struct aw_device *aw_dev);
 int aw87xxx_dev_init(struct aw_device *aw_dev);
+int aw87xxx_dev_algo_auth_mode(struct aw_device *aw_dev, struct algo_auth_data *algo_data);
+#ifdef AW_ALGO_AUTH_DSP
+void aw87xxx_dev_algo_authentication(struct aw_device *aw_dev);
+#endif
 
 #endif

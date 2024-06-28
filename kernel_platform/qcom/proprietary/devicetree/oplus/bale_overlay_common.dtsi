@@ -1,0 +1,6 @@
+//#ifdef OPLUS_FEATURE_DISPLAY
+&L19B {
+        regulator-max-microvolt = <3000000>;
+        qcom,init-voltage = <3000000>;
+};
+//#endif /* OPLUS_FEATURE_DISPLAY */

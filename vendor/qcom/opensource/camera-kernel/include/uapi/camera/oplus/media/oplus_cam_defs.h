@@ -25,7 +25,7 @@
 #define CAM_OEM_CMD_WRITE_DEV                   1
 #define CAM_OEM_OIS_CALIB                       2
 #define CAM_OEM_RW_SIZE_MAX                     128
-#define CAM_OEM_INITSETTINGS_SIZE_MAX           3000
+#define CAM_OEM_INITSETTINGS_SIZE_MAX           9200
 
 struct cam_oem_i2c_reg_array {
 	unsigned int    reg_addr;

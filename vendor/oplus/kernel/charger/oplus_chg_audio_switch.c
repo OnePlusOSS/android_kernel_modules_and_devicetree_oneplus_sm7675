@@ -14,12 +14,14 @@
 #include <linux/notifier.h>
 
 #include "oplus_chg_audio_switch.h"
+#include "oplus_audio_switch.h"
 
+#ifdef CONFIG_OPLUS_CHARGER_MTK
 #if IS_ENABLED(CONFIG_TCPC_CLASS)
 #include <tcpci.h>
 #include <tcpm.h>
 #endif
-
+#endif
 #define chg_info(fmt, ...)                                                     \
 	printk(KERN_INFO "[OPLUS_CHG][%s]" fmt, __func__, ##__VA_ARGS__)
 
@@ -50,11 +52,25 @@ static struct audio_switch g_audio_switch;
 static RAW_NOTIFIER_HEAD(chg_glink_notifier);
 #endif
 
+#if IS_ENABLED(CONFIG_OPLUS_AUDIO_SWITCH_GLINK)
+int register_chg_glink_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_register(&chg_glink_notifier, nb);
+}
+EXPORT_SYMBOL_GPL(register_chg_glink_notifier);
+
+int unregister_chg_glink_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_unregister(&chg_glink_notifier, nb);
+}
+EXPORT_SYMBOL_GPL(unregister_chg_glink_notifier);
+#endif
+
 #if IS_ENABLED(CONFIG_SND_SOC_OPLUS_TYPEC_SWITCH)
 extern int typec_switch_status0(void);
 extern int typec_switch_to_fast_charger(int to_fast_charger);
 #endif
-
+#ifdef CONFIG_OPLUS_CHARGER_MTK
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 int __attribute__((weak)) tcpci_notify_switch_set_state(struct tcpc_device *tcpc,
 							bool state, bool (*pfunc)(int));
@@ -73,7 +89,7 @@ int __attribute__((weak)) tcpci_notify_switch_get_state(struct tcpc_device *tcpc
 	return 0;
 }
 #endif
-
+#endif
 __maybe_unused static void lock_audio_switch(void)
 {
 	mutex_lock(&g_audio_switch.audio_switch_lock);
@@ -135,6 +151,7 @@ int oplus_set_audio_switch_status(int state)
 	if (ret)
 		oplus_set_audio_switch_callback(state);
 #else
+#ifdef CONFIG_OPLUS_CHARGER_MTK
 	struct tcpc_device *tcpc = tcpc_dev_get_by_name("type_c_port0");
 	if (tcpc == NULL) {
 		chg_err("get type_c_port0 fail\n");
@@ -142,6 +159,7 @@ int oplus_set_audio_switch_status(int state)
 	}
 	switch_cnt = g_audio_switch.audio_switch_cnt;
 	ret = tcpci_notify_switch_set_state(tcpc, state, &oplus_set_audio_switch_callback);
+#endif
 #endif
 	while (wait < OPLUS_AUDIO_SET_MAX_TIME) {
 		if (switch_cnt < g_audio_switch.audio_switch_cnt) {
@@ -180,6 +198,7 @@ int oplus_get_audio_switch_status(void)
 	if (ret != TYPEC_AUDIO_SWITCH_STATE_INVALID_PARAM)
 		oplus_get_audio_switch_callback(ret);
 #else
+#ifdef CONFIG_OPLUS_CHARGER_MTK
 	struct tcpc_device *tcpc = tcpc_dev_get_by_name("type_c_port0");
 	if (tcpc == NULL) {
 		chg_err("get type_c_port0 fail\n");
@@ -187,6 +206,7 @@ int oplus_get_audio_switch_status(void)
 	}
 	switch_cnt = g_audio_switch.audio_switch_ack_cnt;
 	ret = tcpci_notify_switch_get_state(tcpc, &oplus_get_audio_switch_callback);
+#endif
 #endif
 	while (wait < OPLUS_AUDIO_GET_MAX_TIME) {
 		if (switch_cnt < g_audio_switch.audio_switch_ack_cnt) {

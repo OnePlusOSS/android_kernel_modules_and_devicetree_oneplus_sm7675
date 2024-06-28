@@ -20,48 +20,7 @@
 #define INVALID_VAL (INT_MIN)
 
 static struct proc_dir_entry *frame_boost_proc;
-
-static struct ofb_stune_data sys_stune_data = {
-	.level = -1,
-	.boost_freq = -1,
-	.boost_migr = -1,
-	.vutil_margin = 0xFF,
-	.util_frame_rate = -1,
-	.util_min_threshold = -1,
-	.util_min_obtain_view = -1,
-	.util_min_timeout = -1,
-	.ed_task_boost_mid_duration = -1,
-	.ed_task_boost_mid_util = -1,
-	.ed_task_boost_max_duration = -1,
-	.ed_task_boost_max_util = -1,
-	.ed_task_boost_timeout_duration = -1,
-	.boost_sf_freq_nongpu = -1,
-	.boost_sf_migr_nongpu = -1,
-	.boost_sf_freq_gpu = -1,
-	.boost_sf_migr_gpu = -1,
-};
-
-static struct ofb_stune_data sf_stune_data = {
-	.level = -1,
-	.boost_freq = -1,
-	.boost_migr = -1,
-	.vutil_margin = 0xFF,
-	.util_frame_rate = -1,
-	.util_min_threshold = -1,
-	.util_min_obtain_view = -1,
-	.util_min_timeout = -1,
-	.ed_task_boost_mid_duration = -1,
-	.ed_task_boost_mid_util = -1,
-	.ed_task_boost_max_duration = -1,
-	.ed_task_boost_max_util = -1,
-	.ed_task_boost_timeout_duration = -1,
-	.boost_sf_freq_nongpu = -1,
-	.boost_sf_migr_nongpu = -1,
-	.boost_sf_freq_gpu = -1,
-	.boost_sf_migr_gpu = -1,
-};
-
-static struct ofb_stune_data app_stune_data = {
+static struct ofb_stune_data last_sys_stune_data = {
 	.level = -1,
 	.boost_freq = -1,
 	.boost_migr = -1,
@@ -286,104 +245,6 @@ static long handle_ofb_extra_cmd(unsigned int cmd, void __user *uarg)
 	return 0;
 }
 
-static void merge_stune_data(struct ofb_stune_data *stune_data_src, struct ofb_stune_data *stune_data_dst) {
-	if ((stune_data_src->boost_freq >= 0) && (stune_data_src->boost_freq <= 100)) {
-		if (stune_data_src->boost_freq > stune_data_dst->boost_freq) {
-			stune_data_dst->boost_freq = stune_data_src->boost_freq;
-		}
-	}
-
-	if ((stune_data_src->boost_migr >= 0) && (stune_data_src->boost_migr <= 100)) {
-		if (stune_data_src->boost_migr > stune_data_dst->boost_migr) {
-			stune_data_dst->boost_migr = stune_data_src->boost_migr;
-		}
-	}
-
-	if ((stune_data_src->util_frame_rate >= 0) && (stune_data_src->util_frame_rate <= 240)) {
-		if (stune_data_src->util_frame_rate > stune_data_dst->util_frame_rate) {
-			stune_data_dst->util_frame_rate = stune_data_src->util_frame_rate;
-		}
-	}
-
-	if ((stune_data_src->util_min_threshold >= 0) && (stune_data_src->util_min_threshold <= 1024)) {
-		if (stune_data_src->util_min_threshold > stune_data_dst->util_min_threshold) {
-			stune_data_dst->util_min_threshold = stune_data_src->util_min_threshold;
-		}
-	}
-
-	if ((stune_data_src->util_min_obtain_view >= 0) && (stune_data_src->util_min_obtain_view <= 1024)) {
-		if (stune_data_src->util_min_obtain_view > stune_data_dst->util_min_obtain_view) {
-			stune_data_dst->util_min_obtain_view = stune_data_src->util_min_obtain_view;
-		}
-	}
-
-	if ((stune_data_src->util_min_timeout >= 0) && (stune_data_src->util_min_timeout <= 1024)) {
-		if (stune_data_src->util_min_timeout > stune_data_dst->util_min_timeout) {
-			stune_data_dst->util_min_timeout = stune_data_src->util_min_timeout;
-		}
-	}
-
-	if ((stune_data_src->vutil_margin >= -16) && (stune_data_src->vutil_margin <= 16)) {
-		if (stune_data_src->vutil_margin < stune_data_dst->vutil_margin) {
-			stune_data_dst->vutil_margin = stune_data_src->vutil_margin;
-		}
-	}
-
-	if (stune_data_src->ed_task_boost_mid_duration >= 0) {
-		if (stune_data_src->ed_task_boost_mid_duration > stune_data_dst->ed_task_boost_mid_duration) {
-			stune_data_dst->ed_task_boost_mid_duration = stune_data_src->ed_task_boost_mid_duration;
-		}
-	}
-
-	if ((stune_data_src->ed_task_boost_mid_util >= 0) && (stune_data_src->ed_task_boost_mid_util <= 1024)) {
-		if (stune_data_src->ed_task_boost_mid_util > stune_data_dst->ed_task_boost_mid_util) {
-			stune_data_dst->ed_task_boost_mid_util = stune_data_src->ed_task_boost_mid_util;
-		}
-	}
-
-	if (stune_data_src->ed_task_boost_max_duration >= 0) {
-		if (stune_data_src->ed_task_boost_max_duration >= stune_data_dst->ed_task_boost_max_duration) {
-			stune_data_dst->ed_task_boost_max_duration = stune_data_src->ed_task_boost_max_duration;
-		}
-	}
-
-	if ((stune_data_src->ed_task_boost_max_util >= 0) && (stune_data_src->ed_task_boost_max_util <= 1024)) {
-		if (stune_data_src->ed_task_boost_max_util > stune_data_dst->ed_task_boost_max_util) {
-			stune_data_dst->ed_task_boost_max_util = stune_data_src->ed_task_boost_max_util;
-		}
-	}
-
-	if (stune_data_src->ed_task_boost_timeout_duration >= 0) {
-		if (stune_data_src->ed_task_boost_timeout_duration > stune_data_dst->ed_task_boost_timeout_duration) {
-			stune_data_dst->ed_task_boost_timeout_duration = stune_data_src->ed_task_boost_timeout_duration;
-		}
-	}
-
-	if ((stune_data_src->boost_sf_freq_nongpu >= 0) && (stune_data_src->boost_sf_freq_nongpu <= 100)) {
-		if (stune_data_src->boost_sf_freq_nongpu > stune_data_dst->boost_sf_freq_nongpu) {
-			stune_data_dst->boost_sf_freq_nongpu = stune_data_src->boost_sf_freq_nongpu;
-		}
-	}
-
-	if ((stune_data_src->boost_sf_migr_nongpu >= 0) && (stune_data_src->boost_sf_migr_nongpu <= 100)) {
-		if (stune_data_src->boost_sf_migr_nongpu > stune_data_dst->boost_sf_migr_nongpu) {
-			stune_data_dst->boost_sf_migr_nongpu = stune_data_src->boost_sf_migr_nongpu;
-		}
-	}
-
-	if ((stune_data_src->boost_sf_freq_gpu >= 0) && (stune_data_src->boost_sf_freq_gpu <= 100)) {
-		if (stune_data_src->boost_sf_freq_gpu > stune_data_dst->boost_sf_freq_gpu) {
-			stune_data_dst->boost_sf_freq_gpu = stune_data_src->boost_sf_freq_gpu;
-		}
-	}
-
-	if ((stune_data_src->boost_sf_migr_gpu >= 0) && (stune_data_src->boost_sf_migr_gpu <= 100)) {
-		if (stune_data_src->boost_sf_migr_gpu > stune_data_dst->boost_sf_migr_gpu) {
-			stune_data_dst->boost_sf_migr_gpu = stune_data_src->boost_sf_migr_gpu;
-		}
-	}
-}
-
 static void setup_stune_data(struct ofb_stune_data *stune_data) {
 	if ((stune_data->boost_freq >= 0) && (stune_data->boost_freq <= 100)) {
 		fbg_set_stune_boost(stune_data->boost_freq, BOOST_DEF_FREQ);
@@ -535,32 +396,31 @@ static long ofb_sys_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 		uid = task_uid(current).val;
 		if (SYSTEM_UID == uid) {
 			if (STUNE_DEF == stune_data.boost_freq) {
-				/* non stune data from sf */
-				memset(&sf_stune_data, -1, sizeof(struct ofb_stune_data));
+				/* restore to last_sys_stune_data */
+				setup_stune_data(&last_sys_stune_data);
 			} else if (STUNE_SF == stune_data.boost_freq) {
-				/* stune data from sf */
-				memcpy(&sf_stune_data, &stune_data, sizeof(struct ofb_stune_data));
+				setup_stune_data(&stune_data);
 			} else {
-				/* stune data from system_server */
-				memcpy(&sys_stune_data, &stune_data, sizeof(struct ofb_stune_data));
+				memcpy(&last_sys_stune_data, &stune_data, sizeof(struct ofb_stune_data));
+				setup_stune_data(&stune_data);
 			}
+			break;
 		} else {
+			/* stune data is from app and its data is default */
 			if (STUNE_DEF == stune_data.boost_freq) {
-				/* stune data is from app and its data is default */
-				memset(&app_stune_data, -1, sizeof(struct ofb_stune_data));
+				/* restore to last_sys_stune_data */
+				setup_stune_data(&last_sys_stune_data);
 			} else {
-				/* stune data from app */
-				memcpy(&app_stune_data, &stune_data, sizeof(struct ofb_stune_data));
+				setup_stune_data(&stune_data);
 			}
+			break;
 		}
-		stune_data = sys_stune_data;
-		merge_stune_data(&app_stune_data, &stune_data);
-		merge_stune_data(&sf_stune_data, &stune_data);
-		setup_stune_data(&stune_data);
 		}
 		break;
 	case CMD_ID_BOOST_STUNE_GPU: {
 		bool boost_allow = true;
+		int boost_freq;
+		int boost_migr;
 
 		if (copy_from_user(&stune_data, uarg, sizeof(stune_data))) {
 			ofb_debug("invalid address");
@@ -573,11 +433,18 @@ static long ofb_sys_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 		if (check_last_compose_time(stune_data.level) && !stune_data.level)
 			boost_allow = false;
 
-		if (!stune_data.level) {
-			boost_allow = false;
+		if (boost_allow) {
+			boost_freq = fbg_get_stune_boost(BOOST_SF_FREQ_GPU);
+			boost_migr = fbg_get_stune_boost(BOOST_SF_MIGR_GPU);
 		}
 
-		fbg_set_stune_boost(boost_allow, BOOST_SF_IN_GPU);
+		if (!stune_data.level) {
+			boost_freq = fbg_get_stune_boost(BOOST_SF_FREQ_NONGPU);
+			boost_migr = fbg_get_stune_boost(BOOST_SF_MIGR_NONGPU);
+		}
+
+		fbg_set_stune_boost(boost_freq, BOOST_SF_FREQ);
+		fbg_set_stune_boost(boost_migr, BOOST_SF_MIGR);
 		}
 
 		break;
@@ -678,54 +545,15 @@ static ssize_t proc_stune_boost_write(struct file *file, const char __user *buf,
 	return count;
 }
 
-static char * get_stune_boost_name(int type) {
-	switch(type) {
-	case BOOST_DEF_MIGR:
-		return "migr";
-	case BOOST_DEF_FREQ:
-		return "freq";
-	case BOOST_UTIL_FRAME_RATE:
-		return "fps";
-	case BOOST_UTIL_MIN_THRESHOLD:
-		return "min_threshold";
-	case BOOST_UTIL_MIN_OBTAIN_VIEW:
-		return "min_obtain_view";
-	case BOOST_UTIL_MIN_TIMEOUT:
-		return "min_timeout";
-	case BOOST_SF_IN_GPU:
-		return "sf_in_gpu";
-	case BOOST_SF_MIGR_NONGPU:
-		return "sf_migr_nongpu";
-	case BOOST_SF_FREQ_NONGPU:
-		return "sf_freq_nongpu";
-	case BOOST_SF_MIGR_GPU:
-		return "sf_migr_gpu";
-	case BOOST_SF_FREQ_GPU:
-		return "sf_freq_gpu";
-	case BOOST_ED_TASK_MID_DURATION:
-		return "ed_min_duration";
-	case BOOST_ED_TASK_MID_UTIL:
-		return "ed_min_util";
-	case BOOST_ED_TASK_MAX_DURATION:
-		return "ed_max_duration";
-	case BOOST_ED_TASK_MAX_UTIL:
-		return "ed_max_util";
-	case BOOST_ED_TASK_TIME_OUT_DURATION:
-		return "ed_timeout";
-	default:
-		return "unknown";
-	}
-}
-
 static ssize_t proc_stune_boost_read(struct file *file, char __user *buf,
 		size_t count, loff_t *ppos)
 {
-	char buffer[1024];
+	char buffer[256];
 	int i;
 	size_t len = 0;
 
 	for (i = 0; i < BOOST_MAX_TYPE; ++i)
-		len += snprintf(buffer + len, sizeof(buffer) - len, "%s:%d, ", get_stune_boost_name(i), fbg_get_stune_boost(i));
+		len += snprintf(buffer + len, sizeof(buffer) - len, "%d ", fbg_get_stune_boost(i));
 
 	len += snprintf(buffer + len, sizeof(buffer) - len, "\n");
 

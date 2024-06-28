@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -897,6 +897,14 @@ int wlan_hdd_cm_connect(struct wiphy *wiphy,
 	hdd_update_scan_ie_for_connect(adapter, &params);
 	hdd_update_action_oui_for_connect(hdd_ctx, req);
 
+	if (!hdd_cm_is_vdev_associated(adapter->deflink)) {
+		/*
+		 * Clear user/wpa_supplicant disabled_roaming flag for new
+		 * connection
+		 */
+		ucfg_clear_user_disabled_roaming(hdd_ctx->psoc,
+						 adapter->deflink->vdev_id);
+	}
 	status = osif_cm_connect(ndev, vdev, req, &params);
 
 	if (status || ucfg_cm_is_vdev_roaming(vdev)) {

@@ -21,7 +21,7 @@
 #include "sa_balance.h"
 #endif
 
-#include "sched_assist_locking.h"
+
 struct kmem_cache *oplus_task_struct_cachep;
 EXPORT_SYMBOL(oplus_task_struct_cachep);
 

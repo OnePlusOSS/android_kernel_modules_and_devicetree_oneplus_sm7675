@@ -19,8 +19,8 @@
 #include <linux/qti_power_supply.h>
 #include <linux/version.h>
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
-#include "../../../supply/qcom/storm-watch.h"
-#include "../../../supply/qcom/battery.h"
+#include "../../supply/qcom/storm-watch.h"
+#include "../../supply/qcom/battery.h"
 #include "../../../usb/typec/tcpc/inc/tcpci.h"
 #include "../../../usb/typec/tcpc/inc/tcpm.h"
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
@@ -188,12 +188,19 @@ enum {
 	RESTART_AICL,
 };
 
+#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
+enum cc_modes_type {
+        MODE_UFP = 1,
+        MODE_DFP
+};
+#else
 enum cc_modes_type {
 	MODE_DEFAULT = 0,
 	MODE_UFP,
 	MODE_DFP,
 	MODE_DRP
 };
+#endif
 
 enum smb_irq_index {
 	/* CHGR */
@@ -707,6 +714,7 @@ struct smb_charger {
 	struct work_struct	dpdm_set_work;
 	struct work_struct	chargerid_switch_work;
 	struct delayed_work	keep_vbus_work;
+	struct delayed_work	parse_dt_adc_channels_work;
 	struct mutex 		pinctrl_mutex;
 
 	int			ccdetect_gpio;

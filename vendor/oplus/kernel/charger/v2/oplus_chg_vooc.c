@@ -651,6 +651,8 @@ static int oplus_vooc_cpa_switch_end(struct oplus_chg_vooc *chip)
 
 	if (!chip->cpa_support)
 		return 0;
+	if (chip->vooc_online || chip->vooc_online_keep)
+		return 0;
 
 	oplus_mms_get_item_data(chip->cpa_topic, CPA_ITEM_ALLOW, &data, true);
 	if (data.intval == CHG_PROTOCOL_VOOC)
@@ -3220,6 +3222,7 @@ static void oplus_vooc_plugin_work(struct work_struct *work)
 		if (is_wired_charging_disable_votable_available(chip)) {
 			vote(chip->wired_charging_disable_votable,
 			     FASTCHG_VOTER, false, 0, false);
+			vote(chip->wired_charging_disable_votable, CP_ERR_VOTER, false, 0, false);
 		}
 		if (is_wired_charge_suspend_votable_available(chip)) {
 			vote(chip->wired_charge_suspend_votable, FASTCHG_VOTER,
@@ -3864,7 +3867,6 @@ static void oplus_comm_charge_disable_work(struct work_struct *work)
 	vote(chip->vooc_disable_votable, TIMEOUT_VOTER, false, 0, false);
 	vote(chip->vooc_disable_votable, CHG_FULL_VOTER, false, 0, false);
 	vote(chip->vooc_disable_votable, WARM_FULL_VOTER, false, 0, false);
-	vote(chip->vooc_disable_votable, SWITCH_RANGE_VOTER, false, 0, false);
 	vote(chip->vooc_disable_votable, BATT_TEMP_VOTER, false, 0, false);
 	vote(chip->vooc_disable_votable, CURR_LIMIT_VOTER, false, 0, false);
 

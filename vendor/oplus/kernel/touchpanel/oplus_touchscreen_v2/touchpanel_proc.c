@@ -2108,6 +2108,61 @@ static ssize_t proc_sensitive_level_read(struct file *file, char __user *user_bu
 
 DECLARE_PROC_OPS(proc_sensitive_level_fops, simple_open, proc_sensitive_level_read, proc_sensitive_level_write, NULL);
 
+static ssize_t proc_diaphragm_touch_level_write(struct file *file, const char __user *buffer, size_t count, loff_t *ppos)
+{
+	int value = 0;
+	char buf[6] = {0};
+	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+	if (!ts) {
+		TPD_INFO("%s: ts is NULL\n", __func__);
+		return count;
+	}
+	touchpanel_trusted_touch_completion(ts);
+
+	if (!ts->ts_ops->diaphragm_touch_lv_set) {
+		TPD_INFO("%s:not support ts_ops->diaphragm_touch_lv_set callback\n", __func__);
+		return count;
+	}
+
+	tp_copy_from_user(buf, sizeof(buf), buffer, count, 5);
+
+	if (kstrtoint(buf, 10, &value)) {
+		TP_INFO(ts->tp_index, "%s: kstrtoint error\n", __func__);
+		return count;
+	}
+
+	mutex_lock(&ts->mutex);
+	ts->diaphragm_touch_level_chosen = value;
+
+	TPD_INFO("%s: level=%d\n", __func__, ts->diaphragm_touch_level_chosen);
+	if (!ts->is_suspended) {
+		ts->ts_ops->diaphragm_touch_lv_set(ts->chip_data, value);
+	} else {
+		TPD_INFO("%s: TP is_suspended.\n", __func__);
+	}
+	mutex_unlock(&ts->mutex);
+
+	return count;
+}
+
+static ssize_t proc_diaphragm_touch_level_read(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	char page[PAGESIZE] = {0};
+	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+	if (!ts || !ts->diaphragm_touch_support) {
+		snprintf(page, PAGESIZE - 1, "%d\n", -1);
+	} else {
+		snprintf(page, PAGESIZE - 1, "%u\n", ts->diaphragm_touch_level_chosen);
+	}
+	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+	return ret;
+}
+
+DECLARE_PROC_OPS(proc_diaphragm_touch_level_fops, simple_open, proc_diaphragm_touch_level_read, proc_diaphragm_touch_level_write, NULL);
+
 static int calibrate_fops_read_func(struct seq_file *s, void *v)
 {
 	struct touchpanel_data *ts = s->private;
@@ -3675,7 +3730,9 @@ static ssize_t proc_force_water_mode_read(struct file *file, char __user *buffer
 
 	} else {
 		/*support*/
-		snprintf(page, PAGESIZE - 1, "%d\n", ts->in_force_water_mode);
+		ts->ts_ops->get_water_mode(ts->chip_data);
+		TP_INFO(ts->tp_index, "%s:  water_mode 0x%x", __func__, ts->water_mode);
+		snprintf(page, PAGESIZE - 1, "%d\n", ts->water_mode);
 	}
 
 	ret = simple_read_from_buffer(buffer, count, ppos, page, strlen(page));
@@ -3984,6 +4041,14 @@ int init_touchpanel_proc_part2(struct touchpanel_data *ts, struct proc_dir_entry
 		{
 			"sensitive_level", 0666, NULL, &proc_sensitive_level_fops, ts, false,
 			ts->sensitive_level_array_support
+		},
+		{
+			"diaphragm_touch", 0666, NULL, &proc_diaphragm_touch_level_fops, ts, false,
+			ts->diaphragm_touch_support
+		},
+		{
+			"force_water_mode", 0666, NULL, &proc_force_water_mode_fops, ts, false,
+			ts->ts_ops->force_water_mode
 		},
 		{
 			"double_tap_enable_indep", 0666, NULL, &proc_gesture_control_indep_fops, ts, false,

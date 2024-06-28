@@ -16,6 +16,6 @@
 
 int oplus_panel_parse_esd_reg_read_configs(struct dsi_panel *panel);
 bool oplus_panel_validate_reg_read(struct dsi_panel *panel);
-
+int oplus_display_status_check_mipi_err_gpio(struct dsi_display *display);
 #endif /* _OPLUS_ESD_H_ */
 

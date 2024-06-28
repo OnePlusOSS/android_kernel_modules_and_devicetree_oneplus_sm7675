@@ -251,7 +251,7 @@ void oplus_ctrl_print_cmd_desc(struct dsi_ctrl *dsi_ctrl, struct dsi_cmd_desc *c
 			break;
 	}
 
-	if (tx_buf[0] == 0x51) {
+	if (tx_buf[0] == 0x51 && msg->tx_len == 3) {
 		cmd51 = (tx_buf[1] << 8) | tx_buf[2];
 		oplus_printf_backlight_cmd_log(cmd51);
 	}
@@ -359,12 +359,14 @@ int oplus_panel_gpio_request(struct dsi_panel *panel)
 {
 	int rc = 0;
 	struct dsi_panel_reset_config *r_config;
+	struct drm_panel_esd_config *esd_config;
 	if (!panel) {
 		LCD_ERR("Oplus Features config No panel device\n");
 		return -ENODEV;
 	}
 
 	r_config = &panel->reset_config;
+	esd_config = &panel->esd_config;
 
 	if (gpio_is_valid(r_config->panel_vout_gpio)) {
 		rc = gpio_request(r_config->panel_vout_gpio, "panel_vout_gpio");
@@ -383,23 +385,36 @@ int oplus_panel_gpio_request(struct dsi_panel *panel)
 		}
 	}
 
+	if (gpio_is_valid(esd_config->mipi_err_flag_gpio)) {
+		rc = gpio_request(esd_config->mipi_err_flag_gpio , "mipi_err_flag_gpio");
+		if (rc) {
+			LCD_ERR("request for mipi_err_irp_gpio failed, rc=%d\n", rc);
+			if (gpio_is_valid(esd_config->mipi_err_flag_gpio))
+				gpio_free(esd_config->mipi_err_flag_gpio);
+		}
+	}
+
 	return rc;
 }
 
 int oplus_panel_gpio_release(struct dsi_panel *panel)
 {
 	struct dsi_panel_reset_config *r_config;
+	struct drm_panel_esd_config *esd_config;
 	if (!panel) {
 		LCD_ERR("Oplus Features config No panel device\n");
 		return -ENODEV;
 	}
 
 	r_config = &panel->reset_config;
+	esd_config = &panel->esd_config;
 
 	if (gpio_is_valid(r_config->panel_vout_gpio))
 		gpio_free(r_config->panel_vout_gpio);
 	if (gpio_is_valid(r_config->panel_vddr_aod_en_gpio))
 		gpio_free(r_config->panel_vddr_aod_en_gpio);
+	if (gpio_is_valid(esd_config->mipi_err_flag_gpio))
+		gpio_free(esd_config->mipi_err_flag_gpio);
 
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
 	oplus_adfr_gpio_release(panel);
@@ -534,12 +549,14 @@ int oplus_panel_gpio_parse(struct dsi_panel *panel)
 {
 	struct dsi_parser_utils *utils;
 	struct dsi_panel_reset_config *r_config;
+	struct drm_panel_esd_config *esd_config;
 	if (!panel) {
 		LCD_ERR("Oplus Features config No panel device\n");
 		return -ENODEV;
 	}
 	utils = &panel->utils;
 	r_config = &panel->reset_config;
+	esd_config = &panel->esd_config;
 
 	panel->reset_config.panel_vout_gpio = utils->get_named_gpio(utils->data,
 								"qcom,platform-panel-vout-gpio", 0);
@@ -552,6 +569,12 @@ int oplus_panel_gpio_parse(struct dsi_panel *panel)
 
 	if (!gpio_is_valid(panel->reset_config.panel_vddr_aod_en_gpio)) {
 		LCD_ERR("[%s] failed get panel_vddr_aod_en_gpio\n", panel->oplus_priv.vendor_name);
+	}
+
+	esd_config->mipi_err_flag_gpio = utils->get_named_gpio(utils->data,
+								"oplus,esd_mipi_err_gpio", 0);
+	if (!gpio_is_valid(esd_config->mipi_err_flag_gpio)) {
+		LCD_ERR("[%s] failed get oplus,esd_mipi_err_gpio\n", panel->oplus_priv.vendor_name);
 	}
 
 	return 0;

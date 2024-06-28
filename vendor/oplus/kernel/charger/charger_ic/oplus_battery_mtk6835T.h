@@ -45,6 +45,11 @@
 #define CHRLOG_INFO_LEVEL	2
 #define CHRLOG_DEBUG_LEVEL	3
 
+#define PORT_ERROR 0
+#define PORT_A 1
+#define PORT_PD_WITH_USB 2
+#define PORT_PD_WITHOUT_USB 3
+
 #define SC_TAG "smartcharging"
 
 extern int chr_get_debug_level(void);

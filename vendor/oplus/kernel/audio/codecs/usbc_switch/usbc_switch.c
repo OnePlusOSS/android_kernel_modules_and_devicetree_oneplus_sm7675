@@ -68,6 +68,9 @@ struct usbc_switch_priv {
 	u32 use_cclogic_det;
 	/*2022/01/12, add for 3rd usb protocal support*/
 	unsigned int usb_protocal;
+#if IS_ENABLED(CONFIG_TCPC_CLASS)
+        struct delayed_work register_tcpc_notifier_work;
+#endif
 };
 
 static struct usbc_switch_priv *g_swh_priv = NULL;
@@ -415,6 +418,33 @@ static void usbc_switch_work_fn(struct work_struct *work)
 	pm_relax(swh_priv->dev);
 }
 
+#if IS_ENABLED(CONFIG_TCPC_CLASS)
+static void register_tcpc_notifier_fn(struct work_struct *work)
+{
+        struct delayed_work *dwork;
+        struct usbc_switch_priv *swh_priv;
+        struct tcpc_device *tcpc;
+        dwork = to_delayed_work(work);
+        swh_priv = container_of(dwork, struct usbc_switch_priv, register_tcpc_notifier_work);
+
+        if (!swh_priv) {
+                pr_err("%s: audio switch container invalid\n", __func__);
+                return;
+        }
+        pr_info("%s: start register 3rd protocal stack notifier\n", __func__);
+        tcpc = tcpc_dev_get_by_name("type_c_port0");
+        if (!tcpc) {
+                pr_err( "%s: get tcpc failed\n", __func__);
+                return;
+        }
+        if (register_tcp_dev_notifier(tcpc, &swh_priv->nb, TCP_NOTIFY_TYPE_USB)) {
+                pr_err( "%s: register tcpc notifer failed\n", __func__);
+                return;
+        }
+
+}
+#endif
+
 static int usbc_switch_parse_dt(struct usbc_switch_priv *swh_priv,
 	struct device *dev)
 {
@@ -494,7 +524,7 @@ static int usbc_switch_parse_dt(struct usbc_switch_priv *swh_priv,
 			"hs-det-gpio", 0); //GOIO 154
 	if (!gpio_is_valid(swh_priv->hs_det_pin)) {
 		pr_err("%s: hs-det-gpio in dt node is missing\n", __func__);
-		return -ENODEV;
+		//return -ENODEV;
 	} else {
 		ret = gpio_request(swh_priv->hs_det_pin, "audio_hs_det");
 		if (ret) {
@@ -650,11 +680,13 @@ static int usbc_switch_probe(struct platform_device *pdev)
 			}
 		} else {
 #if IS_ENABLED(CONFIG_TCPC_CLASS)
+                        INIT_DELAYED_WORK(&swh_priv->register_tcpc_notifier_work, register_tcpc_notifier_fn);
 			dev_err(&pdev->dev, "%s: start register 3rd protocal stack notifier\n", __func__);
 			tcpc = tcpc_dev_get_by_name("type_c_port0");
 			if (!tcpc) {
 				if (probe_retry > 30) {
-					dev_err(&pdev->dev, "%s: get tcpc failed, jump tcp register\n", __func__);
+					dev_err(&pdev->dev, "%s: get tcpc failed, jump tcp register and try register_tcpc_notifier_work after 500ms\n", __func__);
+					schedule_delayed_work(&swh_priv->register_tcpc_notifier_work, msecs_to_jiffies(500));
 					rc = 0;
 					goto tcp_register_finish;
 				} else {
@@ -783,6 +815,9 @@ static int usbc_switch_remove(struct platform_device *pdev)
 	pr_info("%s: test 1\n", __func__);
 
 	cancel_work_sync(&swh_priv->usbc_analog_work);
+#if IS_ENABLED(CONFIG_TCPC_CLASS)
+	cancel_delayed_work_sync(&swh_priv->register_tcpc_notifier_work);
+#endif
 	pm_relax(swh_priv->dev);
 	mutex_destroy(&swh_priv->notification_lock);
 	pr_info("%s: test 2\n", __func__);

@@ -50,18 +50,17 @@ int nfg1000a_get_calib_time(struct chip_bq27541 *chip, int *dod_time, int *qmax_
 		if (ret < 0)
 			goto error;
 		data_check = (extend_data[1] << 0x8) | extend_data[0];
-
+		mutex_unlock(&chip->gauge_alt_manufacturer_access);
 		if (data_check != extend.addr) {
 			pr_info("not match. add=0x%4x, count=%d, extend_data[0]=0x%2x, extend_data[1]=0x%2x\n",
 			extend.addr, try_count, extend_data[0], extend_data[1]);
-			mutex_unlock(&chip->gauge_alt_manufacturer_access);
 			usleep_range(2000, 2000);
 		} else {
 			break;
 		}
 	}
 	if (!try_count)
-		goto error;
+		return -1;
 
 	check_args[0] = (extend_data[21] << 0x08) | extend_data[20];
 	check_args[1] = (extend_data[13] << 0x08) | extend_data[12];
@@ -84,7 +83,6 @@ int nfg1000a_get_calib_time(struct chip_bq27541 *chip, int *dod_time, int *qmax_
 	memcpy(chip->calib_check_args_pre, check_args, sizeof(check_args));
 	*dod_time = chip->dod_time;
 	*qmax_time = chip->qmax_time;
-	mutex_unlock(&chip->gauge_alt_manufacturer_access);
 	return ret;
 
 error:
@@ -191,22 +189,20 @@ int nfg1000a_get_qmax_parameters(struct chip_bq27541 *chip, int *cell_qmax)
 		if (ret < 0)
 			goto error;
 		data_check = (extend_data[1] << 0x8) | extend_data[0];
-
+		mutex_unlock(&chip->gauge_alt_manufacturer_access);
 		if (data_check != extend.addr) {
 			pr_info("not match. add=0x%4x, count=%d, extend_data[0]=0x%2x, extend_data[1]=0x%2x\n",
 			extend.addr, try_count, extend_data[0], extend_data[1]);
-			mutex_unlock(&chip->gauge_alt_manufacturer_access);
 			usleep_range(2000, 2000);
 		} else {
 			break;
 		}
 	}
 	if (!try_count)
-		goto error;
+		return -1;
 	*cell_qmax = (extend_data[11] << 0x08) | extend_data[10];
 	pr_info("nfg1000a_get_qmax_parameters cell_qmax:%d\n", *cell_qmax);
-	mutex_unlock(&chip->gauge_alt_manufacturer_access);
-		return 0;
+	return 0;
 error:
 	mutex_unlock(&chip->gauge_alt_manufacturer_access);
 	return ret;
@@ -233,11 +229,10 @@ int nfg1000a_get_rsoc_parameters(struct chip_bq27541 *chip, int *rsoc)
 		if (ret < 0)
 			goto error;
 		data_check = (extend_data[1] << 0x8) | extend_data[0];
-
+		mutex_unlock(&chip->gauge_alt_manufacturer_access);
 		if (data_check != extend.addr) {
 			pr_info("not match. add=0x%4x, count=%d, extend_data[0]=0x%2x, extend_data[1]=0x%2x\n",
 			extend.addr, try_count, extend_data[0], extend_data[1]);
-			mutex_unlock(&chip->gauge_alt_manufacturer_access);
 			usleep_range(2000, 2000);
 		} else {
 			break;
@@ -245,11 +240,10 @@ int nfg1000a_get_rsoc_parameters(struct chip_bq27541 *chip, int *rsoc)
 	}
 
 	if (!try_count)
-		goto error;
+		return -1;
 	*rsoc = (extend_data[5] << 0x08) | extend_data[4];
 	pr_info("nfg1000a_get_rsoc_parameters cell_soc:%d\n", *rsoc);
-	mutex_unlock(&chip->gauge_alt_manufacturer_access);
-		return 0;
+	return 0;
 error:
 	mutex_unlock(&chip->gauge_alt_manufacturer_access);
 	return ret;
@@ -329,7 +323,9 @@ void nfg1000a_bcc_set_buffer(struct chip_bq27541 *chip, int *buffer)
 		buffer[4]= buffer[3];
 		buffer[5] = 0;
 		nfg1000a_get_rsoc_parameters(chip, &buffer[0]);
-		buffer[13] = buffer[12] = buffer[1] = buffer[0];
+		buffer[1] = buffer[0];
+		buffer[12] = buffer[0];
+		buffer[13] = buffer[0];
 		buffer[2] = 0;
 	} else {
 		buffer[2] = 0;
@@ -353,5 +349,6 @@ void nfg1000a_sub_bcc_set_buffer(struct chip_bq27541 *chip, int *buffer)
 	nfg1000a_get_qmax_parameters(chip, &sub_batt_qmax_2);
 	buffer[4] = sub_batt_qmax_2;
 	nfg1000a_get_rsoc_parameters(chip, &sub_batt_dod0_2);
-	buffer[13] = buffer[1] = sub_batt_dod0_2;
+	buffer[1] = sub_batt_dod0_2;
+	buffer[13] = sub_batt_dod0_2;
 }

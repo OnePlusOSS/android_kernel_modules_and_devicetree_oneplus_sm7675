@@ -178,7 +178,7 @@ int dw9786_download_fw(struct cam_ois_ctrl_t *o_ctrl)
 	}
 	CAM_ERR(CAM_OIS,"[dw9786_download_fw] module prj_info:[0x%.4x] ver:[0x%.4x] date:[0x%.4x]", pjt, ver, dat);
 	CAM_ERR(CAM_OIS,"[dw9786_download_fw] fw prj_info:[0x%.4x] ver:[0x%.4x] date:[0x%.4x]", project, version, date);
-	if ((dat < date) || (g_downloadByForce)) {
+	if ((dat != date) || (g_downloadByForce)) {
 		CAM_ERR(CAM_OIS,"[dw9786_download_fw] the new firmware version is checked and the update starts.");
 		if (dw9786_code_update(o_ctrl,ac_id,checksum) != FUNC_PASS) {
 			CAM_ERR(CAM_OIS,"[dw9786_download_fw]return fail");

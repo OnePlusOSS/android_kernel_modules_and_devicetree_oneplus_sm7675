@@ -382,8 +382,9 @@ static int aw_parse_bin_header_1_0_0(struct aw_bin *bin)
 
 		break;
 	default:
-		DBG_ERR("aw_bin_parse Unrecognized this bin data type\n");
-		return -EINVAL;
+		DBG("aw_bin_parse Unrecognized this bin data type 0x%x\n",
+									bin_data_type);
+		break;
 	}
 	return 0;
 }
@@ -409,7 +410,7 @@ static int aw_check_bin_header_version(struct aw_bin *bin)
 		return ret;
 	default:
 		DBG_ERR("aw_bin_parse Unrecognized this bin header version\n");
-		return -1;
+		return -EINVAL;
 	}
 }
 

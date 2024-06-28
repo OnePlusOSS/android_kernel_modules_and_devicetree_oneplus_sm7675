@@ -10,6 +10,7 @@
 extern int global_sched_assist_enabled;
 extern int global_sched_assist_scene;
 extern char global_ux_task[];
+extern pid_t save_audio_tgid;
 
 int oplus_sched_assist_proc_init(void);
 void oplus_sched_assist_proc_deinit(void);

@@ -1999,6 +1999,20 @@ static ssize_t bqfs_status_show(struct device *dev, struct device_attribute *att
 }
 static DEVICE_ATTR_RO(bqfs_status);
 
+static ssize_t batt_temp_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct oplus_chg_chip *chip = NULL;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_battery_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	return sprintf(buf, "%d\n", chip->tbatt_temp);
+}
+static DEVICE_ATTR_RO(batt_temp);
+
 static struct device_attribute *oplus_battery_attributes[] = {
 	&dev_attr_authenticate,
 	&dev_attr_battery_cc,
@@ -2079,6 +2093,7 @@ static struct device_attribute *oplus_battery_attributes[] = {
 	&dev_attr_slow_chg_en,
 	&dev_attr_gauge_info,
 	&dev_attr_bqfs_status,
+	&dev_attr_batt_temp,
 	NULL
 };
 

@@ -27,6 +27,10 @@ static int __init locking_opt_init(void)
 	g_opt_enable |= LK_PIFUTEX_ENABLE;
 #endif
 
+#ifdef CONFIG_LOCKING_PROTECT
+	g_opt_enable |= LK_PROTECT_ENABLE;
+	sched_assist_locking_init();
+#endif
 	lk_sysfs_init();
 	register_rwsem_vendor_hooks();
 	register_mutex_vendor_hooks();

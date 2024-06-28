@@ -130,8 +130,15 @@ enum sensor_mode {
     PS_NORMAL_MODE,
     GSENSOR_FACTORY_MODE,
     GSENSOR_NORMAL_MODE,
-    CCT_FACTORY_MODE,
+    CCT_FACTORY_MODE = 7,
     CCT_NORMAL_MODE,
+    LEAR_CALI_MODE = 19,
+    LEAK_CALI_NORMAL_MODE,
+    CCT_FACTORY_512_GAIN,
+    CCT_FACTORY_1024_GAIN,
+    CCT_FACTORY_2048_GAIN,
+    CCT_FACTORY_GAIN_NORMAL,
+	CFG_CCT_CALI_DATA_MODE = 25,
 };
 
 enum light_sensor_type {
@@ -140,6 +147,10 @@ enum light_sensor_type {
     NORMAL_NEED_COMPENSATION,
 };
 
+enum {
+	CCT_NORMAL = 0x01,
+	CCT_WISE = 0x02,
+};
 
 enum sensor_id {
     OPLUS_ACCEL = 1,
@@ -155,6 +166,7 @@ enum sensor_id {
     OPLUS_PICK_UP = LAST_SENOSR + 1,
     OPLUS_LUX_LOD,
     OPLUS_ALSPS_ARCH,
+    OPLUS_PWM_RGB = 19,
 };
 
 extern int get_sensor_parameter(struct cali_data *data);

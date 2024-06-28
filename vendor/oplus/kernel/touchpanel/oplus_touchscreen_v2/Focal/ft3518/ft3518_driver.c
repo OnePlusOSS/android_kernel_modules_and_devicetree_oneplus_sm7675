@@ -1059,9 +1059,6 @@ raw_fail:
 	kfree(Pstr);
 }
 
-
-
-
 static void fts_delta_read(struct seq_file *s, void *chip_data)
 {
 	int ret = 0;
@@ -1146,6 +1143,75 @@ static void fts_baseline_read(struct seq_file *s, void *chip_data)
 	}
 
 	seq_printf(s, "\n");
+
+raw_fail:
+	focal_esd_check_enable(ts_data, true);
+	kfree(raw);
+}
+
+static void fts_delta_snr_read(struct seq_file *s, void *chip_data, uint32_t count)
+{
+	int ret = 0;
+	int i = 0, j = 0;
+	int *raw = NULL;
+	struct chip_data_ft3518 *ts_data = (struct chip_data_ft3518 *)chip_data;
+	int tx_num = ts_data->hw_res->tx_num;
+	int rx_num = ts_data->hw_res->rx_num;
+	struct touchpanel_snr *snr = ts_data->ts->snr;
+
+	TPD_INFO("%s:snr read diff data", __func__);
+	focal_esd_check_enable(ts_data, false);   /*no allowed esd check*/
+
+	raw = kzalloc(tx_num * rx_num * sizeof(int), GFP_KERNEL);
+	if (!raw) {
+		seq_printf(s, "kzalloc for raw fail\n");
+		goto raw_fail;
+	}
+
+	if (!snr[0].doing) {
+		seq_printf(s, "snr doing zero!\n");
+		goto raw_fail;
+	}
+
+	for (i = 0; i < count; i++) {
+		ret = touch_i2c_write_byte(ts_data->client, FTS_REG_AUTOCLB_ADDR, 0x81);
+		if (ret < 0) {
+			TPD_INFO("%s, write 0x81 to reg 0xee failed\n", __func__);
+		}
+
+		ret = fts_get_rawdata(ts_data, raw, true);
+		if (ret < 0) {
+			seq_printf(s, "get diff data fail\n");
+			goto raw_fail;
+		}
+
+		for (j = 0; j < 10; j++) {
+			if (snr[j].point_status) {
+				if (i) {
+					snr[j].max = raw[rx_num * snr[j].channel_x + snr[j].channel_y] > snr[j].max ? raw[rx_num * snr[j].channel_x + snr[j].channel_y] : snr[j].max;
+					snr[j].min = raw[rx_num * snr[j].channel_x + snr[j].channel_y] < snr[j].min ? raw[rx_num * snr[j].channel_x + snr[j].channel_y] : snr[j].min;
+				} else {
+					snr[j].max = raw[rx_num * snr[j].channel_x + snr[j].channel_y];
+					snr[j].min = raw[rx_num * snr[j].channel_x + snr[j].channel_y];
+				}
+				snr[j].sum += raw[rx_num * snr[j].channel_x + snr[j].channel_y];
+				TPD_INFO("[snr-ft] id:%d report %d += %d \n", j, snr[j].sum, raw[rx_num * snr[j].channel_x + snr[j].channel_y]);
+			}
+		}
+	}
+
+	for (i = 0; i < 10; i++) {
+		if (snr[i].point_status) {
+			seq_printf(s, "%d|%d|", snr[i].channel_x, snr[i].channel_y);
+			snr[i].noise = snr[i].max - snr[i].min;
+			seq_printf(s, "%d|", snr[i].max);
+			seq_printf(s, "%d|", snr[i].min);
+			seq_printf(s, "%d|", snr[i].sum/count);
+			seq_printf(s, "%d\n", snr[i].noise);
+			TPD_INFO("[snr-ft] id:%d cover [%d %d] %d %d %d %d\n", i, snr[i].channel_x, snr[i].channel_y, snr[i].max, snr[i].min, snr[i].sum, snr[i].noise);
+			SNR_RESET(snr[i]);
+		}
+	}
 
 raw_fail:
 	focal_esd_check_enable(ts_data, true);
@@ -1595,17 +1661,28 @@ static u32 fts_u32_trigger_reason(void *chip_data, int gesture_enable,
 	u32 result_event = 0;
 	u8 *buf = ts_data->rbuf;
 
-
 	memset(buf, 0xFF, FTS_MAX_POINTS_LENGTH);
+
+	if (ts_data->ts->palm_to_sleep_enable && !is_suspended) {
+		ret = touch_i2c_read_byte(ts_data->client, FTS_REG_PALM_TO_SLEEP_STATUS);
+		if (ret < 0) {
+			TPD_INFO("touch_i2c_read_byte PALM_TO_SLEEP_STATUS error\n");
+		} else {
+			if(ret == 0x01) {
+				SET_BIT(result_event, IRQ_PALM);
+				TPD_INFO("fts_enable_palm_to_sleep enable\n");
+			}
+		}
+	}
 
 	if (gesture_enable && is_suspended) {
 		ret = touch_i2c_read_byte(ts_data->client, FTS_REG_GESTURE_EN);
 
 		if (ret == 0x01) {
-					if (ts_data->read_buffer_support) {
-						ret = touch_i2c_read_block(ts_data->client, cmd, FTS_POINTS_ONE, &buf[0]);
-						TPD_DEBUG("touch_i2c_read_block FTS_POINTS_ONE add once");
-				}
+			if (ts_data->read_buffer_support) {
+				ret = touch_i2c_read_block(ts_data->client, cmd, FTS_POINTS_ONE, &buf[0]);
+				TPD_DEBUG("touch_i2c_read_block FTS_POINTS_ONE add once");
+			}
 			ret = touch_i2c_read_byte(ts_data->client, FTS_REG_POINTS_LB);
 			return IRQ_GESTURE;
 		}
@@ -1640,10 +1717,8 @@ static u32 fts_u32_trigger_reason(void *chip_data, int gesture_enable,
 
 	/*normal touch*/
 	SET_BIT(result_event, IRQ_TOUCH);
-	TPD_DEBUG("%s, fgerprint, is_suspended = %d, fp_en = %d, ", __func__,
-		  is_suspended, ts_data->fp_en);
-	TPD_DEBUG("%s, fgerprint, touched = %d, event_type = %d, fp_down = %d, fp_down_report = %d, ",
-		  __func__, ts_data->ts->view_area_touched, ts_data->fod_info.event_type,
+	TPD_DEBUG("%s, fgerprint, is_suspended = %d, fp_en = %d, touched = %d, event_type = %d, fp_down = %d, fp_down_report = %d, ",
+		  __func__, is_suspended, ts_data->fp_en, ts_data->ts->view_area_touched, ts_data->fod_info.event_type,
 		  ts_data->fod_info.fp_down, ts_data->fod_info.fp_down_report);
 
 	if (!is_suspended && ts_data->fp_en) {
@@ -1720,6 +1795,7 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 	u8 cmd = FTS_REG_POINTS_N;
 	u8 cmd_grip = FTS_REG_GRIP_N;
 	u8 *buf = ts_data->rbuf;
+	struct touchpanel_snr *snr = ts_data->ts->snr;
 
 	if (buf[FTS_POINTS_ONE - 1] == 0xFF) {
 		ret = touch_i2c_read_byte(ts_data->client, FTS_REG_POINTS_LB);
@@ -1748,6 +1824,12 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 	if (point_num > max_num) {
 		TPD_INFO("invalid point_num(%d),max_num(%d)", point_num, max_num);
 		return -EINVAL;
+	}
+
+	if (ts_data->snr_read_support) {
+		for (i = 0; i < max_num; i++) {
+			snr[i].point_status = 0;
+		}
 	}
 
 	for (i = 0; i < max_num; i++) {
@@ -1822,6 +1904,20 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 			}
 		}
 
+		if (ts_data->snr_read_support) {
+			if (snr[pointid].doing) {
+				snr[pointid].point_status = 1;
+				snr[pointid].x = points[pointid].x;
+				snr[pointid].y = points[pointid].y;
+				snr[pointid].width_major = points[pointid].width_major;
+				snr[pointid].channel_x = snr[pointid].x * ts_data->hw_res->tx_num / ts_data->chip_resolution_info->max_x;
+				snr[pointid].channel_y = snr[pointid].y * ts_data->hw_res->rx_num / ts_data->chip_resolution_info->max_y;
+				GET_LEN_BY_WIDTH_MAJOR(snr[pointid].width_major, &snr[pointid].area_len);
+				TPD_DEBUG("[snr-ft] id:%d: [%d,%d] {%d %d} len %d\n", pointid, snr[pointid].x, snr[pointid].y, snr[pointid].channel_x, snr[pointid].channel_y,
+					snr[pointid].area_len);
+			}
+		}
+
 		points[pointid].status = 0;
 
 		if ((event_flag == 0) || (event_flag == 2)) {
@@ -1849,6 +1945,16 @@ static void fts_health_report(void *chip_data, struct monitor_data *mon_data)
 	struct chip_data_ft3518 *ts_data = (struct chip_data_ft3518 *)chip_data;
 
 	ret = touch_i2c_read_byte(ts_data->client, 0x01);
+
+	if (ret & 0x01) {
+		ts_data->water_mode = 1;
+		TPD_INFO("%s:water flag =%d", __func__, ts_data->water_mode);
+	}
+	else {
+		ts_data->water_mode = 0;
+		TPD_INFO("%s:water flag error", __func__);
+	}
+
 	TPD_INFO("Health register(0x01):0x%x", ret);
 	ret = touch_i2c_read_byte(ts_data->client, FTS_REG_HEALTH_1);
 	TPD_INFO("Health register(0xFD):0x%x", ret);
@@ -2171,6 +2277,98 @@ static void fts_set_gesture_state(void *chip_data, int state)
 	ts_data->gesture_state = state;
 }
 
+static int fts_diaphragm_touch_lv_set(void *chip_data, int level)
+{
+	struct chip_data_ft3518 *ts_data = (struct chip_data_ft3518 *)chip_data;
+	int ret = 0;
+	u8 retval = 0;
+	u8 diaphragm_mode = 0;
+
+	TPD_INFO("%s:level=%d", __func__, level);
+	retval = touch_i2c_read_byte(ts_data->client, FTS_REG_DIAPHRAGM_EN);
+
+	switch (level) {
+	case DIAPHRAGM_DEFAULT_MODE:
+		diaphragm_mode = 0;
+		break;
+	case DIAPHRAGM_FILM_MODE:
+		diaphragm_mode = 1;
+		break;
+	case DIAPHRAGM_WATERPROO_MODE:
+		diaphragm_mode = 2;
+		break;
+	case DIAPHRAGM_FILM_WATERPROO_MODE:
+		diaphragm_mode = 3;
+		break;
+	default:
+		TPD_INFO("error, level = %d", level);
+		return 0;
+	}
+	TPD_INFO("%s:write %x=%x.", __func__, FTS_REG_DIAPHRAGM_EN, diaphragm_mode);
+	diaphragm_mode = diaphragm_mode | retval;
+	ret = touch_i2c_write_byte(ts_data->client, FTS_REG_DIAPHRAGM_EN, diaphragm_mode);
+
+	if (ret < 0) {
+		TPD_INFO("%s: write DIAPHRAGM write(%x=%x) fail", __func__, FTS_REG_DIAPHRAGM_EN, level);
+		return 0;
+	}
+	return 0;
+}
+
+static void fts_get_water_mode(void *chip_data)
+{
+	struct chip_data_ft3518 *ts_data = (struct chip_data_ft3518 *)chip_data;
+	struct touchpanel_data *ts = i2c_get_clientdata(ts_data->client);
+	TPD_INFO("%s: water flag %d!\n", __func__, ts_data->water_mode);
+	if (ts_data->water_mode == 1) {
+		ts->water_mode = 1;
+	}
+	else {
+		ts->water_mode = 0;
+	}
+}
+
+static void fts_force_water_mode(void *chip_data, bool enable)
+{
+	TPD_INFO("%s: %s force_water_mode is not supported .\n", __func__, enable ? "Enter" : "Exit");
+}
+
+static void fts_rate_white_list_ctrl(void *chip_data, int value)
+{
+	struct chip_data_ft3518 *ts_data = (struct chip_data_ft3518 *)chip_data;
+	u8 send_value = FTS_120HZ_REPORT_RATE;
+	int ret = 0;
+
+	if (ts_data == NULL) {
+		return;
+	}
+
+	if (ts_data->ts->is_suspended) {
+		return;
+	}
+
+	switch (value) {
+		/* TP RATE */
+	case FTS_WRITE_RATE_120:
+		send_value = 1;
+		break;
+	case FTS_WRITE_RATE_180:
+		send_value = 0;
+		break;
+	case FTS_WRITE_RATE_240:
+		send_value = 0; /*IC does not support reporting rate*/
+		break;
+	default:
+		TPD_INFO("%s: report rate = %d, not support\n", __func__, value);
+		return;
+	}
+
+	TPD_INFO("%s, got value = %d, set value = %d\n", __func__, value, send_value);
+	ret = touch_i2c_write_byte(ts_data->client, FTS_REG_GAME_MODE_EN, send_value);
+	if(ret < 0)
+		TPD_INFO("%s: setting new report rate failed!\n", __func__);
+}
+
 static void fts_enable_gesture_mask(void *chip_data, uint32_t enable)
 {
 	int ret = 0;
@@ -2269,7 +2467,6 @@ static struct oplus_touchpanel_operations fts_ops = {
 	.reset                      = fts_reset,
 	.reset_gpio_control         = fts_reset_gpio_control,
 	.fw_update                  = fts_fw_update,
-	/*    .trigger_reason             = fts_trigger_reason,*/
 	.trigger_reason             = fts_u32_trigger_reason,
 	.get_touch_points           = fts_get_touch_points,
 	.health_report              = fts_health_report,
@@ -2285,8 +2482,12 @@ static struct oplus_touchpanel_operations fts_ops = {
 	.smooth_lv_set              = fts_smooth_lv_set,
 	.sensitive_lv_set           = fts_sensitive_lv_set,
 	.enable_gesture_mask        = fts_enable_gesture_mask,
-        .set_high_frame_rate        = fts_set_high_frame_rate,
+	.set_high_frame_rate        = fts_set_high_frame_rate,
 	.set_gesture_state          = fts_set_gesture_state,
+	.diaphragm_touch_lv_set     = fts_diaphragm_touch_lv_set,
+	.get_water_mode             = fts_get_water_mode,
+	.force_water_mode           = fts_force_water_mode,
+	.rate_white_list_ctrl       = fts_rate_white_list_ctrl,
 	/*todo
 	        .get_vendor                 = synaptics_get_vendor,
 	        .get_keycode                = synaptics_get_keycode,
@@ -2325,12 +2526,13 @@ static struct engineer_test_operations ft3518_engineer_test_ops = {
 };
 
 static struct debug_info_proc_operations fts_debug_info_proc_ops = {
-	.delta_read        = fts_delta_read,
-	.key_trigger_delta_read = fts_key_trigger_delta_read,
-	.baseline_read = fts_baseline_read,
-        .baseline_blackscreen_read = fts_baseline_read,
-	.main_register_read = fts_main_register_read,
-	.self_delta_read   = fts_self_delta_read,
+	.delta_read                = fts_delta_read,
+	.key_trigger_delta_read    = fts_key_trigger_delta_read,
+	.baseline_read             = fts_baseline_read,
+	.baseline_blackscreen_read = fts_baseline_read,
+	.main_register_read        = fts_main_register_read,
+	.self_delta_read           = fts_self_delta_read,
+	.delta_snr_read            = fts_delta_snr_read,
 };
 
 static struct focal_debug_func focal_debug_ops = {
@@ -2405,6 +2607,8 @@ static int fts_tp_probe(struct i2c_client *client,
 	ts_data->black_gesture_indep = ts->black_gesture_indep_support;
 	ts_data->ft3518_grip_v2_support = ts->kernel_grip_support;
 	ts_data->monitor_data = &ts->monitor_data;
+	ts_data->snr_read_support = ts->snr_read_support;
+	ts_data->chip_resolution_info = &ts->resolution_info;
 	/*step6:create synaptics related proc files*/
 	fts_create_proc(ts, ts_data->syna_ops);
 

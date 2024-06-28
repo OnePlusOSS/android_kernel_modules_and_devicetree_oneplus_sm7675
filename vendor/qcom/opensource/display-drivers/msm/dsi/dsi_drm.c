@@ -1587,7 +1587,7 @@ int dsi_conn_set_dyn_bit_clk(struct drm_connector *connector, uint64_t value)
 	display->dyn_bit_clk_pending = true;
 
 	SDE_EVT32(display->dyn_bit_clk);
-	DSI_DEBUG("update dynamic bit clock rate to %llu\n", display->dyn_bit_clk);
+	DSI_INFO("update dynamic bit clock rate to %llu\n", display->dyn_bit_clk);
 
 	return 0;
 }

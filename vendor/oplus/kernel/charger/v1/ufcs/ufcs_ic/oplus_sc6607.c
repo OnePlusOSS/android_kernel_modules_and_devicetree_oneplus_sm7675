@@ -564,6 +564,7 @@ struct oplus_ufcs_protocol_operations oplus_ufcs_sc6607_ops = {
 	.ufcs_ic_get_master_ibus = oplus_sc6607_read_ibus,
 	.ufcs_ic_get_master_vac = oplus_sc6607_read_vac,
 	.ufcs_ic_get_master_vout = oplus_sc6607_read_vsys,
+	.ufcs_ic_get_master_vbat = oplus_sc6607_read_vbat,
 	.ufcs_ic_event_handle = sc6607_ufcs_event_handler,
 };
 

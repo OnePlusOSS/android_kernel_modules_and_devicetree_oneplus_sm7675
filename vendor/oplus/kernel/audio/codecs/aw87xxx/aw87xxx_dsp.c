@@ -310,6 +310,39 @@ int aw87xxx_spin_set_record_val(void)
 }
 EXPORT_SYMBOL(aw87xxx_spin_set_record_val);
 
+#ifdef AW_ALGO_AUTH_DSP
+int aw87xxx_dsp_get_algo_auth_data(struct aw_device *aw_dev,
+			char *data, unsigned int data_len)
+{
+	int ret = 0;
+
+	ret = aw_read_data_from_dsp(AW_MSG_ID_ALGO_AUTHENTICATION, data, data_len);
+	if (ret) {
+		AW_DEV_LOGE(aw_dev->dev, "read algo auth failed");
+		return ret;
+	}
+
+	AW_DEV_LOGD(aw_dev->dev, "get algo auth data done");
+
+	return ret;
+}
+
+int aw87xxx_dsp_set_algo_auth_data(struct aw_device *aw_dev,
+			char *data, unsigned int data_len)
+{
+	int ret = 0;
+
+	ret = aw_write_data_to_dsp(AW_MSG_ID_ALGO_AUTHENTICATION, data, data_len);
+	if (ret) {
+		AW_DEV_LOGE(aw_dev->dev, "write algo auth failed ");
+		return ret;
+	}
+	AW_DEV_LOGD(aw_dev->dev, "set algo auth done");
+
+	return ret;
+}
+#endif
+
 void aw87xxx_device_parse_topo_id_dt(struct aw_device *aw_dev)
 {
 	int ret;

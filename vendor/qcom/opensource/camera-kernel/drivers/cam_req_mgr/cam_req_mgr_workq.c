@@ -39,7 +39,6 @@ static int cam_req_mgr_thread(void *data)
 
 	while(1)
 	{
-		trace_begin("cam_req_mgr_thread workq_name: %s",workq->workq_name);
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (!kthread_should_stop()) {
 			cam_req_mgr_process_workq(&(workq->work));
@@ -49,7 +48,6 @@ static int cam_req_mgr_thread(void *data)
 		if (kthread_should_stop())
 			break;
 		cam_req_mgr_process_workq(&(workq->work));
-		trace_end();
 	}
 
 	return 0;
@@ -276,13 +274,11 @@ int cam_req_mgr_workq_create(char *name, int32_t num_tasks,
 			name, &crm_workq->lock_bh);
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 		mutex_init(&crm_workq->rt_lock);
-		if (strstr(crm_workq->workq_name, "CRMCORE") ||
-			strstr(crm_workq->workq_name, "icp_command_queue") ||
-			strstr(crm_workq->workq_name, "message_queue")) {
+		if (strstr(crm_workq->workq_name, "CRMCORE")) {
 			mutex_lock(&crm_workq->rt_lock);
 			crm_workq->thread = kthread_run(cam_req_mgr_thread, crm_workq, "%s",
 				crm_workq->workq_name);
-			CAM_INFO(CAM_CRM, "create workqueue thread crm_workq->thread %p %p", crm_workq->thread, &crm_workq->thread);
+			CAM_INFO(CAM_CRM, "create workqueue thread crm_workq->thread %p", crm_workq->thread);
 			mutex_unlock(&crm_workq->rt_lock);
 			if (IS_ERR(crm_workq->thread)) {
 				CAM_ERR(CAM_CRM, "create workqueue thread failed: %s", crm_workq->workq_name);

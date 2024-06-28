@@ -27,9 +27,6 @@
 #include "sa_balance.h"
 #endif
 
-#ifdef CONFIG_LOCKING_PROTECT
-#include "sched_assist_locking.h"
-#endif
 
 static int register_scheduler_vendor_hooks(void)
 {
@@ -76,6 +73,7 @@ static int register_scheduler_vendor_hooks(void)
 	REGISTER_TRACE_RVH(android_rvh_dequeue_task, android_rvh_dequeue_task_handler);
 #endif
 
+	REGISTER_TRACE_RVH(android_rvh_sched_setaffinity, android_rvh_sched_setaffinity_handler);
 	/* register vender hook in fs/exec.c */
 	REGISTER_TRACE_VH(task_rename, task_rename_handler);
 
@@ -86,9 +84,6 @@ static int register_scheduler_vendor_hooks(void)
 
 	REGISTER_TRACE_VH(sched_stat_runtime, android_vh_sched_stat_runtime_handler);
 
-#ifdef CONFIG_LOCKING_PROTECT
-	sched_assist_locking_init();
-#endif
 
 #ifdef CONFIG_BLOCKIO_UX_OPT
 	sa_blockio_init();

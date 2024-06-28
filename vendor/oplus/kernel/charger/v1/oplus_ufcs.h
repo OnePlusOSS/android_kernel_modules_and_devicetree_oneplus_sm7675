@@ -66,6 +66,7 @@
 #define UFCS_TBATT_OV_CNT 1
 #define UFCS_DISCONNECT_IOUT_MIN 300
 #define UFCS_DISCONNECT_IOUT_CNT 3
+#define UFCS_ENALBE_CHECK_CNTS 3
 #define UFCS_BTB_DIFF_OV_CNT 5
 
 #define UFCS_FULL_COUNTS_HW 3
@@ -711,6 +712,7 @@ struct oplus_ufcs_chip {
 	int ufcs_status;
 	int ufcs_stop_status;
 	int ufcs_support_type;
+	int ufcs_boot_delay_ms;
 	int ufcs_fastchg_type;
 	int ufcs_exit_pth;
 	bool ufcs_bcc_support;

@@ -38,7 +38,10 @@ int cam_ftm_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		s_ctrl->sensordata->slave_info.sensor_id == 0x8206||
 		s_ctrl->sensordata->slave_info.sensor_id == 0x8202 ||
 		s_ctrl->sensordata->slave_info.sensor_id == 0x809 ||
-		s_ctrl->sensordata->slave_info.sensor_id == 0x3109)
+		s_ctrl->sensordata->slave_info.sensor_id == 0xc658 ||
+		s_ctrl->sensordata->slave_info.sensor_id == 0xd154 ||
+		s_ctrl->sensordata->slave_info.sensor_id == 0x3109 ||
+		s_ctrl->sensordata->slave_info.sensor_id == 0x38E5)
 	{
 		sensor_setting.reg_setting = sensor_init_settings.streamoff.reg_setting;
 		sensor_setting.addr_type = sensor_init_settings.streamoff.addr_type;
@@ -259,6 +262,37 @@ int cam_ftm_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		sensor_setting.data_type = sensor_init_settings.s5k3p9_setting.data_type;
 		sensor_setting.size = sensor_init_settings.s5k3p9_setting.size;
 		sensor_setting.delay = sensor_init_settings.s5k3p9_setting.delay;
+		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
+	}
+	else if (s_ctrl->sensordata->slave_info.sensor_id == 0xc658)
+	{
+		CAM_ERR(CAM_SENSOR, "FTM sensor setting 0x%x",s_ctrl->sensordata->slave_info.sensor_id);
+		sensor_setting.reg_setting = sensor_init_settings.sc1320cs_setting.reg_setting;
+		sensor_setting.addr_type = sensor_init_settings.sc1320cs_setting.addr_type;
+		sensor_setting.data_type = sensor_init_settings.sc1320cs_setting.data_type;
+		sensor_setting.size = sensor_init_settings.sc1320cs_setting.size;
+		sensor_setting.delay = sensor_init_settings.sc1320cs_setting.delay;
+		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
+	}
+	else if (s_ctrl->sensordata->slave_info.sensor_id == 0xd154)
+	{
+		CAM_ERR(CAM_SENSOR, "FTM sensor setting 0x%x",s_ctrl->sensordata->slave_info.sensor_id);
+		sensor_setting.reg_setting = sensor_init_settings.sc820cs_setting.reg_setting;
+		sensor_setting.addr_type = sensor_init_settings.sc820cs_setting.addr_type;
+		sensor_setting.data_type = sensor_init_settings.sc820cs_setting.data_type;
+		sensor_setting.size = sensor_init_settings.sc820cs_setting.size;
+		sensor_setting.delay = sensor_init_settings.sc820cs_setting.delay;
+		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
+	}
+	else if (s_ctrl->sensordata->slave_info.sensor_id == 0x38E5)
+	{
+		oplus_shift_sensor_mode(s_ctrl);
+		CAM_ERR(CAM_SENSOR, "FTM sensor setting 0x%x",s_ctrl->sensordata->slave_info.sensor_id);
+		sensor_setting.reg_setting = sensor_init_settings.s5kjn5_t_setting.reg_setting;
+		sensor_setting.addr_type = sensor_init_settings.s5kjn5_t_setting.addr_type;
+		sensor_setting.data_type = sensor_init_settings.s5kjn5_t_setting.data_type;
+		sensor_setting.size = sensor_init_settings.s5kjn5_t_setting.size;
+		sensor_setting.delay = sensor_init_settings.s5kjn5_t_setting.delay;
 		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
 	}
 	else
@@ -524,6 +558,41 @@ int cam_sensor_match_id_oem(struct cam_sensor_ctrl_t *s_ctrl,uint32_t chip_id)
 				{
 					return -1;
 				}
+			}
+		}
+	}
+	else if(chip_id == CAM_S5KJN5_SENSOR_ID){
+		SensorRegWrite(s_ctrl,0xFCFC,0x4000);//Specify OTP Page Address for Read
+		rc = camera_io_dev_read(
+			&(s_ctrl->io_master_info),
+			s_ctrl->sensordata->id_info.sensor_id_reg_addr,
+			&vendor_id,CAMERA_SENSOR_I2C_TYPE_WORD,
+			CAMERA_SENSOR_I2C_TYPE_WORD,FALSE);
+
+		CAM_ERR(CAM_SENSOR, "Read vendor_id_addr=0x%x vendor_id: 0x%x expected vendor_id 0x%x: rc=%d",
+			s_ctrl->sensordata->id_info.sensor_id_reg_addr,
+			vendor_id,
+			s_ctrl->sensordata->id_info.sensor_id,
+			rc);
+		/*if vendor_id id is 512(0x0200),it is short module if vendor_id <= 287(0x011F),it is long(0x011f) or long(0x010f) module*/
+		if(vendor_id > S5KJN5_SHORT_VENDOR_ID){
+			if(s_ctrl->sensordata->id_info.sensor_id > S5KJN5_SHORT_SENSOR_ID)
+			{
+				return 0;
+			}
+			else
+			{
+				return -1;
+			}
+		}
+		else if(vendor_id <= S5KJN5_SHORT_VENDOR_ID)
+		{	if(s_ctrl->sensordata->id_info.sensor_id <= S5KJN5_SHORT_SENSOR_ID)
+			{
+				return 0;
+			}
+			else
+			{
+				return -1;
 			}
 		}
 	}
@@ -1342,13 +1411,24 @@ int SensorRegWrite(struct cam_sensor_ctrl_t *s_ctrl,uint32_t addr, uint32_t data
 		.delay = 0x00,
 		.data_mask = 0x00,
 	};
-	struct cam_sensor_i2c_reg_setting i2c_write = {
-		.reg_setting = &i2c_write_setting,
-		.size = 1,
-		.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD,
-		.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
-		.delay = 0x00,
-	};
+
+	struct cam_sensor_i2c_reg_setting i2c_write;
+	if ((data & 0xFF00) != 0)
+	{
+		i2c_write.reg_setting = &i2c_write_setting;
+		i2c_write.size = 1;
+		i2c_write.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+		i2c_write.data_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+		i2c_write.delay = 0x00;
+	}
+	else
+	{
+		i2c_write.reg_setting = &i2c_write_setting;
+		i2c_write.size = 1;
+		i2c_write.addr_type = CAMERA_SENSOR_I2C_TYPE_WORD;
+		i2c_write.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE;
+		i2c_write.delay = 0x00;
+	}
 
 	for(i = 0; i < retry; i++)
 	{

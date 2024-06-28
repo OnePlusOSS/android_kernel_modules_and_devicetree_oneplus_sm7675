@@ -1948,10 +1948,16 @@ static void icnss_driver_event_work(struct work_struct *work)
 								 event->data);
 			break;
 		case ICNSS_DRIVER_EVENT_IDLE_SHUTDOWN:
+			#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+			idle_shutdown = true;
+			#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 			ret = icnss_driver_event_idle_shutdown(priv,
 							       event->data);
 			break;
 		case ICNSS_DRIVER_EVENT_IDLE_RESTART:
+			#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+			idle_shutdown = false;
+			#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 			ret = icnss_driver_event_idle_restart(priv,
 							      event->data);
 			break;
@@ -4740,6 +4746,31 @@ struct driver_attribute cnss_debug_attr = {
 
 #endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 
+#ifdef OPLUS_FEATURE_WIFI_FTM
+//Add for QCOM WCN chip id
+static void icnss_create_device_id_kobj(void);
+
+static ssize_t icnss_show_device_id(struct device_driver *driver, char *buf)
+{
+    unsigned long device_id = 0;
+    if (!penv) {
+        icnss_pr_err("icnss_show_device_id penv is NULL!\n");
+    } else {
+        device_id = penv->device_id;
+    }
+    return sprintf(buf, "0x%lx", device_id);
+}
+
+struct driver_attribute device_id_attr = {
+	.attr = {
+		.name = "device_id",
+		.mode = S_IRUGO,
+	},
+	.show = icnss_show_device_id,
+	//read only so we don't need to impl store func
+};
+#endif /* OPLUS_FEATURE_WIFI_FTM */
+
 static inline bool icnss_use_nv_mac(struct icnss_priv *priv)
 {
 	return of_property_read_bool(priv->pdev->dev.of_node,
@@ -4860,6 +4891,10 @@ static int icnss_probe(struct platform_device *pdev)
 	icnss_create_fw_state_kobj();
 	icnss_create_debug_kobj();
 	#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
+	#ifdef OPLUS_FEATURE_WIFI_FTM
+	//Add for QCOM WCN chip id
+	icnss_create_device_id_kobj();
+	#endif /* OPLUS_FEATURE_WIFI_FTM */
 	icnss_read_device_configs(priv);
 
 	ret = icnss_resource_parse(priv);
@@ -5352,6 +5387,16 @@ static void icnss_create_debug_kobj(void)
     }
 }
 #endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
+
+#ifdef OPLUS_FEATURE_WIFI_FTM
+//Add for QCOM WCN chip id
+static void icnss_create_device_id_kobj(void)
+{
+    if (driver_create_file(&(icnss_driver.driver), &device_id_attr)) {
+        icnss_pr_info("failed to create %s", device_id_attr.attr.name);
+    }
+}
+#endif /* OPLUS_FEATURE_WIFI_FTM */
 
 static int __init icnss_initialize(void)
 {

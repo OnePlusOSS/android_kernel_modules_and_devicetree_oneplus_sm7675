@@ -130,8 +130,13 @@ int oplus_panel_features_config(struct dsi_panel *panel)
 
 	panel->oplus_priv.vid_timming_switch_enabled = utils->read_bool(utils->data,
 			"oplus,dsi-vid-timming-switch_enable");
-	LCD_INFO("oplus,panel_init_compatibility_enable: %s\n",
+	LCD_INFO("oplus,dsi-vid-timming-switch_enable: %s\n",
 			panel->oplus_priv.vid_timming_switch_enabled ? "true" : "false");
+
+	panel->oplus_priv.dimming_setting_before_bl_0_enable = utils->read_bool(utils->data,
+			"oplus,dsi-dimming-setting-before-bl-0-enable");
+	LCD_INFO("oplus,dsi-dimming-setting-before-bl-0-enable: %s\n",
+			panel->oplus_priv.dimming_setting_before_bl_0_enable ? "true" : "false");
 
 	return 0;
 }
@@ -187,7 +192,7 @@ void oplus_panel_switch_vid_mode(struct dsi_display *display, struct dsi_display
 	}
 
 	panel = display->panel;
-	if (panel->power_mode != SDE_MODE_DPMS_ON) {
+	if (panel->power_mode == SDE_MODE_DPMS_OFF) {
 		LCD_INFO("display panel in off status\n");
 		return;
 	}
@@ -211,6 +216,10 @@ void oplus_panel_switch_vid_mode(struct dsi_display *display, struct dsi_display
 		dsi_cmd_vid_switch = DSI_CMD_VID_60_SWITCH;
 	} else {
 		return;
+	}
+	if (panel->esd_config.status_mode == ESD_MODE_PANEL_MIPI_ERR_FLAG) {
+		/*skip esd check when vedio mode switch timming gamma*/
+		atomic_set(&panel->esd_pending, 1);
 	}
 
 	SDE_ATRACE_BEGIN("oplus_panel_switch_vid_mode");
@@ -274,6 +283,12 @@ void oplus_panel_update_backlight(struct dsi_panel *panel,
 	if (panel->bl_config.oplus_limit_max_bl_mode) {
 		if (bl_lvl > panel->bl_config.oplus_limit_max_bl)
 			bl_lvl = panel->bl_config.oplus_limit_max_bl;
+	}
+
+	if (panel->oplus_priv.dimming_setting_before_bl_0_enable) {
+		if (bl_lvl == 0) {
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_DIMMING_SETTING);
+		}
 	}
 #endif
 

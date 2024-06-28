@@ -747,7 +747,6 @@ struct cam_ife_csid_ver2_reg_info {
 	const uint32_t                                    fused_max_width[
 		   CAM_IFE_CSID_WIDTH_FUSE_VAL_MAX];
 	const uint32_t                                    width_fuse_max_val;
-
 	bool                                              is_ife_sfe_mapped;
 };
 

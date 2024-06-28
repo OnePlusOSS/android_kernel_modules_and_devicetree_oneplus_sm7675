@@ -82,6 +82,8 @@ struct oplus_cpa {
 
 	struct mutex cpa_request_lock;
 	struct mutex start_lock;
+
+	uint8_t region_id;
 };
 
 const char * const protocol_name_str[] = {
@@ -916,12 +918,83 @@ static int oplus_cpa_topic_init(struct oplus_cpa *chip)
 	return 0;
 }
 
+#define DEFAULT_REGION_ID 0xFF
+static bool oplus_cpa_regionid_from_cmdline(struct oplus_cpa *chip)
+{
+	struct device_node *np;
+	const char *bootparams = NULL;
+	char *str;
+	int temp_region = 0;
+	int ret = 0;
+
+	if (chip == NULL)
+		return false;
+
+	if (chip->region_id != DEFAULT_REGION_ID) {
+		return true;
+	} else {
+		np = of_find_node_by_path("/chosen");
+		if (np) {
+			ret = of_property_read_string(np, "bootargs", &bootparams);
+			if (!bootparams || ret < 0) {
+				chg_err("failed to get bootargs property");
+				return false;
+			}
+
+			str = strstr(bootparams, "oplus_region=");
+			if (str) {
+				str += strlen("oplus_region=");
+				ret = get_option(&str, &temp_region);
+				if (ret == 1) {
+					chip->region_id = temp_region & 0xFF;
+					chg_info("oplus_region=0x%02x", chip->region_id);
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 static int oplus_cpa_parse_dt(struct oplus_cpa *cpa)
 {
-	struct device_node *node = cpa->dev->of_node;
+#define PPS_REGION_COUNT_MAX 16
+
+	struct device_node *cpa_node = cpa->dev->of_node;
+	struct device_node *node = cpa_node;
+	struct device_node *child;
 	int rc, num, i;
 	uint32_t data, power;
+	u8 pps_region_list[PPS_REGION_COUNT_MAX];
+	int len;
 
+	if (oplus_cpa_regionid_from_cmdline(cpa) && cpa->region_id != DEFAULT_REGION_ID) {
+		chg_info("region_id = 0x%02x", cpa->region_id);
+		for_each_child_of_node(cpa_node, child) {
+			rc = of_property_count_elems_of_size(child, "oplus,region_id", sizeof(u8));
+			if (rc > 0) {
+				len = rc <= PPS_REGION_COUNT_MAX ? rc : PPS_REGION_COUNT_MAX;
+				rc = of_property_read_u8_array(child, "oplus,region_id", pps_region_list, len);
+				if (rc < 0) {
+					chg_err("parse %s region_id failed, rc=%d", child->name, rc);
+					continue;
+				} else {
+					for (i = 0; i < len; i++) {
+						if (pps_region_list[i] == cpa->region_id) {
+							node = child;
+							chg_info("got the region node: %s", child->name);
+							goto FOUND_NODE;
+						}
+					}
+				}
+			} else {
+				chg_err("get size of %s reogin_id failed, rc=%d", child->name, rc);
+				continue;
+			}
+		}
+	}
+
+FOUND_NODE:
 	num = of_property_count_elems_of_size(node, "oplus,protocol_list", sizeof(uint32_t));
 	if (num < 0) {
 		chg_err("read oplus,protocol_list failed, rc=%d\n", num);
@@ -1034,6 +1107,7 @@ static int oplus_cpa_probe(struct platform_device *pdev)
 	cpa->request_pending = false;
 	cpa->ready_protocol_type = 0;
 	cpa->request_locked = false;
+	cpa->region_id = DEFAULT_REGION_ID;
 	mutex_init(&cpa->cpa_request_lock);
 	mutex_init(&cpa->start_lock);
 

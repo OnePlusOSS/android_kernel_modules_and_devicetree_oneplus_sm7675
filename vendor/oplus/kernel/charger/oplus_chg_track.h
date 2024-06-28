@@ -130,6 +130,7 @@ enum oplus_chg_track_mos_device_error {
 #define OPLUS_CHG_TRACK_SCENE_GAGUE_UNSEAL_ERR	"unseal_err"
 #define OPLUS_CHG_TRACK_SCENE_GAGUE_DEFAULT	"default"
 #define OPLUS_CHG_TRACK_SCENE_GAGUE_SOC_1_PCT	"soc_smooth_to_1"
+#define OPLUS_CHG_TRACK_SCENE_GAUGE_BQFS_ERR "bqfs_err"
 enum oplus_chg_track_gague_device_error {
 	TRACK_GAGUE_ERR_DEFAULT,
 	TRACK_GAGUE_ERR_SEAL,

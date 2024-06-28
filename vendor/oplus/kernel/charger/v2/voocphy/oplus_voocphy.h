@@ -914,6 +914,7 @@ struct oplus_voocphy_manager {
 #if IS_ENABLED(CONFIG_OPLUS_DYNAMIC_CONFIG_CHARGER)
 	struct oplus_cfg debug_cfg;
 #endif
+	bool fastchg_disable_charger;
 };
 
 struct oplus_voocphy_operations {

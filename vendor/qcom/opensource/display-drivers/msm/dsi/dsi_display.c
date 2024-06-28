@@ -1072,6 +1072,76 @@ static void dsi_display_release_te_irq(struct dsi_display *display)
 		free_irq(te_irq, display);
 }
 
+#ifdef OPLUS_FEATURE_DISPLAY
+static int dsi_display_status_check_error_flag(struct dsi_display *display)
+{
+	int rc = 1;
+	int no_check = 1;
+	int read_value = 0;
+	int read_value_slave = 0;
+	struct drm_panel_esd_config *esd_config;
+
+	if (!display || !display->panel) {
+		LCD_ERR("[ESD] Invalid params\n");
+		return rc;
+	}
+
+	esd_config = &display->panel->esd_config;
+	if (!esd_config) {
+		return rc;
+	}
+
+	if (gpio_is_valid(esd_config->esd_error_flag_gpio)
+		&& gpio_is_valid(esd_config->esd_error_flag_gpio_slave)) {
+		rc = gpio_request(esd_config->esd_error_flag_gpio, "error-flag-gpio");
+		if (rc < 0) {
+			LCD_ERR("[ESD]: request esd_error_flag_gpio[%d] fail, rc=%d\n",
+				esd_config->esd_error_flag_gpio, rc);
+			return no_check;
+		}
+		rc = gpio_direction_input(esd_config->esd_error_flag_gpio);
+		if (rc < 0) {
+			LCD_ERR("[ESD]: input esd_error_flag_gpio[%d] fail, rc=%d\n",
+				esd_config->esd_error_flag_gpio, rc);
+			return no_check;
+		}
+
+		rc = gpio_request(esd_config->esd_error_flag_gpio_slave, "error-flag-gpio-slave");
+		if (rc < 0) {
+			LCD_ERR("[ESD]: request esd_error_flag_gpio_slave[%d] fail, rc=%d\n",
+				esd_config->esd_error_flag_gpio_slave, rc);
+			return no_check;
+		}
+		rc = gpio_direction_input(esd_config->esd_error_flag_gpio_slave);
+		if (rc < 0) {
+			LCD_ERR("[ESD]: input esd_error_flag_gpio_slave[%d] fail, rc=%d\n",
+				esd_config->esd_error_flag_gpio_slave, rc);
+			return no_check;
+		}
+
+		read_value = gpio_get_value(esd_config->esd_error_flag_gpio);
+		read_value_slave = gpio_get_value(esd_config->esd_error_flag_gpio_slave);
+		LCD_INFO("[ESD]: first read: master=%d slave=%d\n", read_value, read_value_slave);
+		if (read_value || read_value_slave) {
+			msleep(100);
+			read_value = gpio_get_value(esd_config->esd_error_flag_gpio);
+			read_value_slave = gpio_get_value(esd_config->esd_error_flag_gpio_slave);
+			LCD_INFO("[ESD]: second read: master=%d slave=%d\n", read_value, read_value_slave);
+			if (read_value || read_value_slave) {
+				LCD_ERR("[ESD]: check failed! rc=%d\n", rc);
+				gpio_free(esd_config->esd_error_flag_gpio);
+				gpio_free(esd_config->esd_error_flag_gpio_slave);
+				return -EINVAL;
+			}
+		}
+		gpio_free(esd_config->esd_error_flag_gpio);
+		gpio_free(esd_config->esd_error_flag_gpio_slave);
+	}
+
+	return no_check;
+}
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 static int dsi_display_status_check_te(struct dsi_display *display,
 		int rechecks)
 {
@@ -1185,7 +1255,16 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 	} else if (status_mode == ESD_MODE_PANEL_TE) {
 		rc = dsi_display_status_check_te(dsi_display, te_rechecks);
 		te_check_override = false;
-	} else {
+	}
+#ifdef OPLUS_FEATURE_DISPLAY
+	else if (status_mode == ESD_MODE_PANEL_ERROR_FLAG) {
+		rc = dsi_display_status_check_error_flag(dsi_display);
+	}
+	else if (status_mode == ESD_MODE_PANEL_MIPI_ERR_FLAG) {
+		rc = oplus_display_status_check_mipi_err_gpio(dsi_display);
+	}
+#endif /* OPLUS_FEATURE_DISPLAY */
+	else {
 		DSI_WARN("Unsupported check status mode: %d\n", status_mode);
 		panel->esd_config.esd_enabled = false;
 	}
@@ -5121,7 +5200,7 @@ static int dsi_display_dynamic_clk_configure_cmd(struct dsi_display *display,
 
 	rc = dsi_display_update_dsi_bitrate(display, clk_rate);
 	if (!rc) {
-		DSI_DEBUG("%s: bit clk is ready to be configured to '%d'\n",
+		DSI_INFO("%s: bit clk is ready to be configured to '%d'\n",
 				__func__, clk_rate);
 		atomic_set(&display->clkrate_change_pending, 1);
 	} else {
@@ -5776,7 +5855,7 @@ static int dsi_display_force_update_dsi_clk(struct dsi_display *display)
 	rc = dsi_display_link_clk_force_update_ctrl(display->dsi_clk_handle);
 
 	if (!rc) {
-		DSI_DEBUG("dsi bit clk has been configured to %d\n",
+		DSI_INFO("dsi bit clk has been configured to %d\n",
 			display->cached_clk_rate);
 
 		atomic_set(&display->clkrate_change_pending, 0);
@@ -8199,7 +8278,7 @@ int dsi_display_validate_mode_change(struct dsi_display *display,
 		/* dynamic clk change use case */
 		if (display->dyn_bit_clk_pending) {
 			if (dyn_clk_caps->dyn_clk_support) {
-				DSI_DEBUG("dynamic clk change detected\n");
+				DSI_INFO("dynamic clk change detected\n");
 
 #ifdef OPLUS_FEATURE_DISPLAY
 				if (cur_mode->timing.refresh_rate != adj_mode->timing.refresh_rate) {

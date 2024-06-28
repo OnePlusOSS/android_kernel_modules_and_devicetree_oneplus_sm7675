@@ -9,6 +9,10 @@
 
 #define CAM_IMX615_SENSOR_ID 0x615
 #define CAM_IMX06A_SENSOR_ID 0xa18a
+/* vendor_id id is 512(0x0200),it is short module if vendor_id <= 287(0x011f),it is long(0x011f) or long(0x010f) module*/
+#define CAM_S5KJN5_SENSOR_ID 0x38E5
+#define S5KJN5_SHORT_SENSOR_ID  511
+#define S5KJN5_SHORT_VENDOR_ID  511
 
 struct cam_sensor_i2c_reg_setting_array {
 	struct cam_sensor_i2c_reg_array reg_setting[CAM_OEM_INITSETTINGS_SIZE_MAX];
@@ -40,6 +44,9 @@ struct cam_sensor_settings {
 	struct cam_sensor_i2c_reg_setting_array imx882_setting;
 	struct cam_sensor_i2c_reg_setting_array imx809_setting;
 	struct cam_sensor_i2c_reg_setting_array s5k3p9_setting;
+	struct cam_sensor_i2c_reg_setting_array sc1320cs_setting;
+	struct cam_sensor_i2c_reg_setting_array sc820cs_setting;
+	struct cam_sensor_i2c_reg_setting_array s5kjn5_t_setting;
 };
 
 int cam_ftm_power_down(struct cam_sensor_ctrl_t *s_ctrl);

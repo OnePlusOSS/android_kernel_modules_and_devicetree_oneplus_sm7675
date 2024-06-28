@@ -51,6 +51,10 @@ endif
 
 ifeq ($(CONFIG_OPLUS_CHARGER_MTK),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/tcpc/inc
+endif
+
+ifeq ($(CONFIG_OPLUS_AUDIO_SWITCH_GLINK),y)
+ccflags-y += -I$(srctree)/drivers/usb/typec/pd/inc
 oplus_chg-y += oplus_chg_audio_switch.o
 endif
 
@@ -68,12 +72,14 @@ oplus_chg-y += oplus_configfs.o
 oplus_chg-y += oplus_chg_ops_manager.o
 oplus_chg-y += oplus_region_check.o
 oplus_chg-y += oplus_pps_ops_manager.o
+oplus_chg-y += oplus_chg_audio_switch.o
 oplus_chg-y += adapter_ic/oplus_stm.o
 oplus_chg-y += charger_ic/oplus_short_ic.o
 oplus_chg-y += gauge_ic/oplus_bq27541.o
 oplus_chg-y += gauge_ic/oplus_bqfs.o
 oplus_chg-y += gauge_ic/oplus_sh366002.o
 oplus_chg-y += gauge_ic/oplus_nfg1000a.o
+oplus_chg-y += gauge_ic/oplus_cw2217b.o
 ifeq ($(CONFIG_OPLUS_SM6375R_CHARGER),y)
 oplus_chg-y += gauge_ic/oplus_sm5602.o
 endif
@@ -342,9 +348,14 @@ obj-y      += voocphy/
 
 ifeq ($(CONFIG_OPLUS_CHARGER_MTK),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/tcpc/inc
+endif
+
+ifeq ($(CONFIG_OPLUS_AUDIO_SWITCH_GLINK),y)
+ccflags-y += -I$(srctree)/drivers/usb/typec/pd/inc
 obj-y   += oplus_chg_audio_switch.o
 endif
 #obj-y   += oplus_voocphy.o
+obj-y   += oplus_chg_audio_switch.o
 obj-y	+= oplus_charger.o
 obj-y	+= oplus_battery_log.o
 obj-y	+= oplus_gauge.o

@@ -1572,9 +1572,8 @@ static const struct of_device_id sgm7220_dt_match[] = {
 MODULE_DEVICE_TABLE(of, sgm7220_dt_match);
 
 static const struct i2c_device_id sgm7220_id_table[] = {
-	{
-		.name = "sgm7220",
-	},
+	{"sgm7220", 0},
+	{},
 };
 
 static void sgm7220_shutdown(struct i2c_client *client)

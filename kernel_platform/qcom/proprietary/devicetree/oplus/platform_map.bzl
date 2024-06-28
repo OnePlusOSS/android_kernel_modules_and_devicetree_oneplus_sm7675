@@ -82,6 +82,7 @@ _platform_map = {
             {"name": "enzo-23607-pineapple-overlay.dtbo"},
             {"name": "corvette-23814-pineapple-overlay.dtbo"},
             {"name": "caihong-23926-pineapple-overlay.dtbo"},
+            {"name": "caihong-23976-pineapple-overlay.dtbo"},
             {"name": "divo-23631-pineapple-overlay.dtbo"},
             {"name": "divo-24672-pineapple-overlay.dtbo"},
         ],
@@ -104,7 +105,9 @@ _platform_map = {
             {"name": "audi-23803-cliffs-overlay.dtbo"},
             {"name": "audi-23865-cliffs-overlay.dtbo"},
             {"name": "bale-23609-cliffs-overlay.dtbo"},
+            {"name": "bale-23622-cliffs-overlay.dtbo"},
             {"name": "bale-23718-cliffs-overlay.dtbo"},
+            {"name": "bale-24687-cliffs-overlay.dtbo"},
         ],
     },
     "pineapple-tuivm": {

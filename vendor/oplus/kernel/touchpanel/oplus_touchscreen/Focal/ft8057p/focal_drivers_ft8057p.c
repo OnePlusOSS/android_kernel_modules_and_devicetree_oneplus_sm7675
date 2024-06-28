@@ -2275,8 +2275,14 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points, int 
 		}
 
 		touch_point++;
-		points[pointid].x = ((buf[2 + base] & 0x0F) << 8) + (buf[3 + base] & 0xFF);
-		points[pointid].y = ((buf[4 + base] & 0x0F) << 8) + (buf[5 + base] & 0xFF);
+/*		points[pointid].x = ((buf[2 + base] & 0x0F) << 8) + (buf[3 + base] & 0xFF);
+		points[pointid].y = ((buf[4 + base] & 0x0F) << 8) + (buf[5 + base] & 0xFF); */
+		points[pointid].x = (((buf[2 + base] & 0x0F) << 10) +
+							((buf[3 + base] & 0xFF) << 2) +
+							((buf[6 + base] >> 4) & 0x03));
+		points[pointid].y = (((buf[4 + base] & 0x0F) << 10) +
+							((buf[5 + base] & 0xFF) << 2) +
+							((buf[6 + base]) & 0x03));
 		points[pointid].touch_major = buf[7 + base];
 		points[pointid].width_major = buf[7 + base];
 		points[pointid].z =  buf[6 + base];

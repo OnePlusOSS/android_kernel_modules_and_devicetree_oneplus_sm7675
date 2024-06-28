@@ -16,6 +16,7 @@
  #ifdef OPLUS_FEATURE_CAMERA_COMMON
 #include "oplus_cam_eeprom_core.h"
 #include "oplus_cam_kevent_fb.h"
+#include "oplus_cam_insensor_eeprom_dev.h"
 #endif
 
 #define MAX_READ_SIZE  0x7FFFF
@@ -121,6 +122,14 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 
 		if (emap[j].mem.valid_size) {
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
+			if ((eb_info->eeprom_name != NULL) && (!strcmp(eb_info->eeprom_name, "sc820cs_caihong"))) {
+				rc = oplus_cam_eeprom_sc820cs(e_ctrl, memptr);
+				if (rc){
+					CAM_ERR(CAM_EEPROM, "caihong sc820cs otp read failed");
+				} else {
+					CAM_INFO(CAM_EEPROM, "caihong sc820cs otp read success");
+				}
+			} else {
 			oplus_cam_eeprom(e_ctrl);
 #endif
 			rc = camera_io_dev_read_seq(&e_ctrl->io_master_info,
@@ -128,6 +137,9 @@ static int cam_eeprom_read_memory(struct cam_eeprom_ctrl_t *e_ctrl,
 				emap[j].mem.addr_type,
 				emap[j].mem.data_type,
 				emap[j].mem.valid_size);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			}
+#endif
 			if (rc < 0) {
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 				eeprom_cci = (e_ctrl->cci_i2c_master << 1)|(e_ctrl->cci_num);

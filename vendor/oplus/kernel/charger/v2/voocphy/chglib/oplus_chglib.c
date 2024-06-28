@@ -30,6 +30,23 @@ struct vphy_chip *oplus_chglib_get_vphy_chip(struct device *dev)
 	return ((struct oplus_voocphy_manager *)dev_get_drvdata(dev))->vchip;
 }
 
+int oplus_chglib_disable_charger_by_client(bool disable, const char *client_str)
+{
+	struct votable *disable_votable = find_votable("WIRED_CHARGING_DISABLE");
+	int rc;
+
+	if (!disable_votable) {
+		chg_err("WIRED_CHARGING_DISABLE votable not found\n");
+		return -EINVAL;
+	}
+
+	rc = vote(disable_votable, client_str, disable, disable ? 1 : 0, false);
+	if (rc < 0)
+		chg_err("%s %s charger error, rc = %d\n", client_str, disable ? "disable" : "enable", rc);
+
+	return rc;
+}
+
 int oplus_chglib_disable_charger(bool disable)
 {
 	struct votable *disable_votable;
@@ -320,6 +337,19 @@ bool oplus_chglib_is_wired_present(struct device *dev)
 	struct vphy_chip *chip = oplus_chglib_get_vphy_chip(dev);
 
 	return chip->is_wired_present;
+}
+
+int oplus_chglib_get_cc_detect(struct device *dev)
+{
+	struct vphy_chip *chip = oplus_chglib_get_vphy_chip(dev);
+
+	union mms_msg_data data = { 0 };
+	oplus_mms_get_item_data(chip->wired_topic,
+				WIRED_ITEM_CC_DETECT, &data,
+				false);
+	chip->cc_detect = data.intval;
+	chg_err("cc_detect:%d\n", chip->cc_detect);
+	return chip->cc_detect;
 }
 
 bool oplus_chglib_is_switch_temp_range(void)

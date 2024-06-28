@@ -31,9 +31,9 @@
 #include <linux/sched/topology.h>
 #endif
 
-#ifdef CONFIG_OPLUS_CHARGER_MTK
+
 #include "../oplus_chg_audio_switch.h"
-#endif
+
 #define AP_ALLOW_FASTCHG	(1 << 6)
 #define TARGET_VOL_OFFSET_THR	250
 #define DELAY_TEMP_MONITOR_COUNTS		2
@@ -1584,7 +1584,6 @@ void oplus_voocphy_send_handshake(struct oplus_voocphy_manager *chip)
 	return;
 }
 
-#ifdef CONFIG_OPLUS_CHARGER_MTK
 #define SWITCH_RETRY_MAX	10
 bool oplus_voocphy_set_complex_audio_switch(struct oplus_chg_chip *charger_chip, int mode)
 {
@@ -1646,7 +1645,6 @@ bool oplus_voocphy_set_complex_audio_switch(struct oplus_chg_chip *charger_chip,
 
 	return ret;
 }
-#endif
 
 void oplus_voocphy_set_switch_mode(int mode)
 {
@@ -1667,11 +1665,9 @@ void oplus_voocphy_set_switch_mode(int mode)
 	chip->cfg_mode = mode;
 
 	if (charger_chip->use_audio_switch) {
-#ifdef CONFIG_OPLUS_CHARGER_MTK
 		audio_switch_init();
 		if (!oplus_voocphy_set_complex_audio_switch(charger_chip, mode))
 			chg_err("set audio switch fail!!!\n");
-#endif
 		return;
 	}
 
