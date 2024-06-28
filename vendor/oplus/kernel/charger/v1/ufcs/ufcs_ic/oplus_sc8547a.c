@@ -2000,6 +2000,26 @@ static int sc8547_master_get_vout(void)
 	return vout;
 }
 
+static int sc8547_master_get_vbat(void)
+{
+	int vout = 0;
+	u8 data_block[2] = {0};
+	s32 ret = 0;
+	if (!oplus_voocphy_mg)
+		return 0;
+
+	ret = i2c_smbus_read_i2c_block_data(oplus_voocphy_mg->client, SC8547_REG_1B, 2, data_block);
+	if (ret < 0) {
+		sc8547_i2c_error(true);
+		pr_err("sc8547 read vbat error \n");
+	} else {
+		sc8547_i2c_error(false);
+	}
+
+	vout = ((data_block[0] << 8) | data_block[1])*125 / 100;
+	return vout;
+}
+
 static int sc8547a_parse_dt(struct oplus_sc8547a_ufcs *chip)
 {
 	struct device_node *node = NULL;
@@ -2052,6 +2072,7 @@ struct oplus_ufcs_protocol_operations oplus_ufcs_sc8547a_ops = {
 	.ufcs_ic_get_master_ibus = sc8547_master_get_ibus,
 	.ufcs_ic_get_master_vac = sc8547_master_get_vac,
 	.ufcs_ic_get_master_vout = sc8547_master_get_vout,
+	.ufcs_ic_get_master_vbat = sc8547_master_get_vbat,
 };
 
 static int sc8547_cp_hardware_init(struct i2c_client *client)

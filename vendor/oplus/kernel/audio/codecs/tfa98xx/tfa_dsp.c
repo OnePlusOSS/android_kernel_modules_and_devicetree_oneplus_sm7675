@@ -1024,7 +1024,14 @@ enum Tfa98xx_Error tfa98xx_set_ana_volume(struct tfa_device *tfa, unsigned int v
 	if (vol > 15)	/* restricted to 8 bits */
 		vol = 15;
 
-	return -TFA_SET_BF(tfa, TDMSPKG, (uint16_t)vol);
+	switch (tfa->rev & 0xff) {
+	case 0x73: /* tfa9873 */
+		return -tfa_set_bf(tfa, TFA9873_BF_TDMSPKG, (uint16_t)vol);
+	case 0x74: /* tfa9874 */
+		return -TFA_SET_BF(tfa, TDMSPKG, (uint16_t)vol);
+	default:
+		return Tfa98xx_Error_NotOpen;
+	}
 }
 
 enum Tfa98xx_Error tfa98xx_get_ana_volume(struct tfa_device *tfa, unsigned int *vol)
@@ -1032,7 +1039,17 @@ enum Tfa98xx_Error tfa98xx_get_ana_volume(struct tfa_device *tfa, unsigned int *
 	if(tfa->in_use == 0)
 		return Tfa98xx_Error_NotOpen;
 
-	*vol = TFA_READ_REG(tfa, TDMSPKG);
+	switch (tfa->rev & 0xff) {
+	case 0x73: /* tfa9873 */
+		*vol = tfa_read_reg(tfa, TFA9873_BF_TDMSPKG);
+		break;
+	case 0x74: /* tfa9874 */
+		*vol = TFA_READ_REG(tfa, TDMSPKG);
+		break;
+	default:
+		return Tfa98xx_Error_NotOpen;
+	}
+
 
 	return Tfa98xx_Error_Ok;
 }
@@ -1262,7 +1279,7 @@ tfa_dsp_patch(struct tfa_device *tfa, int patchLength,
 		return Tfa98xx_Error_NoClock;
 	}
 	/******MCH_TO_TEST**************/
-	if (error == Tfa98xx_Error_Ok) {
+	if (error == Tfa98xx_Error_Ok && (!tfa->is_probus_device)) {
 		pr_info("tfa cold boot patch\n");
 		error = tfaRunColdboot(tfa, 1);
 		if (error) {
@@ -2987,7 +3004,9 @@ enum Tfa98xx_Error tfaRunSpeakerBoost(struct tfa_device *tfa,
 			tfa->sync_iv_delay = 1;
 		#ifdef OPLUS_ARCH_EXTENDS
 		tfa_dev_set_state(tfa, TFA_STATE_OPERATING);
-		tfaRunSpeakerCalibration_result(tfa, &calibrate_done);
+		if (!tfa->is_probus_device) {
+			tfaRunSpeakerCalibration_result(tfa, &calibrate_done);
+		}
 		#endif /* OPLUS_ARCH_EXTENDS */
 	}
 
@@ -3086,7 +3105,9 @@ enum Tfa98xx_Error tfaRunSpeakerCalibration_result(struct tfa_device *tfa,
 		tfa98xx_key2(tfa, 0);
 
 	/* await calibration, this should return ok */
-	err = tfaRunWaitCalibration(tfa, &calibrateDone);
+	if (!tfa->is_probus_device) {
+		err = tfaRunWaitCalibration(tfa, &calibrateDone);
+	}
 	if (err == Tfa98xx_Error_Ok) {
 		err = tfa_dsp_get_calibration_impedance(tfa);
 		PRINT_ASSERT(err);
@@ -3103,14 +3124,8 @@ enum Tfa98xx_Error tfaRunSpeakerCalibration_result(struct tfa_device *tfa,
 				tfa->mohm[0],
 				tfa->mohm[1]);
 
-		#ifdef SPKR_RES_48_75_OHM
-		pr_info("%s: speaker resistance acceptable: 4.8-7.5 mOhm\n",
-			__func__);
-		if ((tfa->mohm[0] < 4800) || (tfa->mohm[0] > 7500)) {
-		#else
-		//6ohm - 10.5ohm
-		if ((tfa->mohm[0] < 6000) || (tfa->mohm[0] > 10500)) {
-		#endif /* SPKR_RES_48_72_OHM*/
+		if ((tfa->min_mohms && tfa->max_mohms )
+				&& ((tfa->mohm[0] < tfa->min_mohms) || (tfa->mohm[0] > tfa->max_mohms))) {
 			pr_info("speaker_resistance_fail\n");
 			if (ftm_mode == BOOT_MODE_FACTORY)
 				strcpy(ftm_spk_resistance,

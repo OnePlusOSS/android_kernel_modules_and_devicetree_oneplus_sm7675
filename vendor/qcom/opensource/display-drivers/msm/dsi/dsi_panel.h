@@ -59,6 +59,8 @@ struct oplus_pwm_turbo_params {
 	bool pwm_onepulse_enabled;
 	bool pwm_switch_restore_support;
 	bool pwm_wait_te_tx;
+	bool directional_onepulse_switch;
+	bool pack_backlight;
 };
 #endif /* OPLUS_FEATURE_DISPLAY */
 

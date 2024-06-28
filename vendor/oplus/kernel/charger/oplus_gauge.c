@@ -1020,6 +1020,18 @@ int oplus_gauge_get_calib_time(int *dod_calib_time, int *qmax_calib_time, int ga
 	}
 }
 
+bool oplus_gauge_get_bqfs_status(void)
+{
+	if (!g_gauge_chip)
+		return false;
+	else {
+		if (g_gauge_chip->gauge_ops && g_gauge_chip->gauge_ops->get_bqfs_status) {
+			return g_gauge_chip->gauge_ops->get_bqfs_status();
+		}
+		return true;
+	}
+}
+
 int oplus_gauge_get_info(u8 *info, int len)
 {
 	if (!g_gauge_chip)

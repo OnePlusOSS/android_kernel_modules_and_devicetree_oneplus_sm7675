@@ -32,6 +32,11 @@ int get_systemserver_pid(void)
 	return systemserver_pid;
 }
 
+void set_timer_started(bool enable)
+{
+	timer_started = enable;
+}
+
 static ssize_t powerkey_monitor_param_proc_read(struct file *file,
 	char __user *buf, size_t count, loff_t *off)
 {
@@ -236,7 +241,7 @@ void record_stage(const char *buf)
 	if (!timer_started)
 		return;
 
-	POWER_MONITOR_DEBUG_PRINTK("%s: buf:%s flow_buf:%s flow_buf_curr:0x%s flow_index:%x\n", __func__, buf, flow_buf, flow_buf_curr, flow_index);
+	POWER_MONITOR_DEBUG_PRINTK("%s: buf:%s\n", __func__, buf);
 
 	spin_lock_irqsave(&record_stage_spinlock, flag);
 	memset(flow_buf_curr, 0, STAGE_BRIEF_SIZE);

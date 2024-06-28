@@ -119,6 +119,7 @@ enum Tfa98xx_Error {
 	Tfa98xx_Error_NotOpen,		/* 8. the given handle is not open */
 	Tfa98xx_Error_InUse,		/* 9. too many handles */
 	Tfa98xx_Error_Buffer_too_small, /* 10. if a buffer is too small */
+	Tfa9xxx_Error_SpeakerError,     /* 11. Speaker(s) damaged or not connected */
 	/* the expected response did not occur within the expected time */
 	Tfa98xx_Error_RpcBase = 100,
 	Tfa98xx_Error_RpcBusy = 101,

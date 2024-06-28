@@ -2258,6 +2258,7 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-pwm-switch-low-restore-command",
 	"qcom,mdss-dsi-timming-pwm-switch-high-command",
 	"qcom,mdss-dsi-timming-pwm-switch-low-command",
+	"qcom,mdss-dsi-power-on-pwm-switch-onepulse-command",
 	"qcom,mdss-dsi-dly-on-command",
 	"qcom,mdss-dsi-dly-off-command",
 	"qcom,mdss-dsi-cabc-off-command",
@@ -2425,6 +2426,7 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-pwm-switch-low-restore-command-state",
 	"qcom,mdss-dsi-timming-pwm-switch-high-command-state",
 	"qcom,mdss-dsi-timming-pwm-switch-low-command-state",
+	"qcom,mdss-dsi-power-on-pwm-switch-onepulse-command-state",
 	"qcom,mdss-dsi-dly-on-command-state",
 	"qcom,mdss-dsi-dly-off-command-state",
 	"qcom,mdss-dsi-cabc-off-command-state",
@@ -5568,6 +5570,12 @@ int dsi_panel_switch(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 
+#ifdef OPLUS_FEATURE_DISPLAY
+	if (!strcmp(panel->name, "AA551 P 3 A0004 dsc cmd mode panel")) {
+		oplus_panel_switch_to_sync_te(panel);
+	}
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 #if defined(CONFIG_PXLW_IRIS)
 	if (iris_is_chip_supported())
 		iris_pre_switch(panel, &panel->cur_mode->timing);
@@ -5684,6 +5692,14 @@ int dsi_panel_enable(struct dsi_panel *panel)
 
 	if (panel->oplus_priv.ffc_enabled) {
 		oplus_panel_set_ffc_mode_unlock(panel);
+	}
+
+	if (panel->pwm_params.directional_onepulse_switch
+		&& oplus_panel_pwm_onepulse_is_enabled(panel)) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_POWER_ON_PWM_SWITCH_ONEPULSE);
+		if (rc)
+			DSI_ERR("[%s] failed to send DSI_CMD_POWER_ON_PWM_SWITCH_HIGH cmds rc=%d\n",
+				panel->name, rc);
 	}
 
 	rc = dsi_panel_seed_mode(panel, __oplus_get_seed_mode());

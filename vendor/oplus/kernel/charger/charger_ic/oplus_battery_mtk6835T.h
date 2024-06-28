@@ -23,7 +23,11 @@
 
 #include "../oplus_chg_core.h"
 #include "../op_wlchg_v2/hal/oplus_chg_ic.h"
-
+#ifdef CONFIG_OPLUS_CHARGER_MTK
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
+#include "../../../../kernel-5.15/drivers/misc/mediatek/typec/tcpc/inc/tcpm.h"
+#endif
+#endif
 #define RT9471D 0
 #define RT9467 1
 #define BQ2589X 2
@@ -33,7 +37,7 @@
 #define BQ2560X 6
 #define SGM41542 7
 #define SGM41512 8
-
+#define SC6607 9
 #define CHARGING_INTERVAL 10
 #define CHARGING_FULL_INTERVAL 20
 
@@ -559,5 +563,6 @@ extern int mtk_chg_enable_vbus_ovp(bool enable);
 extern int battery_meter_get_charger_voltage(void);
 extern bool is_meta_mode(void);
 int oplus_get_fast_chg_type(void);
+extern int oplus_pdc_setup(int *vbus_mv, int *ibus_ma);
 #endif
 #endif /* __MTK_CHARGER_H */

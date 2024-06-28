@@ -13,6 +13,7 @@
 
 #include "../../touchpanel_common.h"
 #include "../synaptics_common.h"
+#include "../../touchpanel_prevention/touchpanel_prevention.h"
 
 #ifdef TPD_DEVICE
 #undef TPD_DEVICE
@@ -141,6 +142,9 @@
 /*S3910 addr high bit is palm flag, 60*/
 #define PALM_FLAG       6
 
+#define GESTURE_MODE_SWITCH_RETRY_TIMES     5
+#define MAX_HEALTH_REPORT_LEN 50
+
 enum test_item_bit {
 	TYPE_TRX_SHORT          = 1,
 	TYPE_TRX_OPEN           = 2,
@@ -263,6 +267,7 @@ enum dynamic_config_id {
 	DC_ENABLE_GLOVE,
 	DC_PS_STATUS = 0xC1,
 	DC_DISABLE_ESD = 0xC2,
+	DC_MOIS_MODE = 0xC7,
 	DC_FREQUENCE_HOPPING = 0xD2,
 	DC_TOUCH_HOLD = 0xD4,
 	DC_ERROR_PRIORITY = 0xD5,
@@ -374,6 +379,12 @@ enum stretch_status {
 	EDGE_STRETCH_OFF = 0,
 	EDGE_STRETCH_RIGHT,
 	EDGE_STRETCH_LEFT,
+};
+
+enum mois_mode {
+	MOIS_DISABLED = 0,
+	MOIS_ENABLED = 1,
+	MOIS_FORCED = 2,
 };
 
 struct syna_tcm_buffer {
@@ -532,13 +543,6 @@ struct syna_dc_in_driver {
 	uint16_t g_abs_dark_sel;
 };
 
-struct spi_bus_data {
-	unsigned char *buf;
-	unsigned int buf_size;
-	struct spi_transfer *xfer;
-	unsigned int xfer_count;
-};
-
 #define FP_AREA_RATE_BLACKSCREEN 1024
 
 struct fp_area_rate {
@@ -677,7 +681,6 @@ struct syna_tcm_data {
 	bool high_resolution_support_x16;
 
 	unsigned int end_of_foreach;
-	struct spi_bus_data spi_data;
 	/*device s3910*/
 	int pre_remaining_frames;
 	bool report_flag;
@@ -792,5 +795,10 @@ int syna_tcm_rmi_write(struct syna_tcm_data *tcm_info,
 		       unsigned short addr, unsigned char *data, unsigned int length);
 */
 extern void tp_fw_auto_reset_handle(struct touchpanel_data *ts);
+
+struct syna_support_grip_zone {
+	char name[GRIP_TAG_SIZE];
+	int (*handle_func)(void *chip_data, struct grip_zone_area *grip_zone, bool enable);
+};
 
 #endif  /*_SYNAPTICS_TCM_CORE_H_*/

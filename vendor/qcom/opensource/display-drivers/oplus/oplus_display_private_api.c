@@ -207,6 +207,11 @@ int dsi_panel_read_panel_reg(struct dsi_display_ctrl *ctrl,
 	cmdsreq.msg.rx_len = len;
 	cmdsreq.msg.flags |= MIPI_DSI_MSG_UNICAST_COMMAND;
 
+	if (!strcmp(panel->name, "AA570 P 1 A0017 vid mode panel") &&
+			panel->panel_mode == DSI_OP_VIDEO_MODE) {
+		cmdsreq.msg.flags |= MIPI_DSI_MSG_USE_LPM;
+	}
+
 	cmdsreq.ctrl_flags = DSI_CTRL_CMD_READ;
 
 	dsi_display_set_cmd_tx_ctrl_flags(display, &cmdsreq);
@@ -217,7 +222,6 @@ int dsi_panel_read_panel_reg(struct dsi_display_ctrl *ctrl,
 	}
 
 	rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmdsreq);
-
 	if (rc < 0) {
 		LCD_ERR("rx cmd transfer failed, rc=%d\n", rc);
 	}
@@ -336,18 +340,18 @@ int dsi_display_read_panel_reg(struct dsi_display *display, u8 cmd, void *data,
 		}
 	}
 
-	rc = dsi_display_cmd_engine_enable(display);
+	if (display->panel->panel_mode != DSI_OP_VIDEO_MODE) {
+		rc = dsi_display_cmd_engine_enable(display);
 
-	if (rc) {
-		LCD_ERR("cmd engine enable failed\n");
-		goto done;
+		if (rc) {
+			LCD_ERR("cmd engine enable failed\n");
+			goto done;
+		}
 	}
 
 	/* enable the clk vote for CMD mode panels */
-	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
-		dsi_display_clk_ctrl(display->dsi_clk_handle,
-				DSI_ALL_CLKS, DSI_CLK_ON);
-	}
+	dsi_display_clk_ctrl(display->dsi_clk_handle,
+			DSI_ALL_CLKS, DSI_CLK_ON);
 
 	rc = dsi_panel_read_panel_reg(m_ctrl, display->panel, cmd, data, len);
 
@@ -358,13 +362,12 @@ int dsi_display_read_panel_reg(struct dsi_display *display, u8 cmd, void *data,
 				cmd);
 	}
 
-	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
-		rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
-				DSI_ALL_CLKS, DSI_CLK_OFF);
+	rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
+			DSI_ALL_CLKS, DSI_CLK_OFF);
+
+	if (display->panel->panel_mode != DSI_OP_VIDEO_MODE) {
+		dsi_display_cmd_engine_disable(display);
 	}
-
-	dsi_display_cmd_engine_disable(display);
-
 done:
 	LCD_INFO("return: %d\n", rc);
 	return rc;

@@ -37,6 +37,7 @@ struct pwrkey_monitor_data g_black_data = {
 /* if last stage in this array, skip */
 static char black_last_skip_block_stages[][64] = {
 	{ "LIGHT_setScreenState_" }, /* quick press powerkey, power decide wakeup when black check, skip */
+	{ "POWERKEY_interceptKeyBeforeQueueing" }, /* don't wakeup in case heycast/powerlight */
 };
 
 /* if contain stage in this array, skip */
@@ -248,6 +249,7 @@ static void black_error_happen_work(struct work_struct *work)
 	BLACK_DEBUG_PRINTK("black_error_happen_work error_id = %s, error_count = %d\n",
 		bla_data->error_id, bla_data->error_count);
 
+	set_timer_started(true);
 	delete_timer_black("BL_SCREEN_ERROR_HAPPEN", false);
 }
 
@@ -256,6 +258,9 @@ static void black_timer_func(struct timer_list *t)
 	struct pwrkey_monitor_data *p = from_timer(p, t, timer);
 
 	BLACK_DEBUG_PRINTK("black_timer_func is called\n");
+
+	/* stop recored stage when happen work for alm:6864732 */
+	set_timer_started(false);
 
 #if IS_ENABLED(CONFIG_DRM_PANEL_NOTIFY) || IS_ENABLED(CONFIG_QCOM_PANEL_EVENT_NOTIFIER)
 	if (g_black_data.active_panel == NULL || g_black_data.cookie == NULL) {

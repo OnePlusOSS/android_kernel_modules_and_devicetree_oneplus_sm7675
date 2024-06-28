@@ -199,6 +199,7 @@ extern struct oplus_chg_operations  sgm41511_chg_ops;
 extern int sy6970_adc_read_charge_current(void);
 extern int oplus_usbtemp_monitor_common_new_method(void *data);
 static int charger_ic__det_flag = 0;
+static struct oplus_discrete_charger g_oplus_discrete_charger;
 
 int get_charger_ic_det(struct oplus_chg_chip *chip)
 {
@@ -353,7 +354,10 @@ int oplus_chg_get_battery_btb_temp_cal(void)
 		goto done;
 	}
 	if (chip->chg_ops->get_cp_tsbat) {
-		temp = chip->chg_ops->get_cp_tsbat() * UNIT_TRANS_1000;
+		if (g_oplus_discrete_charger.sc6607_switch_ntc)
+			temp = chip->chg_ops->get_cp_tsbus();
+		else
+			temp = chip->chg_ops->get_cp_tsbat() * UNIT_TRANS_1000;
 	} else {
 		chg = &chip->pmic_spmi.smb5_chip->chg;
 
@@ -385,8 +389,16 @@ int oplus_chg_get_usb_btb_temp_cal(void)
 		goto done;
 	}
 
+	if (chip->not_support_usb_btb) {
+		chg_err("Not support usb btb!\n");
+		goto done;
+	}
+
 	if (charger_ic__det_flag  == (1 << SC6607) && chip->chg_ops->get_cp_tsbus) {
-		temp = chip->chg_ops->get_cp_tsbus() * UNIT_TRANS_1000;
+		if (g_oplus_discrete_charger.sc6607_switch_ntc)
+			temp = chip->chg_ops->get_cp_tsbat();
+		else
+			temp = chip->chg_ops->get_cp_tsbus() * UNIT_TRANS_1000;
 	} else {
 		chg = &chip->pmic_spmi.smb5_chip->chg;
 
@@ -1375,6 +1387,7 @@ static int oplus_chg_parse_custom_dt(struct oplus_chg_chip *chip)
 	}
 
 	if (g_oplus_chip) {
+		g_oplus_discrete_charger.sc6607_switch_ntc = of_property_read_bool(node, "qcom,sc6607_switch_ntc");
 		g_oplus_chip->normalchg_gpio.dischg_gpio = of_get_named_gpio(node, "qcom,dischg-gpio", 0);
 		g_oplus_chip->usbtemp_chan_tmp = of_property_read_bool(node, "qcom,usbtemp_chan_tmp");
 		if (g_oplus_chip->normalchg_gpio.dischg_gpio <= 0) {
@@ -1489,6 +1502,7 @@ static int oplus_chg_parse_custom_dt(struct oplus_chg_chip *chip)
 		chg->pd_not_rise_vbus_only_5v = of_property_read_bool(node, "qcom,pd_not_rise_vbus_only_5v");
 		g_oplus_chip->tbatt_use_subboard_temp = of_property_read_bool(node, "oplus,tbatt_use_subboard_temp");
 		g_oplus_chip->support_shipmode_in_chgic = of_property_read_bool(node, "oplus,support_shipmode_in_chgic");
+		g_oplus_chip->not_support_usb_btb = of_property_read_bool(node, "oplus,not_support_usb_btb");
 	}
 #endif
 	return rc;
@@ -2467,7 +2481,7 @@ static int oplus_discrete_batt_get_prop(struct power_supply *psy,
 			val->intval = chip->batt_fcc * UNIT_TRANS_1000;
 			break;
 		case POWER_SUPPLY_PROP_CHARGE_COUNTER:
-			val->intval = chip->ui_soc * chip->batt_capacity_mah * UNIT_TRANS_1000 / FULL_SOC;
+			val->intval = chip->batt_rm * 1000;
 			break;
 		default:
 			rc = oplus_battery_get_property(psy, psp, val);

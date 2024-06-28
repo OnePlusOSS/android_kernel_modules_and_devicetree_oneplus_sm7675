@@ -1540,7 +1540,7 @@ unlock_fbg:
 	if (valid_freq_querys(query_cpus, grp)) {
 		policy_util = grp->policy_util;
 		boosted_policy_util = policy_util +
-			schedtune_grp_margin(policy_util, stune_boost[BOOST_SF_FREQ]);
+			schedtune_grp_margin(policy_util, stune_boost[BOOST_SF_IN_GPU] ? stune_boost[BOOST_SF_FREQ_GPU] : stune_boost[BOOST_SF_FREQ_NONGPU]);
 	}
 
 	raw_spin_unlock_irqrestore(&sf_fbg_lock, flags);
@@ -1549,8 +1549,8 @@ unlock_fbg:
 	if (unlikely(sysctl_frame_boost_debug & DEBUG_SYSTRACE)) {
 		cpu_util_systrace_c(boosted_policy_util, first_cpu, "rt_policy_util");
 		cpu_util_systrace_c(policy_util ? grp->curr_util : 0, first_cpu, "rt_curr_util");
-		val_systrace_c(stune_boost[BOOST_SF_FREQ], "rt_boost_freq");
-		val_systrace_c(stune_boost[BOOST_SF_MIGR], "rt_boost_migr");
+		val_systrace_c(stune_boost[BOOST_SF_IN_GPU] ? stune_boost[BOOST_SF_FREQ_GPU] : stune_boost[BOOST_SF_FREQ_NONGPU], "rt_boost_freq");
+		val_systrace_c(stune_boost[BOOST_SF_IN_GPU] ? stune_boost[BOOST_SF_MIGR_GPU] : stune_boost[BOOST_SF_MIGR_NONGPU], "rt_boost_migr");
 	}
 
 	grp = &inputmethod_frame_boost_group;
@@ -2519,7 +2519,7 @@ bool fbg_rt_task_fits_capacity(struct task_struct *tsk, int cpu)
 		return true;
 
 	raw_util = grp->policy_util;
-	grp_util = raw_util + schedtune_grp_margin(raw_util, stune_boost[BOOST_SF_MIGR]);
+	grp_util = raw_util + schedtune_grp_margin(raw_util, stune_boost[BOOST_SF_IN_GPU] ? stune_boost[BOOST_SF_MIGR_GPU] : stune_boost[BOOST_SF_FREQ_NONGPU]);
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_VT_CAP)
 	fits = real_cpu_cap[cpu] >= grp_util;

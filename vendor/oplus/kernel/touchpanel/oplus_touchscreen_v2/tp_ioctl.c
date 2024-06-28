@@ -11,9 +11,10 @@
 
 #include "touchpanel_common.h"
 #include "touch_comon_api/touch_comon_api.h"
+#include "touchpanel_prevention/touchpanel_prevention.h"
 #include "tp_ioctl.h"
 #include "message_list.h"
-
+#include "touch_pen/touch_pen_core.h"
 
 void touch_misc_state_change(void *p_device, enum IOC_STATE_TYPE type, int state)
 {
@@ -137,6 +138,12 @@ static void report_point(struct touchpanel_data *ts, struct touch_point_report *
 	obj_attention = get_point_info_from_point_report(points_info, points, num);
 	mutex_unlock(&ts->report_mutex);
 
+	if (ts->health_monitor_support) {
+		ts->monitor_data.touch_points = points_info;
+		ts->monitor_data.touch_num = down_num;
+		ts->monitor_data.direction = (ts->grip_info != NULL) ? ts->grip_info->touch_dir : ts->limit_enable;
+		tp_healthinfo_report(&ts->monitor_data, HEALTH_TOUCH, &obj_attention);
+	}
 }
 
 static void report_point_ext(struct touchpanel_data *ts, struct touch_point_report *points, int num)
@@ -194,6 +201,13 @@ static void report_point_ext(struct touchpanel_data *ts, struct touch_point_repo
 	input_sync(ts->input_dev);
 	obj_attention = get_point_info_from_point_report(points_info, points, num);
 	mutex_unlock(&ts->report_mutex);
+
+	if (ts->health_monitor_support) {
+		ts->monitor_data.touch_points = points_info;
+		ts->monitor_data.touch_num = down_num;
+		ts->monitor_data.direction = (ts->grip_info != NULL) ? ts->grip_info->touch_dir : ts->limit_enable;
+		tp_healthinfo_report(&ts->monitor_data, HEALTH_TOUCH, &obj_attention);
+	}
 }
 
 
@@ -575,6 +589,12 @@ static long touch_misc_ioctl(struct file *filp,
 		TPD_DETAIL("TP_IOC_DTS  start!!!!");
 		ret = ioc_dts_read(ts, arg);
 		break;
+	case PEN_IOC_CMD_UPLK:
+		ret = touch_pen_uplink_msg_ioctl(ts, arg);
+		break;
+	case PEN_IOC_CMD_DOWNLK:
+		ret = touch_pen_downlink_msg_ioctl(ts, arg);
+		break;
 	default:
 		ret = -EOPNOTSUPP;
 		TPD_INFO("cmd not support:0x%08X\n", cmd);
@@ -624,6 +644,7 @@ void init_touch_misc_device(void *p_device)
 	ts->misc_device.fops = &touch_misc_fops;
 
 	ts->misc_device.name = namep;
+	touch_pen_init(ts);
 	TPD_INFO("%s: ts misc register ok", __func__);
 	misc_register(&ts->misc_device);
 
@@ -635,6 +656,7 @@ void uninit_touch_misc_device(void *p_device)
 
 	kfree(ts->misc_device.name);
 	delete_message_list(&ts->msg_list);
+	touch_pen_uninit(ts);
 	misc_deregister(&ts->misc_device);
 	TPD_INFO("uninit_touch_misc_device ok");
 }

@@ -4917,6 +4917,7 @@ static const struct clk_rst_table cliffs_clk_reset_table[] = {
 	{ "video_axi_reset",        0  },
 	{ "video_xo_reset",         1  },
 	{ "video_mvs0c_reset",      0  },
+	{ "video_mvs0_reset",       0  },
 };
 
 /* name, llcc_id */
@@ -5079,7 +5080,9 @@ static const u32 cliffs_vdec_output_properties_av1[] = {
 
 static const u32 cliffs_msm_vidc_ssr_type[] = {
 	HFI_SSR_TYPE_SW_ERR_FATAL,
+	HFI_SSR_TYPE_SW_DIV_BY_ZERO,
 	HFI_SSR_TYPE_CPU_WDOG_IRQ,
+	HFI_SSR_TYPE_NOC_ERROR,
 };
 
 static struct msm_vidc_efuse_data efuse_data_cliffs[] = {

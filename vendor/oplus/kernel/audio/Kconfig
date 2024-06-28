@@ -73,3 +73,13 @@ config OPLUS_MTK_HEADSET_RECHECK
 	  that can be used with other platforms
 	  Select m if you have such device.
 	  If unsure select "N".
+
+config OPLUS_MTK_ACCDET_CHECK_RESET
+	tristate "check and reset accdet reg when plug in"
+	depends on SND_SOC_MT6989_MT6681
+	default n
+	help
+	  This adds for Mediatek boards
+	  that can be used with other platforms
+	  Select m if you have such device.
+	  If unsure select "N".

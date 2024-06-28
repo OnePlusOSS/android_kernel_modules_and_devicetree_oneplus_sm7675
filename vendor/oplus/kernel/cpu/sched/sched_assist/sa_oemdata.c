@@ -58,8 +58,10 @@ void android_vh_dup_task_struct_handler(void *unused,
 
 	node = oplus_tsk_fork_get_node(orig);
 	ots = alloc_oplus_task_struct_node(node);
-	if (IS_ERR_OR_NULL(ots))
+	if (IS_ERR_OR_NULL(ots)) {
+		ux_err("failed %s oplus_task_struc common:%s, pid:%d, tgid=%d\n", __func__, tsk->comm, tsk->pid, tsk->tgid);
 		return;
+	}
 
 	ots->task = tsk;
 #if IS_ENABLED(CONFIG_ARM64_AMU_EXTN) && IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_JANKINFO)

@@ -18839,6 +18839,115 @@ static void hdd_set_adapter_wlm_def_level(struct hdd_context *hdd_ctx)
 	}
 }
 
+//#ifdef OPLUS_FEATURE_WIFI
+#define INIT_FINISHED 1
+#define MAX_ENVP_SIZE 7
+
+static struct work_struct mWork;
+static volatile unsigned char mUeventInit = 0;
+char *mConnUevent[MAX_ENVP_SIZE] = {0};
+int mHddUeventCount = 0;
+qdf_atomic_t is_hdd_mem_malloc;
+
+static void oplus_hdd_WorkHandler(struct work_struct *data)
+{
+	int i;
+	int ret_val;
+	qdf_device_t qdf_dev = cds_get_context(QDF_MODULE_ID_QDF_DEVICE);
+
+	if (mConnUevent[0] == NULL) {
+		hdd_nofl_info("oplus_hdd: workhandler is null, do nothing");
+		return;
+	}
+
+	if (qdf_dev && qdf_dev->dev) {
+		mConnUevent[mHddUeventCount] = NULL;
+		ret_val = kobject_uevent_env(&(qdf_dev->dev->kobj), KOBJ_CHANGE, mConnUevent);
+		if (!ret_val) {
+			hdd_debug("oplus_hdd: kobject_uevent_env success");
+		} else {
+			hdd_debug("oplus_hdd: kobject_uevent_env fail, error=%d!\n", ret_val);
+		}
+	}
+
+	for (i = 0; i < mHddUeventCount; i++) {
+		qdf_mem_free(mConnUevent[i]);
+		mConnUevent[i] = NULL;
+	}
+	qdf_atomic_init(&is_hdd_mem_malloc);
+	mHddUeventCount = 0;
+}
+
+void oplus_hdd_ConnUeventInit(void)
+{
+	INIT_WORK(&mWork, oplus_hdd_WorkHandler);
+	mUeventInit = INIT_FINISHED;
+	qdf_atomic_init(&is_hdd_mem_malloc);
+	hdd_nofl_info("oplus_hdd: uevent init success");
+}
+
+void oplus_hdd_ConnUeventDeinit(void)
+{
+	int i;
+	if (mUeventInit == INIT_FINISHED) {
+		cancel_work_sync(&mWork);
+	}
+
+	mUeventInit = 0;
+
+	if (mConnUevent[0] != NULL) {
+		for (i = 0; (i < MAX_ENVP_SIZE) && (mConnUevent[i] != NULL); i++) {
+			qdf_mem_free(mConnUevent[i]);
+			mConnUevent[i] = NULL;
+		}
+		hdd_nofl_info("oplus_hdd: mem free %d times if unfree when deinit", i);
+	}
+
+	hdd_nofl_info("oplus_hdd: uevent deinit sucess");
+}
+void oplus_hdd_ConnSendUevent(char *envp[])
+{
+	int i;
+	if (qdf_atomic_read(&is_hdd_mem_malloc) != 0) {
+		hdd_nofl_info("oplus_hdd: mem has malloc, drop this envp");
+		return;
+	}
+
+	if (envp && mUeventInit == INIT_FINISHED) {
+		if (mConnUevent[0] != NULL) {
+			hdd_nofl_info("oplus_hdd: another work is running, drop this envp");
+			return;
+		}
+
+		qdf_atomic_inc(&is_hdd_mem_malloc);
+
+		if (qdf_atomic_read(&is_hdd_mem_malloc) == 1) {
+			for (i = 0; (i < MAX_ENVP_SIZE) && (envp[i] != NULL); i++) {
+				size_t len = strlen(envp[i]) + 1;
+				mConnUevent[i] = (char *)qdf_mem_malloc(len);
+
+				if (!mConnUevent[i]) {
+					hdd_nofl_info("oplus_hdd: uevent mem alloc fail");
+					for (i--; i >= 0; i--) {
+						qdf_mem_free(mConnUevent[i]);
+						mConnUevent[i] = NULL;
+					}
+					return;
+				}
+				memcpy(mConnUevent[i], envp[i], len);
+			}
+
+			mHddUeventCount = i;
+			hdd_debug("oplus_hdd: mHddUeventCount is %d, last char is %s", mHddUeventCount, mConnUevent[mHddUeventCount-1]);
+			schedule_work(&mWork);
+		}
+	} else {
+		hdd_nofl_info("oplus_hdd: recv envp is null or uevent uninit, do nothing");
+		return;
+	}
+}
+//#ifdef OPLUS_FEATURE_WIFI
+
 static int wlan_hdd_state_ctrl_param_open(struct inode *inode,
 					  struct file *file)
 {
@@ -19226,6 +19335,10 @@ static int  wlan_hdd_state_ctrl_param_create(void)
 	int ret;
 	struct device *dev;
 
+	//#ifdef OPLUS_FEATURE_WIFI
+	oplus_hdd_ConnUeventInit();
+	//#ifdef OPLUS_FEATURE_WIFI
+
 	init_completion(&wlan_start_comp);
 	qdf_atomic_init(&wlan_hdd_state_fops_ref);
 
@@ -19296,6 +19409,10 @@ dev_alloc_err:
 
 static void wlan_hdd_state_ctrl_param_destroy(void)
 {
+	//#ifdef OPLUS_FEATURE_WIFI
+	oplus_hdd_ConnUeventDeinit();
+	//#ifdef OPLUS_FEATURE_WIFI
+
 	cdev_del(&wlan_hdd_state_cdev);
 	device_destroy(class, device);
 	class_destroy(class);

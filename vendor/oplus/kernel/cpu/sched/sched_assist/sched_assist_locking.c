@@ -379,6 +379,50 @@ static void record_lock_starttime_handler(void *unused,
 	update_locking_time(settime, true);
 }
 
+static DEFINE_SPINLOCK(depth_lock);
+void record_lock_starttime(struct task_struct *p, unsigned long settime)
+{
+	struct oplus_task_struct *ots = get_oplus_task_struct(p);
+
+	if (test_task_is_rt(p)) {
+		return;
+	}
+
+	ots = get_oplus_task_struct(p);
+	if (IS_ERR_OR_NULL(ots)) {
+		return;
+	}
+
+	if (locking_depth_skip(ots->locking_depth)) {
+		ots->locking_start_time = 0;
+		return;
+	}
+
+	if (settime > 0) {
+		spin_lock(&depth_lock);
+		ots->locking_depth++;
+		spin_unlock(&depth_lock);
+		goto set;
+	}
+
+	if (unlikely(ots->locking_depth <= 0)) {
+		ots->locking_depth = 0;
+		goto set;
+	}
+
+	spin_lock(&depth_lock);
+	--(ots->locking_depth);
+	spin_unlock(&depth_lock);
+
+	if (ots->locking_depth) {
+		return;
+	}
+
+set:
+	ots->locking_start_time = settime;
+}
+EXPORT_SYMBOL(record_lock_starttime);
+
 #ifdef CONFIG_PCPU_RWSEM_LOCKING_PROTECT
 static void percpu_rwsem_wq_add_handler(void *unused,
 			struct percpu_rw_semaphore *sem, bool reader)

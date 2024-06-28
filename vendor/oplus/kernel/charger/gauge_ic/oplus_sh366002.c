@@ -319,16 +319,16 @@ static s32 fg_read_sbs_word(struct chip_bq27541 *chip, u32 reg, u16 *val)
 	s32 ret = -1;
 
 	if ((reg & CMDMASK_CNTL_R) == CMDMASK_CNTL_R) {
-		mutex_lock(&chip->bq28z610_alt_manufacturer_access);
+		mutex_lock(&chip->gauge_alt_manufacturer_access);
 		ret = __fg_write_word(chip, CMD_CNTL, (u16)reg);
 		if (ret < 0) {
-			mutex_unlock(&chip->bq28z610_alt_manufacturer_access);
+			mutex_unlock(&chip->gauge_alt_manufacturer_access);
 			return ret;
 		}
 
 		mdelay(CMD_SBS_DELAY);
 		ret = __fg_read_word(chip, CMD_CNTL, val);
-		mutex_unlock(&chip->bq28z610_alt_manufacturer_access);
+		mutex_unlock(&chip->gauge_alt_manufacturer_access);
 	} else {
 		ret = __fg_read_word(chip, (u8)reg, val);
 	}
@@ -373,7 +373,7 @@ static int fg_read_block(struct chip_bq27541 *chip, u32 reg, u8 startIndex, u8 l
 	if (startIndex + length >= READBUF_MAXLEN)
 		length = READBUF_MAXLEN - startIndex;
 
-	mutex_lock(&chip->bq28z610_alt_manufacturer_access);
+	mutex_lock(&chip->gauge_alt_manufacturer_access);
 	if ((reg & CMDMASK_CNTL_R) == CMDMASK_CNTL_R) {
 		ret = __fg_write_word(chip, CMD_CNTL, (u16)reg);
 		if (ret < 0) {
@@ -450,7 +450,7 @@ static int fg_read_block(struct chip_bq27541 *chip, u32 reg, u8 startIndex, u8 l
 	}
 
 fg_read_block_end:
-	mutex_unlock(&chip->bq28z610_alt_manufacturer_access);
+	mutex_unlock(&chip->gauge_alt_manufacturer_access);
 
 	return ret;
 }
@@ -470,7 +470,7 @@ static __maybe_unused int fg_write_block(struct chip_bq27541 *chip, u32 reg, u8 
 	if (i > 0)
 		memset(write_buffer, 0, i);
 
-	mutex_lock(&chip->bq28z610_alt_manufacturer_access);
+	mutex_lock(&chip->gauge_alt_manufacturer_access);
 	if ((reg & CMDMASK_MANUBLOCK_R) == CMDMASK_MANUBLOCK_R) {
 		ret = __fg_write_byte(chip, CMD_DFSTART, 0x01);
 		if (ret < 0) {
@@ -504,7 +504,7 @@ static __maybe_unused int fg_write_block(struct chip_bq27541 *chip, u32 reg, u8 
 		ret = __fg_write_buffer(chip, (u8)reg, length, val);
 	}
 fg_write_block_end:
-	mutex_unlock(&chip->bq28z610_alt_manufacturer_access);
+	mutex_unlock(&chip->gauge_alt_manufacturer_access);
 
 	return ret;
 }
@@ -524,7 +524,7 @@ static __maybe_unused int fg_read_dataflash(struct chip_bq27541 *chip, s32 addre
 	if (length <= 0)
 		return -1;
 
-	mutex_lock(&chip->bq28z610_alt_manufacturer_access);
+	mutex_lock(&chip->gauge_alt_manufacturer_access);
 
 	while (length > 0) {
 		pageLen = DF_PAGE_LEN - (address % DF_PAGE_LEN);
@@ -578,7 +578,7 @@ static __maybe_unused int fg_read_dataflash(struct chip_bq27541 *chip, s32 addre
 	}
 
 fg_read_dataflash_end:
-	mutex_unlock(&chip->bq28z610_alt_manufacturer_access);
+	mutex_unlock(&chip->gauge_alt_manufacturer_access);
 	return ret;
 }
 
@@ -596,7 +596,7 @@ static __maybe_unused int fg_write_dataflash(struct chip_bq27541 *chip, s32 addr
 	if (length <= 0)
 		return -1;
 
-	mutex_lock(&chip->bq28z610_alt_manufacturer_access);
+	mutex_lock(&chip->gauge_alt_manufacturer_access);
 
 	while (length > 0) {
 		pageLen = DF_PAGE_LEN - (address % DF_PAGE_LEN);
@@ -655,7 +655,7 @@ static __maybe_unused int fg_write_dataflash(struct chip_bq27541 *chip, s32 addr
 	}
 
 fg_write_dataflash_end:
-	mutex_unlock(&chip->bq28z610_alt_manufacturer_access);
+	mutex_unlock(&chip->gauge_alt_manufacturer_access);
 	return ret;
 }
 

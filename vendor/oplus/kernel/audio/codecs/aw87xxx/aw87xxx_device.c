@@ -35,6 +35,11 @@
 #include "aw87xxx_pid_76_reg.h"
 #include "aw87xxx_pid_60_reg.h"
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+#define OPLUS_AUDIO_EVENTID_SMARTPA_ERR    10041
+#endif
+
 /*************************************************************************
  * aw87xxx variable
  ************************************************************************/
@@ -996,6 +1001,14 @@ static int aw87xxx_dev_get_chipid(struct aw_device *aw_dev)
 
 	AW_DEV_LOGI(aw_dev->dev, "read chipid[0x%x] succeed", reg_val);
 	aw_dev->chipid = reg_val;
+
+	#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	/*just feedback: i2c control no error (ret == 0) and read chip id value is 0 (reg_val == 0)*/
+	if ((ret == 0) && (reg_val == 0)) {
+		mm_fb_audio_kevent_named_delay(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, \
+		FEEDBACK_DELAY_60S, "payload@@aw87xxx read chip id error");
+	}
+	#endif
 
 	return 0;
 }

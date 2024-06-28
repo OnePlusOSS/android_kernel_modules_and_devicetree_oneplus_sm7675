@@ -34,6 +34,7 @@
 #ifdef CONFIG_CONT_PTE_HUGEPAGE
 #include "chp_ext.h"
 #endif
+#include "../../mm_osvelte/mm-trace.h"
 
 enum swapd_pressure_level {
 	LEVEL_LOW = 0,
@@ -786,16 +787,6 @@ static unsigned int system_cur_avail_buffers(void)
 	return buffers >> 8; /* pages to MB */
 }
 
-static bool min_buffer_is_suitable(void)
-{
-	u32 curr_buffers = system_cur_avail_buffers();
-
-	if (curr_buffers >= get_min_avail_buffers_value())
-		return true;
-
-	return false;
-}
-
 static bool buffer_is_suitable(void)
 {
 	u32 curr_buffers = system_cur_avail_buffers();
@@ -1048,15 +1039,6 @@ static unsigned long zram_total_pages(void)
 	return nr_zram ?: 1;
 }
 
-static bool zram_is_full(struct zram *zram)
-{
-	unsigned long nr_used, nr_total;
-
-	nr_used = zram_page_state(zram, ZRAM_STATE_USED);
-	nr_total = zram_page_state(zram, ZRAM_STATE_TOTAL);
-	return (nr_total - nr_used) < nr_total >> 6;
-}
-
 static bool zram_watermark_ok(void)
 {
 	long long diff_buffers;
@@ -1128,6 +1110,21 @@ static bool is_cpu_busy(void)
 }
 #endif
 
+/* core reclaim policy code start here */
+#if PAGE_SHIFT < 20
+#define P2M(pages)	((pages) >> (20 - PAGE_SHIFT))
+#define M2P(mb)		((mb) << (20 - PAGE_SHIFT))
+#else				/* PAGE_SHIFT > 20 */
+#define P2M(pages)	((pages) << (PAGE_SHIFT - 20))
+#define M2P(mb)		((mb) >> (PAGE_SHIFT - 20))
+#endif
+#define RECLAIM_CHP_FAILED_MAX (5)
+
+static const int chp_boost_factor = 19000;
+static const unsigned long max_boost_pages = M2P(256ul);
+static const unsigned long per_cycle_pages = M2P(16ul);
+static int chp_reclaim_failed;
+
 enum reclaim_type {
 	RT_NONE,
 	RT_PAGE,
@@ -1135,63 +1132,24 @@ enum reclaim_type {
 	NR_RT_TYPE,
 };
 
-char *reclaim_type_text[NR_RT_TYPE] = {
-	"->NONE",
-	"->P",
-	"->CHP"
+struct reclaim_control {
+	int min_cluster, loop;
+	enum reclaim_type type;
+	gfp_t gfp_mask;
+	long to_reclaim;
+	unsigned long watermark;
+	unsigned long interval;
+	unsigned long reclaimed;
+	bool (*boosted)(struct reclaim_control *rc);
 };
 
-#define INBALANCE_BASE_FACTOR 30
-#define CHP_OVER_COMPRESSED_RATIO 150 /* zram1 vs anon hugepages: 1.5 vs 1*/
-#define INBALANCE_CHP_FACTOR 15
-#define SHALLOW_CMA_POOL_FACTOR 2 /* cma pool is less than 2 * high */
-
-static inline int get_hybridswapd_reclaim_type(void)
+/*
+ * from kernel 6.1, chp pages use migration type, use
+ * chp_read_info_ext(CHP_EXT_CMD_POOL_CMA_COUNT) instead.
+ */
+static inline unsigned long chp_free_pages(void)
 {
-	int type = RT_NONE;
-	unsigned long anon_pg, anon_chp_pg, swap_pg,
-		      swap_chp_pg, base_factor, chp_factor,
-		      pool_cma_count, pool_high, pool_total_cma_count;
-	bool cma_pool_shallow, cma_pool_size_huge;
-
-	anon_chp_pg = global_node_page_state(NR_ANON_THPS);
-	swap_chp_pg = zram_page_state(zram_arr[ZRAM_TYPE_CHP],
-				      ZRAM_STATE_USED);
-
-	anon_pg = global_node_page_state(NR_ANON_MAPPED) - anon_chp_pg;
-	swap_pg = zram_page_state(zram_arr[ZRAM_TYPE_BASEPAGE], ZRAM_STATE_USED);
-
-	base_factor = swap_pg * 100 / (anon_pg + 1);
-	chp_factor =  swap_chp_pg * 100 / (anon_chp_pg + 1);
-
-	pool_cma_count = chp_read_info_ext(CHP_EXT_CMD_POOL_CMA_COUNT);
-	pool_total_cma_count = chp_read_info_ext(CHP_EXT_CMD_POOL_TOTAL_CMA_COUNT);
-	pool_high = chp_read_info_ext(CHP_EXT_CMD_POOL_WM_HIGH);
-
-	cma_pool_shallow = pool_cma_count < SHALLOW_CMA_POOL_FACTOR * pool_high;
-	cma_pool_size_huge = pool_cma_count > pool_total_cma_count / 3;
-
-	if (!cma_pool_size_huge &&
-	    ((cma_pool_shallow && chp_factor < CHP_OVER_COMPRESSED_RATIO) ||
-	    (long)(base_factor - chp_factor) > INBALANCE_CHP_FACTOR))
-		type =  RT_CHP;
-	else if ((long)(chp_factor - base_factor) > INBALANCE_BASE_FACTOR)
-		type =  RT_PAGE;
-
-	if (hybridswap_loglevel() >= HS_LOG_DEBUG) {
-		trace_printk("@ %s:%d total_cma_count/3: %lu anon_pg: %lu anon_chp_pg: %lu swap_pg: %lu "
-			     "swap_chp_pg: %lu base_factor:%lu chp_factor:%lu type:%s cma_count:%lu 2*high:%lu cma_pool_shallow:%d "
-			     "cma_pool_size_huge:%d (base_factor - chp_factor):%ld (chp_factor - base_factor):%ld @\n",
-			     __func__, __LINE__, pool_total_cma_count / 3,
-			     anon_pg, anon_chp_pg, swap_pg, swap_chp_pg, base_factor,
-			     chp_factor,  reclaim_type_text[type], pool_cma_count,
-			     SHALLOW_CMA_POOL_FACTOR * pool_high,
-			     cma_pool_shallow, cma_pool_size_huge,
-			     (long)(base_factor - chp_factor),
-			     (long)(chp_factor - base_factor));
-	}
-
-	return type;
+	return chp_read_info_ext(CHP_EXT_CMD_POOL_CMA_COUNT) * HPAGE_CONT_PTE_NR;
 }
 
 static bool hybridswapd_need_pasue(void)
@@ -1213,54 +1171,87 @@ static bool hybridswapd_need_pasue(void)
 	return false;
 }
 
-static void wakeup_hybridswapd(pg_data_t *pgdat)
+static inline unsigned long chp_pool_watermark_pages(void)
 {
-	unsigned long curr_interval;
-	struct hybridswapd_task *hyb_task = PGDAT_ITEM_DATA(pgdat);
+	struct huge_page_pool *pool = chp_pool;
 
-	if (!hyb_task || !hyb_task->swapd || hybridswapd_need_pasue())
-		return;
-
-	if (!waitqueue_active(&hyb_task->swapd_wait))
-		return;
-
-	if (!free_zram_is_ok())
-		return;
-
-	if (get_hybridswapd_reclaim_type() == RT_NONE &&
-	    min_buffer_is_suitable()) {
-		count_swapd_event(SWAPD_OVER_MIN_BUFFER_SKIP_TIMES);
-		return;
-	}
-
-	curr_interval = jiffies_to_msecs(jiffies - last_swapd_time);
-	if (curr_interval < swapd_skip_interval) {
-		count_swapd_event(SWAPD_EMPTY_ROUND_SKIP_TIMES);
-		return;
-	}
-
-	atomic_set(&hyb_task->swapd_wait_flag, 1);
-	wake_up_interruptible(&hyb_task->swapd_wait);
+	return pool->wmark[POOL_WMARK_HIGH] * HPAGE_CONT_PTE_NR;
 }
 
-static void wake_up_all_hybridswapds(void)
+static inline bool chp_boosted(struct reclaim_control *rc)
 {
-	pg_data_t *pgdat = NULL;
-	int nid;
-
-	for_each_online_node(nid) {
-		pgdat = NODE_DATA(nid);
-		wakeup_hybridswapd(pgdat);
-	}
+	return chp_free_pages() >= rc->watermark;
 }
 
-static bool free_swap_is_low(void)
+static inline bool system_boosted(struct reclaim_control *unused)
 {
-	struct sysinfo info;
+	return system_cur_avail_buffers() >= get_min_avail_buffers_value();
+}
 
-	si_swapinfo(&info);
+static inline bool boost_reclaim(struct reclaim_control *rc, bool scan)
+{
+	unsigned long diff, free, boost;
 
-	return (info.freeswap < get_free_swap_threshold_value());
+	diff = 0;
+	/* sometimes reclam chp pages failed multitiems. disable reclaim chp temorarily */
+	if (unlikely(chp_reclaim_failed > RECLAIM_CHP_FAILED_MAX)) {
+		chp_logi("chp reclaim failed over than %d times. try reclaim base\n",
+			 RECLAIM_CHP_FAILED_MAX);
+		chp_reclaim_failed = 0;
+		goto reclaim_base;
+	}
+
+	/* try reclaim chp at first */
+	boost = min(max_boost_pages, mult_frac(chp_pool_watermark_pages(),
+					       chp_boost_factor, 10000));
+	free = chp_free_pages();
+	if (boost > free)
+		diff = boost - free;
+
+	if (diff > per_cycle_pages) {
+		if (scan)
+			return true;
+
+		rc->type = RT_CHP;
+		rc->gfp_mask = GFP_KERNEL | POOL_USER_ALLOC;
+		rc->min_cluster = CHP_SWAP_CLUSTER_MAX;
+		rc->to_reclaim = diff;
+		rc->watermark = boost;
+		rc->boosted = chp_boosted;
+		/* max reclaim interval is 1 second */
+		rc->interval = 1 * HZ;
+		rc->reclaimed = 0;
+		return true;
+	}
+
+reclaim_base:
+	/* if system is in low mem available, reclaim anon base page. */
+	if (!system_boosted(rc)) {
+		unsigned long high, cur;
+
+		if (scan)
+			return true;
+
+		high = get_high_avail_buffers_value();
+		cur = system_cur_avail_buffers();
+		if (cur < high)
+			diff = high - cur;
+		diff = min(diff, (unsigned long)get_swapd_max_reclaim_size());
+		/* convert mib to pages */
+		diff = M2P(diff);
+
+		if (diff > per_cycle_pages) {
+			rc->type = RT_PAGE;
+			rc->gfp_mask = GFP_KERNEL;
+			rc->min_cluster = SWAP_CLUSTER_MAX;
+			rc->to_reclaim = diff;
+			rc->boosted = system_boosted;
+			rc->interval = 1 * HZ;
+			rc->reclaimed = 0;
+			return true;
+		}
+	}
+	return false;
 }
 
 static unsigned long calc_each_memcg_pages(int type)
@@ -1299,83 +1290,141 @@ static unsigned long calc_each_memcg_pages(int type)
 	return global_reclaimed;
 }
 
-static unsigned long shrink_memcg_chp_pages(void)
+static void shrink_memcg_anon_pages(struct reclaim_control *rc)
 {
+	unsigned long memcgs_pages = 0;
+	unsigned long start = jiffies;
 	struct mem_cgroup *memcg = NULL;
-	unsigned long tot_reclaimed = 0;
-	long nr_to_reclaim = chp_per_reclaim_mib * (SZ_1M >> PAGE_SHIFT);
-	unsigned long batch_per_cycle = BATCH_PER_CYCLE_MB * (SZ_1M >> PAGE_SHIFT);
-	unsigned long global_reclaimed = 0;
-	unsigned long start_js = jiffies;
-	unsigned long reclaim_cycles;
-	gfp_t gfp_mask = GFP_KERNEL;
-	int type = RT_PAGE;
-	int zram_inx = 0;
-	int min_cluster = SWAP_CLUSTER_MAX;
 
-	type = get_hybridswapd_reclaim_type();
-	/* available mem is low, relaim nomal page! */
-	if (type == RT_NONE)
-		type = RT_PAGE;
-	else if (type == RT_CHP) {
-		zram_inx = 1;
-		gfp_mask |= POOL_USER_ALLOC;
-		min_cluster = CHP_SWAP_CLUSTER_MAX;
-	}
+	if (unlikely(!boost_reclaim(rc, false)))
+		return;
 
-	if (zram_is_full(zram_arr[zram_inx]))
-		goto out;
+	if (unlikely(!free_zram_is_ok()))
+		return;
 
-	global_reclaimed = calc_each_memcg_pages(type);
-	if (unlikely(global_reclaimed < batch_per_cycle)) {
-		log_err("global_reclaimed:%lu < %lu\n", global_reclaimed,
-			batch_per_cycle);
-		goto out;
-	}
+	memcgs_pages = calc_each_memcg_pages(rc->type);
+	if (unlikely(memcgs_pages < per_cycle_pages))
+		return;
 
-	nr_to_reclaim = min(nr_to_reclaim, (long)global_reclaimed);
-	reclaim_cycles = nr_to_reclaim / batch_per_cycle;
+	rc->to_reclaim = min(rc->to_reclaim, (long)memcgs_pages);
+	rc->loop = rc->to_reclaim / per_cycle_pages;
+	mm_trace_fmt_begin("%d %ld", rc->type, rc->to_reclaim);
 again:
 	while ((memcg = get_next_memcg(memcg))) {
 		memcg_hybs_t *hybs;
 		unsigned long nr_reclaimed, to_reclaim;
 
+		/* if already boosted or zram is almost full or paused return */
+		if (rc->boosted(rc) || !free_zram_is_ok() ||
+		    atomic_read(&swapd_pause)) {
+			get_next_memcg_break(memcg);
+			goto out;
+		}
+
 		hybs = MEMCGRP_ITEM_DATA(memcg);
+		to_reclaim = mult_frac(per_cycle_pages, hybs->can_reclaimed,
+				       memcgs_pages);
 
-		to_reclaim = batch_per_cycle * hybs->can_reclaimed / global_reclaimed;
-
-		if (to_reclaim < min_cluster) {
+		if (to_reclaim < rc->min_cluster) {
 			hybs->can_reclaimed = 0;
 			continue;
 		}
 
 		nr_reclaimed = try_to_free_mem_cgroup_pages(memcg, to_reclaim,
-							    gfp_mask, MEMCG_RECLAIM_MAY_SWAP);
+							    rc->gfp_mask, true);
 
 		hybs->can_reclaimed -= nr_reclaimed;
 		if (hybs->can_reclaimed < 0)
 			hybs->can_reclaimed = 0;
 
-		tot_reclaimed += nr_reclaimed;
-
-		if (tot_reclaimed >= nr_to_reclaim || hybridswapd_need_pasue()) {
+		rc->reclaimed += nr_reclaimed;
+		if (rc->reclaimed >= rc->to_reclaim) {
 			get_next_memcg_break(memcg);
 			goto out;
 		}
 
-		if (swapd_nap_jiffies && time_after_eq(jiffies, start_js + swapd_nap_jiffies)) {
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout((jiffies - start_js) * 2);
-			start_js = jiffies;
+		if (time_after_eq(jiffies, start + rc->interval)) {
+			chp_logi("reclaiming is slow, exit loop");
+			get_next_memcg_break(memcg);
+			goto out;
 		}
 	}
 
-	if (!zram_is_full(zram_arr[zram_inx]) && --reclaim_cycles)
+	if (free_zram_is_ok() && --rc->loop)
 		goto again;
 out:
-	log_info("t: %s nr_to_reclaim: %lu total_reclaimed: %lu global_reclaimed: %lu\n",
-		 reclaim_type_text[type], nr_to_reclaim, tot_reclaimed, global_reclaimed);
-	return tot_reclaimed;
+	if (rc->type == RT_CHP && rc->reclaimed < rc->to_reclaim / 4)
+		chp_reclaim_failed += 1;
+
+	mm_trace_fmt_end();
+	chp_logi("type:%d to_reclaim:%ld reclaimed:%lu boosted:%d elapse:%dms\n",
+		 rc->type, rc->to_reclaim, rc->reclaimed, rc->boosted(rc),
+		 jiffies_to_msecs(jiffies - start));
+	return;
+}
+
+static void wakeup_hybridswapd(pg_data_t *pgdat)
+{
+	unsigned long curr_interval;
+	struct hybridswapd_task *hyb_task = PGDAT_ITEM_DATA(pgdat);
+
+	if (!hyb_task || !hyb_task->swapd || hybridswapd_need_pasue())
+		return;
+
+	if (atomic_read(&swapd_pause)) {
+		count_swapd_event(SWAPD_MANUAL_PAUSE);
+		return;
+	}
+
+	if (atomic_read(&display_off))
+		return;
+
+#ifdef CONFIG_OPLUS_JANK
+	if (is_cpu_busy()) {
+		count_swapd_event(SWAPD_CPU_BUSY_BREAK_TIMES);
+		return;
+	}
+#endif
+
+	if (!waitqueue_active(&hyb_task->swapd_wait))
+		return;
+
+	if (!free_zram_is_ok())
+		return;
+
+	if (!boost_reclaim(NULL, true)) {
+		count_swapd_event(SWAPD_OVER_MIN_BUFFER_SKIP_TIMES);
+		return;
+	}
+
+	curr_interval = jiffies_to_msecs(jiffies - last_swapd_time);
+	if (curr_interval < swapd_skip_interval) {
+		count_swapd_event(SWAPD_EMPTY_ROUND_SKIP_TIMES);
+		return;
+	}
+
+	atomic_set(&hyb_task->swapd_wait_flag, 1);
+	wake_up_interruptible(&hyb_task->swapd_wait);
+}
+
+static void wake_up_all_hybridswapds(void)
+{
+	pg_data_t *pgdat = NULL;
+	int nid;
+
+	for_each_online_node(nid) {
+		pgdat = NODE_DATA(nid);
+		wakeup_hybridswapd(pgdat);
+	}
+}
+
+static bool free_swap_is_low(void)
+{
+	struct sysinfo info;
+
+	si_swapinfo(&info);
+
+	return (info.freeswap < get_free_swap_threshold_value());
 }
 
 static int swapd_update_cpumask(struct task_struct *tsk, char *buf,
@@ -1427,6 +1476,7 @@ static int hybridswapd(void *p)
 	struct task_struct *tsk = current;
 	struct hybridswapd_task *hyb_task = PGDAT_ITEM_DATA(pgdat);
 	unsigned long nr_reclaimed = 0;
+	struct reclaim_control rc;
 
 	/* save swapd pid for schedule strategy */
 	swapd_pid = tsk->pid;
@@ -1447,7 +1497,11 @@ static int hybridswapd(void *p)
 		}
 		count_swapd_event(SWAPD_WAKEUP);
 
-		nr_reclaimed = shrink_memcg_chp_pages();
+		rc.reclaimed = 0;
+		shrink_memcg_anon_pages(&rc);
+		mm_trace_int64("hyb_reclaimed", rc.reclaimed);
+		nr_reclaimed = rc.reclaimed;
+
 		last_swapd_time = jiffies;
 
 		if (nr_reclaimed < get_empty_round_check_threshold_value()) {

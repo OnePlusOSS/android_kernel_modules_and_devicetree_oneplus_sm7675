@@ -1982,6 +1982,23 @@ static ssize_t gauge_info_show(struct device *dev, struct device_attribute *attr
 }
 static DEVICE_ATTR_RO(gauge_info);
 
+static ssize_t bqfs_status_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	bool status = false;
+	struct oplus_chg_chip *chip = NULL;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_battery_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	status = oplus_gauge_get_bqfs_status();
+
+	return sprintf(buf, "%d\n", status);
+}
+static DEVICE_ATTR_RO(bqfs_status);
+
 static struct device_attribute *oplus_battery_attributes[] = {
 	&dev_attr_authenticate,
 	&dev_attr_battery_cc,
@@ -2061,6 +2078,7 @@ static struct device_attribute *oplus_battery_attributes[] = {
 	&dev_attr_pkg_name,
 	&dev_attr_slow_chg_en,
 	&dev_attr_gauge_info,
+	&dev_attr_bqfs_status,
 	NULL
 };
 

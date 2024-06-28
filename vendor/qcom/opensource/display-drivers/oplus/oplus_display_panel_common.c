@@ -2372,3 +2372,88 @@ int oplus_display_panel_get_hbm_max(void *data)
 
 	return rc;
 }
+
+void oplus_panel_switch_to_sync_te(struct dsi_panel *panel)
+{
+	s64 us_per_frame;
+	s64 duration;
+	u32 vsync_width;
+	ktime_t last_te_timestamp;
+	int delay = 0;
+	u32 vsync_cost = 0;
+	u32 debounce_time = 500;
+	u32 frame_end = 0;
+	struct dsi_display *display = NULL;
+	struct sde_encoder_virt *sde_enc;
+
+
+	if (panel->power_mode != SDE_MODE_DPMS_ON || !panel->panel_initialized) {
+		LCD_INFO("display panel in off status\n");
+		return;
+	}
+
+#if defined(CONFIG_PXLW_IRIS)
+	if (iris_is_chip_supported() && (!strcmp(panel->type, "secondary"))) {
+		LCD_INFO("iris secondary panel no need config\n");
+		return;
+	}
+#endif
+
+	us_per_frame = panel->last_us_per_frame;
+	vsync_width = panel->last_vsync_width;
+	last_te_timestamp = panel->te_timestamp;
+
+	if(!strcmp(panel->type, "primary")) {
+		display = get_main_display();
+	} else if (!strcmp(panel->type, "secondary")) {
+		display = get_sec_display();
+	} else {
+		LCD_ERR("[DISP][ERR][%s:%d]dsi_display error\n", __func__, __LINE__);
+		return;
+	}
+
+	sde_enc = to_sde_encoder_virt(display->bridge->base.encoder);
+	if (!sde_enc) {
+		DSI_ERR("invalid encoder params\n");
+		return;
+	}
+
+	duration = ktime_to_us(ktime_sub(ktime_get(), last_te_timestamp));
+	if(duration > 3 * us_per_frame || sde_enc->rc_state == 4) {
+		SDE_ATRACE_BEGIN("timing_delay_prepare");
+		oplus_sde_early_wakeup(panel);
+		if (duration > 12 * us_per_frame) {
+			oplus_wait_for_vsync(panel);
+		}
+		SDE_ATRACE_END("timing_delay_prepare");
+	}
+
+	last_te_timestamp = panel->te_timestamp;
+	vsync_cost = ktime_to_us(ktime_sub(ktime_get(), last_te_timestamp)) % us_per_frame;
+	delay = vsync_width - vsync_cost;
+
+	SDE_ATRACE_BEGIN("oplus_panel_switch_to_sync_te");
+	if (delay >= 0) {
+		if (panel->last_refresh_rate == 120) {
+			if (vsync_cost < 1000)
+				usleep_range(1 * 1000, (1 * 1000) + 100);
+		} else if (panel->last_refresh_rate == 60) {
+			usleep_range(delay + 200, delay + 300);
+		} else if (panel->last_refresh_rate == 90) {
+			if((2100 < vsync_cost) && (vsync_cost < 3100))
+				usleep_range(2 * 1000, (2 * 1000) + 100);
+		}
+	} else if (vsync_cost > vsync_width) {
+		frame_end = us_per_frame - vsync_cost;
+		if (frame_end < debounce_time) {
+			if (panel->last_refresh_rate == 60) {
+				usleep_range(9 * 1000, (9 * 1000) + 100);
+			} else if (panel->last_refresh_rate == 120) {
+				usleep_range(2 * 1000, (2 * 1000) + 100);
+			}
+		}
+	}
+	SDE_ATRACE_END("oplus_panel_switch_to_sync_te");
+
+	return;
+}

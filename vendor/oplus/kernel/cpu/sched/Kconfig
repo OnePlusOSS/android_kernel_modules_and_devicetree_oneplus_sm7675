@@ -174,3 +174,9 @@ config OPLUS_CPUFREQ_IOWAIT_PROTECT
 	depends on OPLUS_FEATURE_EAS_OPT
 	help
 		ensure iowait decay not happen too quickly
+
+config OPLUS_CAMERA_UX
+ 	bool "config camera ux"
+ 	default n
+ 	help
+ 	  config camera ux.

@@ -145,6 +145,7 @@ typedef int (qdf_abstract_print)(void *priv, const char *fmt, ...);
 #ifdef OPLUS_FEATURE_SOFTAP_DCS_SWITCH
 //Add for softap connect fail monitor
 void hostapd_send_eapol_uevent(uint8_t type, uint8_t subtype, uint8_t status);
+void qdf_send_eapol_uevent(uint8_t type, uint8_t subtype, uint8_t status);
 #endif /* OPLUS_FEATURE_SOFTAP_DCS_SWITCH */
 
 /**

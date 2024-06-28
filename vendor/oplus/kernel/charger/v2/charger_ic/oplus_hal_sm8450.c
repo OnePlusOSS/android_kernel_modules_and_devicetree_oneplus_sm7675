@@ -495,6 +495,79 @@ static int oplus_set_bcc_debug_parameters(struct oplus_chg_ic_dev *ic_dev, const
 }
 #endif
 
+static int ufcs_battery_chg_write(struct battery_chg_dev *bcdev, void *data,
+	int len)
+{
+	int rc;
+
+	if (atomic_read(&bcdev->state) == PMIC_GLINK_STATE_DOWN) {
+		pr_err("glink state is down\n");
+		return -ENOTCONN;
+	}
+
+	mutex_lock(&bcdev->ufcs_read_buffer_lock);
+	reinit_completion(&bcdev->ufcs_read_ack);
+	rc = pmic_glink_write(bcdev->client, data, len);
+	if (!rc) {
+		rc = wait_for_completion_timeout(&bcdev->ufcs_read_ack,
+			msecs_to_jiffies(AP_UFCS_WAIT_TIME_MS));
+		if (!rc) {
+			chg_err("Error, timed out sending message\n");
+			mutex_unlock(&bcdev->ufcs_read_buffer_lock);
+			return -ETIMEDOUT;
+		}
+
+		rc = 0;
+	}
+
+	mutex_unlock(&bcdev->ufcs_read_buffer_lock);
+
+	return rc;
+}
+
+static int ufcs_read_buffer(struct battery_chg_dev *bcdev)
+{
+	struct oplus_ap_read_ufcs_req_msg req_msg = { { 0 } };
+
+	if (!bcdev) {
+		return false;
+	}
+
+	req_msg.data_size = sizeof(bcdev->ufcs_read_buffer_dump.data_buffer);
+	req_msg.hdr.owner = MSG_OWNER_BC;
+	req_msg.hdr.type = MSG_TYPE_REQ_RESP;
+	req_msg.hdr.opcode = AP_OPCODE_UFCS_BUFFER;
+
+	return ufcs_battery_chg_write(bcdev, &req_msg, sizeof(req_msg));
+}
+
+static void handle_ufcs_read_buffer(struct battery_chg_dev *bcdev,
+	struct oplus_ap_read_ufcs_resp_msg *resp_msg, size_t len)
+{
+	u32 buf_len;
+
+	if (len > sizeof(bcdev->ufcs_read_buffer_dump)) {
+		chg_err("Incorrect length received: %zu expected: %zd\n", len,
+			sizeof(bcdev->ufcs_read_buffer_dump));
+		complete(&bcdev->ufcs_read_ack);
+		return;
+	}
+
+	buf_len = resp_msg->data_size;
+	if (buf_len > sizeof(bcdev->ufcs_read_buffer_dump.data_buffer)) {
+		chg_err("Incorrect buffer length: %u\n", buf_len);
+		complete(&bcdev->ufcs_read_ack);
+		return;
+	}
+
+	if (buf_len == 0) {
+		chg_err("Incorrect buffer length: %u\n", buf_len);
+		return;
+	}
+	memcpy(bcdev->ufcs_read_buffer_dump.data_buffer, resp_msg->data_buffer, buf_len);
+	complete(&bcdev->ufcs_read_ack);
+}
+
 static int battery_chg_fw_write(struct battery_chg_dev *bcdev, void *data,
 				int len)
 {
@@ -2005,6 +2078,10 @@ static void handle_notification(struct battery_chg_dev *bcdev, void *data,
 			chg_info("the current protol is %d.", protocol);
 		}
 		break;
+	case BC_UFCS_PDO_READY:
+		bcdev->ufcs_pdo_ready = true;
+		chg_info("ufcs pdo ready = %d\n", bcdev->ufcs_pdo_ready);
+		break;
 #endif
 	default:
 		break;
@@ -2038,6 +2115,8 @@ static int battery_chg_callback(void *priv, void *data, size_t len)
 		handle_oem_read_buffer(bcdev, data, len);
 	else if (hdr->opcode == BCC_OPCODE_READ_BUFFER)
 		handle_bcc_read_buffer(bcdev, data, len);
+	else if (hdr->opcode == AP_OPCODE_UFCS_BUFFER)
+		handle_ufcs_read_buffer(bcdev, data, len);
 #endif
 	else
 		handle_message(bcdev, data, len);
@@ -3991,6 +4070,7 @@ static void oplus_plugin_irq_work(struct work_struct *work)
 		bcdev->pd_svooc = false;
 		bcdev->ufcs_power_ready = false;
 		bcdev->ufcs_handshake_ok = false;
+		bcdev->ufcs_pdo_ready = false;
 		bcdev->bc12_completed = false;
 		bcdev->hvdcp_detach_time = cpu_clock(smp_processor_id()) / CPU_CLOCK_TIME_MS;
 		chg_err("the hvdcp_detach_time:%llu, detect time %llu \n",
@@ -7175,15 +7255,35 @@ static int oplus_chg_adsp_ufcs_get_dev_info(struct oplus_chg_ic_dev *ic_dev, u64
 #define UFCS_PDO_MAX 7
 static int oplus_chg_adsp_ufcs_get_pdo_info_buffer(struct oplus_chg_ic_dev *ic_dev, u64 *pdo, int num)
 {
-	/* TODO: need to update the following case. Keep it for ufcs bringup. */
-	if (num == 0)
-		*pdo = 1801989615150771250;
-	else if (num == 1)
-		*pdo = 2955570826734283826;
-	else
-		*pdo = 2955570826734283826;
+	int pdo_index = 0;
+	int pdo_max = num > UFCS_PDO_MAX ? UFCS_PDO_MAX : num;
+	int pdo_num = 0;
+	struct battery_chg_dev *bcdev;
+	int retry_count = 12;
 
-	return 1;
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+	bcdev = oplus_chg_ic_get_drvdata(ic_dev);
+
+	while (retry_count--) {
+		if (bcdev->ufcs_pdo_ready) {
+			ufcs_read_buffer(bcdev);
+			for (pdo_index = 0; pdo_index < pdo_max; pdo_index++) {
+				pdo[pdo_index] = bcdev->ufcs_read_buffer_dump.data_buffer[pdo_index];
+				if (pdo[pdo_index] == 0) {
+					pdo_num = pdo_index;
+					break;
+				}
+				chg_err("pdo[%d] = 0x%llu\n", pdo_index, pdo[pdo_index]);
+			}
+			bcdev->ufcs_pdo_ready = 0;
+			break;
+		}
+		msleep(10);
+	}
+	return pdo_num;
 }
 
 static int oplus_chg_adsp_ufcs_get_src_info(struct oplus_chg_ic_dev *ic_dev, u64 *src_info)

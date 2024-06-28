@@ -22,6 +22,7 @@ PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_sipa.ko
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_sipa_tuning.ko
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_aw87xxx.ko
 PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_audio_pa_manager.ko
+PRODUCT_PACKAGES += $(KERNEL_MODULES_OUT)/oplus_usbc_switch.ko
 endif # blair supported
 
 ifeq ($(call is-board-platform-in-list,bengal), true)

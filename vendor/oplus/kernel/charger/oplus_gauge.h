@@ -107,6 +107,7 @@ struct oplus_gauge_operations {
 	int (*get_batt_cc)(int *cc1, int *cc2);
 	int (*get_batt_soh)(int *soh1, int *soh2);
 	int (*get_calib_time)(int *dod_calib_time, int *qmax_calib_time, int gauge_index);
+	bool (*get_bqfs_status)(void);
 };
 
 /****************************************
@@ -201,6 +202,7 @@ int oplus_gauge_set_bcc_parameters(const char *buf);
 bool oplus_gauge_check_rc_sfr(void);
 int oplus_gauge_soft_reset_rc_sfr(void);
 void oplus_gauge_get_device_name(u8 *name, int len);
+bool oplus_gauge_get_bqfs_status(void);
 int oplus_gauge_get_info(u8 *info, int len);
 int oplus_sub_gauge_get_info(u8 *info, int len);
 int oplus_gauge_get_qmax_v1(int *qmax1, int *qmax2);

@@ -7843,6 +7843,78 @@ static ssize_t store_typec_sbu_voltage(struct device *dev, struct device_attribu
 }
 static DEVICE_ATTR(typec_sbu_voltage, 0664, show_typec_sbu_voltage, store_typec_sbu_voltage);
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+static bool oplus_ccdetect_check_is_wd0(struct oplus_chg_chip *chip)
+{
+	struct device_node *node = chip->dev->of_node;
+
+	if (!node) {
+		printk(KERN_ERR "device tree info missing\n", __func__);
+		return false;
+	}
+
+	if (chip->support_wd0)
+		return true;
+	if (of_property_read_bool(node, "qcom,ccdetect_by_wd0")) {
+		chip->support_wd0 = true;
+		return true;
+	}
+
+	return false;
+}
+
+bool oplus_chg_get_wd0_status(void)
+{
+	if (!pinfo) {
+		pr_err("%s, pinfo null!\n", __func__);
+		return false;
+	}
+
+	return pinfo->wd0_detect;
+}
+
+void oplus_wd0_detect_work(struct work_struct *work)
+{
+	int level;
+	struct oplus_chg_chip *chip = g_oplus_chip;
+
+	if (!chip) {
+		pr_err("%s: g_oplus_chip not ready!\n", __func__);
+		return;
+	}
+
+	level = !oplus_chg_get_wd0_status();
+	pr_err("%s: level [%d]", __func__, level);
+
+	if (level != 1) {
+		oplus_wake_up_usbtemp_thread();
+	} else {
+		chip->usbtemp_check = oplus_usbtemp_condition();
+		schedule_delayed_work(&usbtemp_recover_work, 0);
+	}
+
+	/*schedule_delayed_work(&wd0_detect_work, msecs_to_jiffies(CCDETECT_DELAY_MS));*/
+}
+
+struct delayed_work wd0_detect_work;
+static int pd_tcp_notifier_call(struct notifier_block *nb,
+				unsigned long event, void *data)
+{
+	struct tcp_notify *noti = data;
+
+	switch (event) {
+	case TCP_NOTIFY_WD0_STATE:
+		pinfo->wd0_detect = noti->wd0_state.wd0;
+		pr_err("%s wd0 = %d\n", __func__, noti->wd0_state.wd0);
+		schedule_delayed_work(&wd0_detect_work, msecs_to_jiffies(CCDETECT_DELAY_MS));
+		break;
+	default:
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+#endif
 static int mtk_charger_probe(struct platform_device *pdev)
 {
 	struct charger_manager *info = NULL;
@@ -7857,6 +7929,7 @@ static int mtk_charger_probe(struct platform_device *pdev)
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	struct oplus_chg_chip *oplus_chip;
 	int level = 0;
+	int rc = 0;
 #endif
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
@@ -8005,6 +8078,14 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	pinfo->tcpc = tcpc_dev_get_by_name("type_c_port0");
 	if (!pinfo->tcpc) {
 		chr_err("%s get tcpc device type_c_port0 fail\n", __func__);
+	} else {
+		pinfo->pd_nb.notifier_call = pd_tcp_notifier_call;
+		rc = register_tcp_dev_notifier(pinfo->tcpc, &pinfo->pd_nb,
+					TCP_NOTIFY_TYPE_ALL);
+		if (rc < 0) {
+			pr_err("%s: register tcpc notifer fail\n", __func__);
+			return -EINVAL;
+		}
 	}
 
 	pinfo->chargeric_temp_chan = iio_channel_get(oplus_chip->dev, "auxadc3-chargeric_temp");
@@ -8068,6 +8149,9 @@ static int mtk_charger_probe(struct platform_device *pdev)
 			schedule_delayed_work(&ccdetect_work, msecs_to_jiffies(6000));
 		}
 		printk(KERN_ERR "[OPLUS_CHG][%s]: ccdetect_gpio ..level[%d]  \n", __func__, level);
+	} else if (oplus_ccdetect_check_is_wd0(oplus_chip) == true) {
+		INIT_DELAYED_WORK(&wd0_detect_work, oplus_wd0_detect_work);
+		INIT_DELAYED_WORK(&usbtemp_recover_work, oplus_usbtemp_recover_work);
 	}
 
 	oplus_chip->con_volt = con_volt_20131;

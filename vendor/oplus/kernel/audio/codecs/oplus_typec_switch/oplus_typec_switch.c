@@ -35,10 +35,13 @@
 
 #define USB_TYPEC_NORMAL  (0)
 #define USB_TYPEC_REVERSE (1)
+#define OPLUS_ARCH_EXTENDS
 
-#if IS_ENABLED(CONFIG_OPLUS_MTK_HEADSET_RECHECK)
+#if IS_ENABLED(CONFIG_OPLUS_MTK_ACCDET_CHECK_RESET)
 /* add for mtk accdet check and reset MT6681_TOP_INT_CON0 bit7 for headset can't be detected issue */
 extern bool mtk_accdet_irq_check_and_set(void);
+#endif /* CONFIG_OPLUS_MTK_ACCDET_CHECK_RESET */
+#if IS_ENABLED(CONFIG_OPLUS_MTK_HEADSET_RECHECK)
 /* Add for check cable state after plug in/out 1s and force accdet irq. */
 extern u32 mtk_get_accdet_plug_state(void);
 extern int oplus_force_eint_handler(int plug_state);
@@ -167,7 +170,7 @@ int typec_switch_write_register(struct regmap *regmap, unsigned int addr, unsign
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 				mm_fb_audio_fatal_delay(10047, MM_FB_KEY_RATELIMIT_5MIN,
 							FEEDBACK_DELAY_60S, "payload@@regulator regmap write failed after retry %d times, addr=0x%x, ret=0x%x",
-							addr, I2C_RETRIES, ret);
+							I2C_RETRIES, addr, ret);
 #endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 			} else {
 				msleep(I2C_RETRY_DELAY);
@@ -836,12 +839,16 @@ static int typec_switch_usbc_analog_setup_switches(struct typec_switch_priv *swi
 			#if IS_ENABLED(CONFIG_OPLUS_MTK_HEADSET_RECHECK)
 			/* Add for check cable state after plug in/out 2s and force accdet irq. */
 			cancel_delayed_work(&switch_priv->hp_plugout_check_work);
+			#endif /* CONFIG_OPLUS_MTK_HEADSET_RECHECK */
+			#if IS_ENABLED(CONFIG_OPLUS_MTK_ACCDET_CHECK_RESET)
 			/* add for mtk accdet check and reset MT6681_TOP_INT_CON0 bit7 for headset can't be detected issue */
 			if (!mtk_accdet_irq_check_and_set()) {
+				#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 				mm_fb_audio_fatal_delay(10047, MM_FB_KEY_RATELIMIT_5MIN,
 							FEEDBACK_DELAY_60S, "payload@@accdet irq still not enabled after check and reset");
+				#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 			}
-			#endif /* CONFIG_OPLUS_MTK_HEADSET_RECHECK */
+			#endif /* CONFIG_OPLUS_MTK_ACCDET_CHECK_RESET */
 			dev_info(dev, "%s, %d: set hs_det_pin %d to enable.\n", __func__, __LINE__, switch_priv->hs_det_pin);
 			state = gpio_get_value(switch_priv->hs_det_pin);
 			dev_info(dev, "%s: before hs_det_pin state = %d.\n", __func__, state);

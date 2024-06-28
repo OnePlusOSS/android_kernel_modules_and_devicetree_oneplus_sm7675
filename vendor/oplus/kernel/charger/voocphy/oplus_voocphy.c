@@ -3992,7 +3992,7 @@ irqreturn_t oplus_voocphy_interrupt_handler(struct oplus_voocphy_manager *chip)
 			if (chip->copycat_type == FAST_COPYCAT_TYPE_UNKNOW &&
 			    chip->fastchg_adapter_ask_cmd == VOOC_CMD_IS_VUBS_OK &&
 			    chip->copycat_vooc_support == true &&
-			    chip->adapter_is_vbus_ok_count == 2 &&
+			    chip->adapter_is_vbus_ok_count ==  chip->copycat_vooc_count &&
 			    chip->adapter_type == ADAPTER_SVOOC &&
 			    (chip->cp_vbus < svooc_init_vbus_low_threshold ||
 			    chip->cp_vbus > SVOOC_INIT_VBUS_VOL_HIGH ||
@@ -6242,7 +6242,7 @@ bool oplus_voocphy_check_fastchg_real_allow(void)
 
 		btb_temp = oplus_chg_get_battery_btb_temp_cal();
 		usb_temp = oplus_chg_get_usb_btb_temp_cal();
-		voocphy_err("btb_temp: %d", btb_temp);
+		voocphy_err("btb_temp[%d], usb_temp[%d]", btb_temp, usb_temp);
 
 		if (btb_temp < BTB_OVER_TEMP && usb_temp < BTB_OVER_TEMP) {
 			break;
@@ -6259,7 +6259,8 @@ bool oplus_voocphy_check_fastchg_real_allow(void)
 		chip->btb_temp_over = true;
 	}
 
-	voocphy_info("ret:%d, temp:%d, soc:%d", ret, batt_temp, batt_soc);
+	voocphy_info("ret:%d, batt_temp:%d, usb_temp:%d, btb_temp:%d, soc:%d",
+					ret, batt_temp, usb_temp, btb_temp, batt_soc);
 
 	return ret;
 }
@@ -7453,6 +7454,14 @@ int oplus_voocphy_parse_batt_curves(struct oplus_voocphy_manager *chip)
 		chip->identify_algorithm_version = FAST_COPYCAT_IDENTIFY_ALGORITHM_V1;
 
 	voocphy_info("copycat_identify_algorithm = %d\n", chip->identify_algorithm_version);
+
+	rc = of_property_read_u32(node, "oplus,copycat-vooc-count",
+				&chip->copycat_vooc_count);
+	if (rc)
+		chip->copycat_vooc_count = 2;
+
+	voocphy_info("copycat_vooc_count = %d\n", chip->copycat_vooc_count);
+
 
 	chip->cancel_primary_switch = of_property_read_bool(node, "oplus,cancel_primary_switch");
 	voocphy_info("cancel_primary_switch = %d\n", chip->cancel_primary_switch);

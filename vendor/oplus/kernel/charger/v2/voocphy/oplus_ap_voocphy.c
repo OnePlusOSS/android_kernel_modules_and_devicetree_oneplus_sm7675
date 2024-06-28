@@ -983,7 +983,6 @@ static int oplus_voocphy_reset_variables(struct oplus_voocphy_manager *chip)
 	chip->vbus = 0;
 	chip->fastchg_batt_temp_status = BAT_TEMP_NATURAL;
 	chip->vooc_temp_cur_range = FASTCHG_TEMP_RANGE_INIT;
-	chip->receive_temp_range = FASTCHG_TEMP_RANGE_INIT;
 	chip->fastchg_commu_stop = false;
 	chip->fastchg_monitor_stop = false;
 	chip->current_pwd = chip->current_expect;
@@ -3825,7 +3824,7 @@ irqreturn_t oplus_voocphy_interrupt_handler(struct oplus_voocphy_manager *chip)
 		if (oplus_voocphy_get_bidirect_cp_support(chip) == false) {
 			torch_exit_fastchg = oplus_voocphy_svooc_commu_with_voocphy(chip);
 			if (chip->fastchg_adapter_ask_cmd == VOOC_CMD_IS_VUBS_OK &&
-			    chip->copycat_vooc_support && chip->adapter_is_vbus_ok_count == 2 &&
+			    chip->copycat_vooc_support && chip->adapter_is_vbus_ok_count == chip->copycat_vooc_count &&
 			    chip->adapter_type == ADAPTER_SVOOC && (chip->cp_vbus < SVOOC_INIT_VBUS_VOL_LOW ||
 			    chip->cp_vbus > SVOOC_INIT_VBUS_VOL_HIGH || chip->adapter_ask_fastchg_ornot_count == 1)) {
 				voocphy_info("ADAPTER_COPYCAT,init cp_vbus = %d, ask_fastchg_ornot_count=%d\n",
@@ -5352,7 +5351,8 @@ static int oplus_voocphy_commu_process_handle(struct device *dev, unsigned long 
 
 	/* note exception for systrace */
 	voocphy_info("dur time %lld usecs\n", duration);
-	if (oplus_chglib_is_abnormal_pd_svooc_adapter(chip->dev) &&
+	if ((oplus_chglib_is_abnormal_pd_svooc_adapter(chip->dev) ||
+		(oplus_chglib_get_adapter_sid_power(chip->dev) >= 80)) &&
 	    oplus_chglib_is_wired_present(chip->dev)) {
 		voocphy_info("delay_notify_ap true");
 		delay_notify_ap = true;
@@ -5680,6 +5680,13 @@ static int oplus_voocphy_parse_batt_curves(struct oplus_voocphy_manager *chip)
 	chip->copycat_vooc_support = of_property_read_bool(node,
 	                                "oplus_spec,copycat_vooc_support");
 	voocphy_info("copycat_vooc_support = %d\n", chip->copycat_vooc_support);
+
+	rc = of_property_read_u32(node, "oplus,copycat-vooc-count",
+				&chip->copycat_vooc_count);
+	if (rc)
+		chip->copycat_vooc_count = 2;
+
+	voocphy_info("copycat_vooc_count = %d\n", chip->copycat_vooc_count);
 
 	rc = of_property_read_u32(node, "oplus,ovp_ctrl_cp_index",
 				&chip->ovp_ctrl_cpindex);

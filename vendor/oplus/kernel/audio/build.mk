@@ -64,6 +64,30 @@ LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 ###########################################################
 
+################# usbc_switch-symvers ##############
+#ifdef OPLUS_ARCH_EXTENDS
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES           := $(wildcard $(MY_LOCAL_PATH)/codecs/usbc_switch/*.c)
+LOCAL_MODULE              := oplus-usbc_switch-symvers
+LOCAL_MODULE_STEM         := Module.symvers
+LOCAL_MODULE_KBUILD_NAME  := Module.symvers
+LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+#endif /* OPLUS_ARCH_EXTENDS */
+###########################################################
+
+########################### usbc_switch  ###########################
+#add for audio switch
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES           := $(OPLUS_AUDIO_SRC_FILES)
+LOCAL_MODULE              := oplus_usbc_switch.ko
+LOCAL_MODULE_KBUILD_NAME  := oplus/codecs/usbc_switch/oplus_usbc_switch.ko
+LOCAL_MODULE_TAGS         := optional
+LOCAL_MODULE_DEBUG_ENABLE := true
+LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+###########################################################
+
 ########################### SIPA TUNING  ###########################
 #add for sia pa bringup
 include $(CLEAR_VARS)
@@ -99,6 +123,5 @@ LOCAL_MODULE_DEBUG_ENABLE := true
 LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 ###########################################################
-
 endif # audio-kernel
 endif # DLKM check

@@ -111,6 +111,11 @@ extern bool g_speaker_resistance_fail;
 
 #define TF98XX_MAX_DSP_START_TRY_COUNT	10
 #define TFADSP_FLAG_CALIBRATE_DONE 1
+#define TFADSP_FLAG_DAMAGED_SPEAKER_P	2
+#define TFADSP_FLAG_DAMAGED_SPEAKER_S	4
+#define TFADSP_FLAG_DAMAGED_VSENSE_P	8
+#define TFADSP_FLAG_DAMAGED_VSENSE_S	16
+#define TFADSP_FLAG_DAMAGED_FRESCAL		32
 
 /* data accessible by all instances */
 /* Memory pool used for DSP messages */
@@ -708,6 +713,101 @@ static enum Tfa98xx_Error tfa98xx_fres_cal_get(void)
 
 #ifdef OPLUS_ARCH_EXTENDS
 #define TFA_DEV_REG_CHECK_NUM 3
+enum Tfa98xx_Error tfa98xx_dsp_get_calibration_status(struct tfa98xx *tfa98xx, int dev_idx, int f0_support)
+{
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+	enum Tfa98xx_Error errPrimarySpeaker = Tfa98xx_Error_Ok;
+	enum Tfa98xx_Error errSecondarySpeaker = Tfa98xx_Error_Ok;
+	int vSenseDamageMask = 0;
+	int fResCalDamageMask = 0;
+	char buffer[6] = { 0 };
+
+	if (1 == f0_support) {
+		fResCalDamageMask = TFADSP_FLAG_DAMAGED_FRESCAL;
+		vSenseDamageMask = TFADSP_FLAG_DAMAGED_VSENSE_P | TFADSP_FLAG_DAMAGED_VSENSE_S;
+	}
+
+	/* Get the GetStatusChange results */
+	error = tfa_dsp_cmd_id_write_read(tfa98xx->tfa, MODULE_FRAMEWORK, FW_PAR_ID_GET_STATUS_CHANGE, 6, (unsigned char*)buffer);
+	if (error != Tfa98xx_Error_Ok) {
+		return error;
+	}
+	pr_info("%s: get Status[idx=%d], event = 0x%x, status = 0x%x\n", __func__, dev_idx, buffer[2],  buffer[5]);
+	if (!(buffer[5] & TFADSP_FLAG_CALIBRATE_DONE)) {
+		pr_info("[TFA]Not Calibrated OR Calibration FAILED due to timeout, status=0x%x\n", buffer[5]);
+		return Tfa98xx_Error_RpcCalibFailed;
+	}
+
+	switch (dev_idx%2) {
+	case 0:
+		if (0 != fResCalDamageMask) {
+			if (buffer[5] & TFADSP_FLAG_DAMAGED_FRESCAL) {
+				pr_info("[TFA]Primary SPK resonant frequency is out of range\n");
+				errPrimarySpeaker = Tfa9xxx_Error_SpeakerError;
+			}
+			else {
+				pr_info("[TFA]Primary SPK resonant frequency is within range\n");
+			}
+		}
+		if (0 != vSenseDamageMask) {
+			if (buffer[5] & TFADSP_FLAG_DAMAGED_VSENSE_P) {
+				pr_info("[TFA]Primary SPK voltage is out of range\n");
+				/* For HostSDK purpose, consider vSenseDamage also as calibration failure */
+				errPrimarySpeaker = Tfa9xxx_Error_SpeakerError;
+			}
+			else {
+				pr_info("[TFA]Primary SPK voltage is within range\n");
+			}
+		}
+		if (buffer[5] & TFADSP_FLAG_DAMAGED_SPEAKER_P) {
+			pr_info("[TFA]Primary SPK impedance is out of range\n");
+			errPrimarySpeaker = Tfa9xxx_Error_SpeakerError;
+		}
+		else {
+			pr_info("Primary SPK impedance is within range\n");
+		}
+		break;
+	case 1:
+		if (0 != fResCalDamageMask) {
+			if (buffer[5] & TFADSP_FLAG_DAMAGED_FRESCAL) {
+				pr_info("[TFA]Second SPK resonant frequency is out of range\n");
+				/* For HostSDK purpose, consider fResCalDamage also as calibration failure */
+				errSecondarySpeaker = Tfa9xxx_Error_SpeakerError;
+			}
+			else {
+				pr_info("[TFA]Second SPK resonant frequency is within range\n");
+			}
+		}
+		if (0 != vSenseDamageMask) {
+			if (buffer[5] & TFADSP_FLAG_DAMAGED_VSENSE_S) {
+				pr_info("[TFA]Second SPK voltage is out of range\n");
+				/* For HostSDK purpose, consider vSenseDamage also as calibration failure */
+				errSecondarySpeaker = Tfa9xxx_Error_SpeakerError;
+			}
+			else {
+				pr_info("[TFA]Second SPK voltage is within range\n");
+			}
+		}
+		if (buffer[5] & TFADSP_FLAG_DAMAGED_SPEAKER_S) {
+			pr_info("[TFA]Second SPK impedance is out of range\n");
+			errSecondarySpeaker = Tfa9xxx_Error_SpeakerError;
+		}
+		else {
+			pr_info("[TFA]Second SPK impedance is within range\n");
+		}
+		break;
+	default:
+		break;
+	}
+
+	if (errPrimarySpeaker || errSecondarySpeaker) {
+		pr_err("[TFA]Calibration FAILED\n");
+        return Tfa9xxx_Error_SpeakerError;
+	} else {
+		pr_info("[TFA]Calibration PASSED\n");
+	    return Tfa98xx_Error_Ok;
+    }
+}
 
 static enum Tfa98xx_Error tfa9874_calibrate(struct tfa98xx *tfa98xx_cal, int *speakerImpedance, bool b_aging)
 {
@@ -723,6 +823,7 @@ static enum Tfa98xx_Error tfa9874_calibrate(struct tfa98xx *tfa98xx_cal, int *sp
 
 	int read_value = 0;
 	int idx = TFA_DEV_REG_CHECK_NUM;
+	int num_spkr_in_error = 0;
 
 	err = check_hw_power(tfa98xx->tfa);
 	if (err) {
@@ -826,16 +927,6 @@ static enum Tfa98xx_Error tfa9874_calibrate(struct tfa98xx *tfa98xx_cal, int *sp
 					pr_info("%s: inst0 calibrate done, status[2] = 0x%x, status[5] = 0x%x\n", __func__, buffer[2],  buffer[5]);
 					#endif // OPLUS_ARCH_EXTENDS
 				}
-				/* bit1 is TFADSP_FLAG_DAMAGED_SPEAKER_P
-				bit2 is TFADSP_FLAG_DAMAGED_SPEAKER_S
-				*/
-				if(buffer[2] & 0x6) {
-					if (buffer[2] & 0x2)
-						pr_info("%s: ##ERROR## Primary SPK damaged event detected 0x%x\n", __func__, buffer[2]);
-					if (buffer[2] & 0x4)
-						pr_info("%s: ##ERROR## Second SPK damaged event detected 0x%x\n", __func__, buffer[2]);
-					break;
-				}
 			}
 			if ((tfa98xx_ins2 != NULL) && ((is_break & 0x02) == 0)) {
 				/* Get the GetStatusChange results */
@@ -848,14 +939,6 @@ static enum Tfa98xx_Error tfa9874_calibrate(struct tfa98xx *tfa98xx_cal, int *sp
 					#ifdef OPLUS_ARCH_EXTENDS
 					pr_info("%s: inst1 calibrate done, status[2] = 0x%x, status[5] = 0x%x\n", __func__, buffer[2],  buffer[5]);
 					#endif // OPLUS_ARCH_EXTENDS
-				}
-
-				if(buffer[2] & 0x6) {
-					if (buffer[2] & 0x2)
-						pr_info("%s: ##ERROR## Primary SPK with instance1 damaged event detected 0x%x\n", __func__, buffer[2]);
-					if (buffer[2] & 0x4)
-						pr_info("%s: ##ERROR## Second SPK with instance1  damaged event detected 0x%x\n", __func__, buffer[2]);
-					break;
 				}
 			}
 
@@ -911,13 +994,28 @@ static enum Tfa98xx_Error tfa9874_calibrate(struct tfa98xx *tfa98xx_cal, int *sp
 		i = 0;
 		list_for_each_entry(tfa98xx, &tfa98xx_device_list, list) {
 			imp = tfa_get_calibration_info(tfa98xx->tfa, 0);
-			if (imp == 0xc00 && (buffer[2] & (2 << i%2))) {
+			i = tfa98xx->tfa->dev_idx;
+			if (imp == 0xc00) {
 				tfa98xx->tfa->mohm[0] = 0;
 			}
-			i++;
+			// check the status here!!
+			err = tfa98xx_dsp_get_calibration_status(tfa98xx, i, tfa98xx->is_use_freq);
+			if (err == Tfa9xxx_Error_SpeakerError)
+				num_spkr_in_error++;
+
+			// check the cali value here !
+			if (imp < tfa98xx->tfa->min_mohms || imp > tfa98xx->tfa->max_mohms) {
+				num_spkr_in_error = tfa98xx_device_count;
+				pr_err("[TFA]Calibrate value is out of range.\n");
+				break;
+			}
 		}
 		/* restore the org point*/
 		tfa98xx = tfa98xx_cal;
+		if (num_spkr_in_error == tfa98xx_device_count) {
+			pr_err("[TFA]Calibrate failed and not save mtp, exit.\n");
+			return Tfa9xxx_Error_SpeakerError;
+		}
 
 		*speakerImpedance = tfa_get_calibration_info(tfa98xx->tfa, 0);
 

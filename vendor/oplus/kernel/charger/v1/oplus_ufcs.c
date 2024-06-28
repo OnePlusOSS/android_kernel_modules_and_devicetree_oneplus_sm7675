@@ -1240,7 +1240,10 @@ static int oplus_ufcs_get_charging_data(struct oplus_ufcs_chip *chip)
 	chip->data.ap_batt_temperature = oplus_chg_match_temp_for_chging();
 	chip->data.ap_fg_temperature = oplus_gauge_get_batt_temperature();
 
-	chip->data.ap_batt_volt = oplus_gauge_get_batt_mvolts();
+	if (chip->ops->ufcs_get_cp_master_vbat)
+		chip->data.ap_batt_volt = chip->ops->ufcs_get_cp_master_vbat();
+	if (chip->data.ap_batt_volt <= 0 || (chip->ops->ufcs_get_cp_master_vbat == NULL))
+		chip->data.ap_batt_volt = oplus_gauge_get_batt_mvolts();
 	chip->data.ap_batt_current = oplus_gauge_get_batt_current();
 	chip->data.current_adapter_max = chip->ops->ufcs_get_scap_imax(oplus_ufcs_get_curve_vbus(chip));
 	oplus_ufcs_get_ufcs_status(chip);
@@ -3222,7 +3225,11 @@ static int oplus_ufcs_set_pdo(struct oplus_ufcs_chip *chip)
 
 static void oplus_ufcs_voter_charging_stop(struct oplus_ufcs_chip *chip)
 {
-	int stop_voter = chip->ufcs_stop_status;
+	int stop_voter = 0;
+	if (oplus_chg_get_flash_led_status())
+		chip->ufcs_stop_status = UFCS_STOP_VOTER_FLASH_LED;
+
+	stop_voter = chip->ufcs_stop_status;
 
 	switch (stop_voter) {
 	case UFCS_STOP_VOTER_USB_TEMP:
@@ -4036,7 +4043,7 @@ bool oplus_ufcs_get_src_cap(void)
 	for (i = 0; i < src_cap->cap_num; i++) {
 		ufcs_debug("i = %d, [%d, %d, %d, %d]\n", i, src_cap->max_volt[i], src_cap->min_volt[i],
 			   src_cap->max_curr[i], src_cap->min_curr[i]);
-		if ((src_cap->max_volt[i] != src_cap->min_volt[i]) && (src_cap->max_volt[i] >= UFCS_VOL_CURVE_HMIN)) {
+		if ((src_cap->max_volt[i] != src_cap->min_volt[i]) && (src_cap->max_volt[i] > UFCS_VOL_CURVE_HMIN)) {
 			chip->ufcs_imax = src_cap->max_curr[i];
 			chip->ufcs_vmax = src_cap->max_volt[i];
 			vbus_ok = true;

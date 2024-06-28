@@ -90,10 +90,13 @@ static void mutex_set_inherit_ux(struct mutex *lock, struct task_struct *task)
 		int type = get_ux_state_type(owner);
 
 		if ((type == UX_STATE_NONE) || (type == UX_STATE_INHERIT)) {
+			if(oplus_get_ux_state(task) == SCHED_UX_STATE_DEBUG_MAGIC)
+				return;
 			if(is_ux)
 				set_inherit_ux(owner, INHERIT_UX_MUTEX, oplus_get_ux_depth(task), oplus_get_ux_state(task));
-			if(is_rt)
-				set_inherit_ux(owner, INHERIT_UX_MUTEX, oplus_get_ux_depth(task), SA_TYPE_LIGHT);
+			if(is_rt) {
+				set_inherit_ux(owner, INHERIT_UX_MUTEX, oplus_get_ux_depth(task), oplus_get_ux_state(owner) > 0 ? oplus_get_ux_state(task) : SA_TYPE_LIGHT);
+			}
 		}
 	}
 }

@@ -4800,7 +4800,7 @@ bool oplus_pps_is_allow_real(void)
 	struct oplus_pps_chip *chip = &g_pps_chip;
 	int btb_check_cnt = BTB_CHECK_MAX_CNT;
 
-	if (!chip || !chip->pps_support_type)
+	if (!chip || !chip->pps_support_type || !chip->ops)
 		return false;
 
 	chip->data.ap_batt_temperature = oplus_chg_match_temp_for_chging();

@@ -247,6 +247,12 @@ struct syna_auto_test_operations {
 	int (*syna_auto_test_endoperation)(struct seq_file *s, void *chip_data,
 					   struct auto_testdata *syna_testdata,
 					   struct test_item_info *p_test_item_info);
+	int (*syna_black_screen_test_noise)(struct seq_file *s, void *chip_data,
+					   struct auto_testdata *syna_testdata,
+					   struct test_item_info *p_test_item_info);
+	int (*syna_black_screen_test_dynamic)(struct seq_file *s, void *chip_data,
+					   struct auto_testdata *syna_testdata,
+					   struct test_item_info *p_test_item_info);
 };
 
 int  synaptics_create_proc(struct touchpanel_data *ts,
@@ -258,5 +264,7 @@ void synaptics_parse_header(struct image_header_data *header,
 int synaptics_parse_header_v2(struct image_info *image_info,
 			      const unsigned char *fw_image);
 int synaptics_auto_test(struct seq_file *s,  struct touchpanel_data *ts);
+int synaptics_black_screen_test(struct black_gesture_test *p,
+			      struct touchpanel_data *ts);
 
 #endif  /*SYNAPTICS_H*/

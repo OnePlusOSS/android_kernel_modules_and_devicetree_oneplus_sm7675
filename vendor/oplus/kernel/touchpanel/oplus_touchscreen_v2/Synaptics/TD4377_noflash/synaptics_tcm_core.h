@@ -132,6 +132,7 @@ enum touch_report_code {
 	TOUCH_REPORT_GESTURE_TRIANGLE = 197,
 	TOUCH_REPORT_GESTURE_INFO = 198,
 	TOUCH_REPORT_GESTURE_COORDINATE = 199,
+	TOUCH_REPORT_PALM_DETECTED = 200,
 };
 
 enum module_type {
@@ -224,6 +225,7 @@ enum dynamic_config_id {
 	DC_GRIP_DARKZONE_Y = 0xCF,
 	DC_HEADSET_MODE_ENABLED = 0xD1,
 	DC_FREQUENCE_HOPPING = 0xD2,
+	DC_SET_REPORT_FRE = 0x11,
 };
 
 enum command {
@@ -318,6 +320,11 @@ enum flash_data {
 	LCM_DATA = 1,
 	OEM_DATA,
 	PPDT_DATA,
+};
+
+enum palm_mode {
+	PALM_TO_DEFAULT = 0,
+	PALM_TO_SLEEP   = 1,
 };
 
 struct syna_tcm_buffer {
@@ -426,6 +433,7 @@ struct touch_data {
 	unsigned int nsm_state;
 	unsigned int num_of_active_objects;
 	unsigned int num_of_cpu_cycles;
+	unsigned int palm_status;
 };
 
 struct touch_hcd {
@@ -496,7 +504,7 @@ struct syna_tcm_hcd {
 	struct spi_bus_data spi_data;
 
 	unsigned short ubl_addr;
-	unsigned char trigger_reason;
+	unsigned int trigger_reason;
 	unsigned char command;
 	unsigned char async_report_id;
 	unsigned char status_report_code;

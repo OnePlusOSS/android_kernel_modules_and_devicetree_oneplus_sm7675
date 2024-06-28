@@ -24,6 +24,7 @@
 #endif /* OPLUS_FEATURE_DISPLAY_ADFR */
 
 bool refresh_rate_change = false;
+extern bool oplus_pwm_onepluse_switch;
 extern int dc_apollo_enable;
 extern int oplus_dimlayer_hbm;
 extern unsigned int oplus_dsi_log_type;
@@ -87,9 +88,6 @@ int oplus_panel_cmd_switch(struct dsi_panel *panel, enum dsi_cmd_set_type *type)
 {
 	enum dsi_cmd_set_type type_store = *type;
 	u32 count;
-	u8 cmd;
-	char replace_reg[REG_SIZE];
-	size_t replace_reg_len;
 	unsigned int last_refresh_rate = panel->last_refresh_rate;
 
 	/* switch the command when pwm turbo is enabled */
@@ -116,20 +114,16 @@ int oplus_panel_cmd_switch(struct dsi_panel *panel, enum dsi_cmd_set_type *type)
 	}
 
 	/* switch the command when pwm onepulse is enabled */
-	if (oplus_panel_pwm_onepulse_is_enabled(panel)) {
+	if (oplus_panel_pwm_onepulse_is_enabled(panel)&&
+	  		!panel->pwm_params.directional_onepulse_switch) {
 		switch (*type) {
 		case DSI_CMD_PWM_SWITCH_HIGH:
-			*type = DSI_CMD_PWM_SWITCH_ONEPULSE;
 			if (!strcmp(panel->name, "AA545 P 3 A0005 dsc cmd mode panel") ||
 					!strcmp(panel->name, "AC090 P 3 A0005 dsc cmd mode panel")) {
-				memset(replace_reg, 0, sizeof(replace_reg));
-				cmd = 0x51;
-				replace_reg_len = 2;
-				replace_reg[0] = (bl_lvl >> 8) & 0xFF;
-				replace_reg[1] = bl_lvl & 0xFF;
-				oplus_panel_cmd_reg_replace(panel, DSI_CMD_PWM_SWITCH_ONEPULSE, cmd,
-					replace_reg, replace_reg_len);
+				oplus_pwm_onepluse_switch = true;
+				return 0;
 			}
+			*type = DSI_CMD_PWM_SWITCH_ONEPULSE;
 			break;
 		case DSI_CMD_PWM_SWITCH_LOW:
 			*type = DSI_CMD_PWM_SWITCH_ONEPULSE_LOW;
@@ -143,6 +137,19 @@ int oplus_panel_cmd_switch(struct dsi_panel *panel, enum dsi_cmd_set_type *type)
 			break;
 		default:
 			break;
+		}
+	}
+
+	if (panel->pwm_params.directional_onepulse_switch) {
+		if(oplus_panel_pwm_onepulse_is_used(panel)) {
+			switch (*type) {
+			case DSI_CMD_SET_TIMING_SWITCH: {
+				*type = DSI_CMD_TIMMING_PWM_SWITCH_ONEPULSE;
+				break;
+			}
+			default:
+				break;
+			}
 		}
 	}
 

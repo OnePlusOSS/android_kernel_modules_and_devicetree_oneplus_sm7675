@@ -902,6 +902,7 @@ struct oplus_voocphy_manager {
 	u8 int_column[6];
 	u8 int_column_pre[6];
 	bool copycat_vooc_support;
+	int copycat_vooc_count;
 	int chip_id;
 	int high_curr_setting;
 	enum oplus_voocphy_ovp_ctrl ovp_ctrl_cpindex;

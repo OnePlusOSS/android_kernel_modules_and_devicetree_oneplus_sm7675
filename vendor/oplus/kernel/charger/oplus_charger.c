@@ -11352,8 +11352,13 @@ static void oplus_chg_kpoc_power_off_check(struct oplus_chg_chip *chip)
 #endif
 }
 
+#define GAUGE_INFO_MAX_SIZE 1024
 static void oplus_chg_print_log(struct oplus_chg_chip *chip)
 {
+	static long update_reg_jiffies;
+	char buf[GAUGE_INFO_MAX_SIZE] = {0};
+	int rc;
+
 	if (chip->vbatt_num == 1) {
 		charger_xlog_printk(CHG_LOG_CRTI,
 			"CHGR[ %d / %d / %d / %d / %d / %d ], "
@@ -11401,6 +11406,27 @@ static void oplus_chg_print_log(struct oplus_chg_chip *chip)
 			oplus_vooc_get_fastchg_started(), oplus_vooc_get_fastchg_ing(), oplus_vooc_get_fastchg_dummy_started(),
 			oplus_vooc_get_fastchg_to_normal(), oplus_vooc_get_fastchg_to_warm(), oplus_vooc_get_fast_chg_type(),
 			oplus_voocphy_get_fastchg_commu_ing());
+	}
+
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
+	if (get_eng_version() != PREVERSION || chip->charger_exist) {
+#else
+	if (chip->charger_exist) {
+#endif
+		update_reg_jiffies = jiffies;
+	} else {
+		if (time_is_before_eq_jiffies(update_reg_jiffies + (unsigned long)(300 * HZ))) {
+			update_reg_jiffies = jiffies;
+			rc = oplus_gauge_get_info(buf, GAUGE_INFO_MAX_SIZE);
+			if (rc == 0 && strlen(buf))
+				printk(KERN_INFO "OPLUS_CHG [main_gauge_reg_info] %s\n", buf);
+			if (oplus_gauge_get_sub_batt_soc() > 0) {
+				memset(buf, 0 , sizeof(buf));
+				rc = oplus_sub_gauge_get_info(buf, GAUGE_INFO_MAX_SIZE);
+				if (rc == 0 && strlen(buf))
+					printk(KERN_INFO "OPLUS_CHG [sub_gauge_reg_info] %s\n", buf);
+			}
+		}
 	}
 
 	if (oplus_chg_get_voocphy_support() == AP_SINGLE_CP_VOOCPHY ||

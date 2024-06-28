@@ -1529,6 +1529,7 @@ struct oplus_chg_chip {
 	int track_gmtoff;
 
 	bool support_shipmode_in_chgic;
+	bool not_support_usb_btb;
 };
 
 #define TTF_UPDATE_UEVENT_BIT		BIT(30)

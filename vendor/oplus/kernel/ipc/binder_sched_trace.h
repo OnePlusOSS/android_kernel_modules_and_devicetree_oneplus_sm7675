@@ -16,6 +16,8 @@
 #include "binder_sched.h"
 #include <linux/tracepoint.h>
 
+#define T_INFO_LEN	32
+
 TRACE_EVENT(binder_t_obs,
 	TP_PROTO(struct binder_transaction *t, struct oplus_binder_struct *obs, char *info),
 	TP_ARGS(t, obs, info),
@@ -24,16 +26,16 @@ TRACE_EVENT(binder_t_obs,
 		__field(struct binder_transaction *, t)
 		__field(unsigned int, flags)
 		__field(struct oplus_binder_struct *, obs)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->t = t;
 		__entry->flags = (t ? t->flags : 0);
 		__entry->obs = obs;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN);
 	),
-	TP_printk("t=0x%llx flags=0x%x obs=0x%llx info=%s", (unsigned long long)__entry->t,
-		__entry->flags, (unsigned long long)__entry->obs, __entry->info)
+	TP_printk("t=%px flags=0x%x obs=%px info=%s", __entry->t,
+		__entry->flags, __entry->obs, __entry->info)
 );
 
 TRACE_EVENT(binder_get_obs,
@@ -44,16 +46,17 @@ TRACE_EVENT(binder_get_obs,
 		__field(struct binder_transaction *, t)
 		__field(struct oplus_binder_struct *, obs)
 		__field(int, alloc)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
+
 	),
 	TP_fast_assign(
 		__entry->t = t;
 		__entry->obs = obs;
 		__entry->alloc = alloc;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN);
 	),
-	TP_printk("t=0x%llx obs=0x%llx alloc=%d info=%s", (unsigned long long)__entry->t,
-		(unsigned long long)__entry->obs, __entry->alloc, __entry->info)
+	TP_printk("t=%px obs=%px alloc=%d info=%s", __entry->t,
+		__entry->obs, __entry->alloc, __entry->info)
 );
 
 TRACE_EVENT(binder_ux_task,
@@ -67,11 +70,11 @@ TRACE_EVENT(binder_ux_task,
 		__field(int, set_ux)
 		__field(int, pid)
 		__field(int, tgid)
-		__field(char *, comm)
+		__array(char, comm, TASK_COMM_LEN)
 		__field(int, ux_enable)
 		__field(struct binder_transaction *, t)
 		__field(struct oplus_binder_struct *, obs)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->sync = sync;
@@ -79,15 +82,15 @@ TRACE_EVENT(binder_ux_task,
 		__entry->set_ux = set_ux;
 		__entry->pid = (ux_task ? ux_task->pid : 0);
 		__entry->tgid = (ux_task ? ux_task->tgid : 0);
-		__entry->comm = (ux_task ? ux_task->comm : "null");
+		memcpy(__entry->comm, (ux_task ? ux_task->comm : "null"), TASK_COMM_LEN);
 		__entry->ux_enable = ux_enable;
 		__entry->t = t;
 		__entry->obs = obs;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN);
 	),
-	TP_printk("sync=%d pending_async=%d set_ux=%d pid=%d tgid=%d comm=%s ux_enable=%d t=0x%llx obs=0x%llx info=%s",
+	TP_printk("sync=%d pending_async=%d set_ux=%d pid=%d tgid=%d comm=%s ux_enable=%d t=%px obs=%px info=%s",
 		__entry->sync, __entry->pending_async, __entry->set_ux, __entry->pid, __entry->tgid, __entry->comm,
-		__entry->ux_enable, (unsigned long long)__entry->t, (unsigned long long)__entry->obs, __entry->info)
+		__entry->ux_enable, __entry->t, __entry->obs, __entry->info)
 );
 
 TRACE_EVENT(binder_tr_buffer,
@@ -102,7 +105,7 @@ TRACE_EVENT(binder_tr_buffer,
 		__field(unsigned int, value)
 		__field(struct binder_transaction *, t)
 		__field(struct oplus_binder_struct *, obs)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->tr = tr;
@@ -111,11 +114,11 @@ TRACE_EVENT(binder_tr_buffer,
 		__entry->value = value;
 		__entry->t = t;
 		__entry->obs = obs;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN);
 	),
-	TP_printk("tr=0x%llx data_size=%ld ret=%d value=0x%x t=0x%llx obs=0x%llx info=%s",
-		(unsigned long long)__entry->tr, __entry->data_size, __entry->ret, __entry->value,
-		(unsigned long long)__entry->t, (unsigned long long)__entry->obs, __entry->info)
+	TP_printk("tr=%px data_size=%ld ret=%d value=0x%x t=%px obs=%px info=%s",
+		__entry->tr, __entry->data_size, __entry->ret, __entry->value,
+		__entry->t, __entry->obs, __entry->info)
 );
 
 TRACE_EVENT(binder_ux_enable,
@@ -126,24 +129,24 @@ TRACE_EVENT(binder_ux_enable,
 	TP_STRUCT__entry(
 		__field(int, pid)
 		__field(int, tgid)
-		__field(char *, comm)
+		__array(char, comm, TASK_COMM_LEN)
 		__field(int, enable)
 		__field(struct binder_transaction *, t)
 		__field(struct oplus_binder_struct *, obs)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->pid = (task ? task->pid : 0);
 		__entry->tgid = (task ? task->tgid : 0);
-		__entry->comm = (task ? task->comm : "null");
+		memcpy(__entry->comm, (task ? task->comm : "null"), TASK_COMM_LEN);
 		__entry->enable = enable;
 		__entry->t = t;
 		__entry->obs = obs;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN);
 	),
-	TP_printk("task(pid=%d tgid=%d comm=%s) ux_enable=%d t=0x%llx obs=0x%llx info=%s",
-		__entry->pid, __entry->tgid, __entry->comm, __entry->enable, (unsigned long long)__entry->t,
-		(unsigned long long)__entry->obs, __entry->info)
+	TP_printk("task(pid=%d tgid=%d comm=%s) ux_enable=%d t=%px obs=%px info=%s",
+		__entry->pid, __entry->tgid, __entry->comm, __entry->enable, __entry->t,
+		__entry->obs, __entry->info)
 );
 
 TRACE_EVENT(binder_set_get_ux,
@@ -154,17 +157,17 @@ TRACE_EVENT(binder_set_get_ux,
 		__field(int, set_pid)
 		__field(int, pid)
 		__field(int, tgid)
-		__field(char *, comm)
+		__array(char, comm, TASK_COMM_LEN)
 		__field(int, enable)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->set_pid = pid;
 		__entry->pid = (task ? task->pid : 0);;
 		__entry->tgid = (task ? task->tgid : 0);
-		__entry->comm = (task ? task->comm : "null");
+		memcpy(__entry->comm, (task ? task->comm : "null"), TASK_COMM_LEN);
 		__entry->enable = enable;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN);
 	),
 	TP_printk("task(set_pid=%d pid=%d tgid=%d comm=%s) enable=%d info=%s",
 		__entry->set_pid, __entry->pid, __entry->tgid, __entry->comm, __entry->enable, __entry->info)
@@ -182,7 +185,7 @@ TRACE_EVENT(binder_ux_work,
 		__field(struct list_head *, w_entry)
 		__field(bool, insert)
 		__field(int, ux_count)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->work = work;
@@ -190,11 +193,11 @@ TRACE_EVENT(binder_ux_work,
 		__entry->w_entry = w_entry;
 		__entry->insert = insert;
 		__entry->ux_count = ux_count;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN);
 	),
-	TP_printk("work=0x%llx target_list=0x%llx w_entry=0x%llx insert=%d sync_or_ux_count=%d info=%s",
-		(unsigned long long)__entry->work, (unsigned long long)__entry->target_list,
-		(unsigned long long)__entry->w_entry, __entry->insert, __entry->ux_count, __entry->info)
+	TP_printk("work=%px target_list=%px w_entry=%px insert=%d sync_or_ux_count=%d info=%s",
+		__entry->work, __entry->target_list,
+		__entry->w_entry, __entry->insert, __entry->ux_count, __entry->info)
 );
 
 TRACE_EVENT(binder_proc_thread,
@@ -214,7 +217,7 @@ TRACE_EVENT(binder_proc_thread,
 		__field(int, pending_async)
 		__field(struct binder_transaction *, t)
 		__field(struct binder_proc *, proc)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->proc_pid = (proc_task ? proc_task->pid : 0);
@@ -228,13 +231,13 @@ TRACE_EVENT(binder_proc_thread,
 		__entry->pending_async = pending_async;
 		__entry->t = t;
 		__entry->proc = proc;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN);
 	),
-	TP_printk("proc_tsk(pid=%d tgid=%d comm=%s) thread_tsk(pid=%d tgid=%d comm=%s) code=%d sync=%d pending_async=%d t=0x%llx proc=0x%llx info=%s",
+	TP_printk("proc_tsk(pid=%d tgid=%d comm=%s) thread_tsk(pid=%d tgid=%d comm=%s) code=%d sync=%d pending_async=%d t=%px proc=%px info=%s",
 		__entry->proc_pid, __entry->proc_tgid, __entry->proc_comm,
 		__entry->thread_pid, __entry->thread_tgid, __entry->thread_comm,
-		__entry->code, __entry->sync, __entry->pending_async, (unsigned long long)__entry->t,
-		(unsigned long long)__entry->proc, __entry->info)
+		__entry->code, __entry->sync, __entry->pending_async, __entry->t,
+		__entry->proc, __entry->info)
 );
 
 TRACE_EVENT(get_async_thread,
@@ -257,7 +260,7 @@ TRACE_EVENT(get_async_thread,
 		__field(struct binder_node *, node)
 		__field(int, has_async)
 		__field(ktime_t, time)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->proc_pid = (proc ? proc->tsk->pid : 0);
@@ -274,16 +277,16 @@ TRACE_EVENT(get_async_thread,
 		__entry->node = node;
 		__entry->has_async = has_async;
 		__entry->time = time,
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN)
 	),
-	TP_printk("proc_tsk(pid=%d tgid=%d comm=%s) thread_tsk(pid=%d tgid=%d comm=%s) count=%d max_threads=%d request=%d started=%d ots_node=0x%llx node=0x%llx has_async=%d time=%lldns info=%s",
+	TP_printk("proc_tsk(pid=%d tgid=%d comm=%s) thread_tsk(pid=%d tgid=%d comm=%s) count=%d max_threads=%d request=%d started=%d ots_node=%px node=%px has_async=%d time=%lldns info=%s",
 		__entry->proc_pid, __entry->proc_tgid, __entry->proc_comm, __entry->thread_pid, __entry->thread_tgid,
 		__entry->thread_comm, __entry->count, __entry->max_threads, __entry->requested_threads,
-		__entry->requested_threads_started, (unsigned long long)__entry->ots_node,
-		(unsigned long long)__entry->node, __entry->has_async, __entry->time, __entry->info)
+		__entry->requested_threads_started, __entry->ots_node,
+		__entry->node, __entry->has_async, __entry->time, __entry->info)
 );
 
-TRACE_EVENT(set_thread_mode,
+TRACE_EVENT(set_thread_node,
 	TP_PROTO(struct task_struct *task, struct binder_node *node, bool sync, char *info),
 	TP_ARGS(task, node, sync, info),
 
@@ -291,23 +294,23 @@ TRACE_EVENT(set_thread_mode,
 		__field(struct task_struct *, task)
 		__field(int, pid)
 		__field(int, tgid)
-		__field(char *, comm)
+		__array(char, comm, TASK_COMM_LEN)
 		__field(struct binder_node *, node)
 		__field(bool, sync)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->task = task;
 		__entry->pid = (task ? task->pid : 0);
 		__entry->tgid = (task ? task->tgid : 0);
-		__entry->comm = (task ? task->comm : "null");
+		memcpy(__entry->comm, (task ? task->comm : "null"), TASK_COMM_LEN);
 		__entry->node = node;
 		__entry->sync = sync;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN);
 	),
-	TP_printk("task(pid=%d tgid=%d comm=%s) node=0x%llx sync=%d info=%s",
+	TP_printk("task(pid=%d tgid=%d comm=%s) node=%px sync=%d info=%s",
 		__entry->pid, __entry->tgid, __entry->comm,
-		(unsigned long long)__entry->node, __entry->sync, __entry->info)
+		__entry->node, __entry->sync, __entry->info)
 );
 
 TRACE_EVENT(binder_free_buf,
@@ -323,7 +326,7 @@ TRACE_EVENT(binder_free_buf,
 		__field(char *, thread_comm)
 		__field(struct binder_transaction *, t)
 		__field(struct binder_buffer *, buffer)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->proc_pid = (proc ? proc->tsk->pid : 0);
@@ -334,11 +337,11 @@ TRACE_EVENT(binder_free_buf,
 		__entry->thread_comm = (thread ? thread->task->comm : "null");
 		__entry->t = (buffer ? buffer->transaction : 0);
 		__entry->buffer = buffer;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN)
 	),
-	TP_printk("proc(pid=%d tgid=%d comm=%s) thread(pid=%d tgid=%d comm=%s) t=0x%llx buffer=0x%llx info=%s",
+	TP_printk("proc(pid=%d tgid=%d comm=%s) thread(pid=%d tgid=%d comm=%s) t=%px buffer=%px info=%s",
 		__entry->proc_pid, __entry->proc_tgid, __entry->proc_comm, __entry->thread_pid, __entry->thread_tgid,
-		__entry->thread_comm, (unsigned long long)__entry->t, (unsigned long long)__entry->buffer, __entry->info)
+		__entry->thread_comm, __entry->t, __entry->buffer, __entry->info)
 );
 
 TRACE_EVENT(binder_inherit_ux,
@@ -358,7 +361,7 @@ TRACE_EVENT(binder_inherit_ux,
 		__field(int, type)
 		__field(int, async_ux_sts)
 		__field(bool, sync)
-		__field(char *, info)
+		__array(char, info, T_INFO_LEN)
 	),
 	TP_fast_assign(
 		__entry->from_pid = (from ? from->pid : 0);
@@ -372,7 +375,7 @@ TRACE_EVENT(binder_inherit_ux,
 		__entry->type = type;
 		__entry->async_ux_sts = async_ux_sts;
 		__entry->sync = sync;
-		__entry->info = info;
+		memcpy(__entry->info, info, T_INFO_LEN)
 	),
 	TP_printk("from(pid=%d tgid=%d comm=%s) target(pid=%d tgid=%d comm=%s) depth=%d state=%d type=%d async_ux_sts=%d sync=%d info=%s",
 		__entry->from_pid, __entry->from_tgid, __entry->from_comm,
@@ -381,6 +384,37 @@ TRACE_EVENT(binder_inherit_ux,
 		__entry->sync, __entry->info)
 );
 
+TRACE_EVENT(binder_set_async_afterpending,
+	TP_PROTO(struct binder_transaction *t, struct task_struct *task, struct oplus_task_struct *ots,
+		struct oplus_binder_struct *obs, int obs_ux_enable, char *info),
+	TP_ARGS(t, task, ots, obs, obs_ux_enable, info),
+	TP_STRUCT__entry(
+		__field(int, pid)
+		__field(int, tgid)
+		__array(char, comm, TASK_COMM_LEN)
+		__field(struct binder_transaction *, t)
+		__field(struct oplus_binder_struct *, obs)
+		__field(int, ots_ux_enable)
+		__field(int, ots_ux_sts)
+		__field(int, obs_ux_enable)
+		__array(char, info, T_INFO_LEN)
+	),
+	TP_fast_assign(
+		__entry->pid = (task ? task->pid : 0);
+		__entry->tgid = (task ? task->tgid : 0);
+		memcpy(__entry->comm, (task ? task->comm : "null"), TASK_COMM_LEN);
+		__entry->t = t;
+		__entry->obs = obs;
+		__entry->ots_ux_enable = (ots ? ots->binder_async_ux_enable : 0);
+		__entry->ots_ux_sts = (ots ? ots->binder_async_ux_sts : 0);
+		__entry->obs_ux_enable = obs_ux_enable;
+		memcpy(__entry->info, info, T_INFO_LEN);
+	),
+	TP_printk("thread(pid=%d tgid=%d comm=%s) ots_ux_enable=%d ots_ux_sts=%d obs_ux_enable=%d t=%px obs=%px info=%s",
+		__entry->pid, __entry->tgid, __entry->comm,
+		__entry->ots_ux_enable, __entry->ots_ux_sts, __entry->obs_ux_enable,
+		__entry->t, __entry->obs, __entry->info)
+);
 #endif /* _BINDER_SCHED_TRACE_H */
 
 #undef TRACE_INCLUDE_PATH

@@ -25,6 +25,7 @@
 #include <oplus_impedance_check.h>
 #include <oplus_chg_vooc.h>
 #include <oplus_chg_comm.h>
+#include <oplus_chg_voter.h>
 #include "../oplus_voocphy.h"
 #include "oplus_max77939.h"
 
@@ -47,6 +48,7 @@ struct max77939_device {
 
 	int ovp_reg;
 	int ocp_reg;
+	int batt_status;
 
 	bool ufcs_enable;
 
@@ -59,6 +61,11 @@ struct max77939_device {
 	bool use_vooc_phy;
 	bool vac_support;
 	bool voocphy_enable;
+
+	struct oplus_mms *comm_topic;
+	struct mms_subscribe *comm_subs;
+
+	struct delayed_work set_automode_work;
 };
 
 static enum oplus_cp_work_mode g_cp_support_work_mode[] = {
@@ -652,6 +659,24 @@ static int oplus_chg_get_vooc_online(void)
 	return vooc_online_true;
 }
 
+static int oplus_get_batt_health(void)
+{
+	int batt_health = POWER_SUPPLY_HEALTH_GOOD;
+	struct oplus_mms *comm_topic;
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	comm_topic = oplus_mms_get_by_name("common");
+	if (!comm_topic)
+		return 0;
+
+	rc = oplus_mms_get_item_data(comm_topic, COMM_ITEM_BATT_HEALTH, &data, true);
+	if (!rc)
+		batt_health = data.intval;
+
+	return batt_health;
+}
+
 static int oplus_get_prop_status(void)
 {
 	int prop_status = 0;
@@ -689,9 +714,11 @@ static u8 max77939_get_chg_auto_mode(struct oplus_voocphy_manager *chip)
 static int max77939_set_chg_auto_mode(struct oplus_voocphy_manager *chip, bool enable)
 {
 	int ret = 0;
+	int retry_cnt = 0;
 	u8 chg_mode = 0;
 	int vooc_online = 0;
 	int prop_status = 0;
+	int batt_health = POWER_SUPPLY_HEALTH_GOOD;
 
 	if (!chip) {
 		chg_err("chip is null\n");
@@ -701,16 +728,29 @@ static int max77939_set_chg_auto_mode(struct oplus_voocphy_manager *chip, bool e
 	chg_mode = max77939_get_chg_auto_mode(chip);
 	vooc_online = oplus_chg_get_vooc_online();
 	prop_status = oplus_get_prop_status();
+	batt_health = oplus_get_batt_health();
 	chg_info("enable = %d, chg_mode = %d, vooc_online = %d, prop_status = %d\n",
 		  enable, chg_mode, vooc_online, prop_status);
 
-	if (enable && (chg_mode == MAX77939_CHG_FIX_MODE)) {
+	if (enable && (chg_mode == MAX77939_CHG_FIX_MODE) &&
+	    /* when is cold and hot temp region, should not set force
+	       automode to avoid max77939 do not access SVOOC handshake */
+	    (batt_health != POWER_SUPPLY_HEALTH_COLD &&
+	    batt_health != POWER_SUPPLY_HEALTH_OVERHEAT)) {
 		/* not force automode to fix CP ERR_TRANS_DET_FLAG when enter SVOOC charging. */
-		if (!vooc_online || (prop_status != POWER_SUPPLY_STATUS_CHARGING && vooc_online))
-			ret = max77939_update_bits(chip->client, MAX77939_REG_15,
-						   MAX77939_CHG_MODE_MASK, MAX77939_CHG_AUTO_MODE);
-		else
+		if (!vooc_online || (prop_status != POWER_SUPPLY_STATUS_CHARGING && vooc_online)) {
+			do {
+				ret = max77939_update_bits(chip->client, MAX77939_REG_15,
+						MAX77939_CHG_MODE_MASK, MAX77939_CHG_AUTO_MODE);
+				chg_mode = max77939_get_chg_auto_mode(chip);
+				if (chg_mode == MAX77939_CHG_AUTO_MODE || retry_cnt >= 10)
+					break;
+				retry_cnt++;
+				mdelay(10);
+			} while (1);
+		} else {
 			chg_info("current is svooc charging, not force automode!");
+		}
 	} else if (!enable && (chg_mode == MAX77939_CHG_AUTO_MODE)) {
 		ret = max77939_update_bits(chip->client, MAX77939_REG_15,
 					 MAX77939_CHG_MODE_MASK,
@@ -720,6 +760,102 @@ static int max77939_set_chg_auto_mode(struct oplus_voocphy_manager *chip, bool e
 		chg_err("failed to %s auto mode\n", enable ? "enable" : "disable");
 
 	return ret;
+}
+
+static bool oplus_max77939_get_charge_pause(void)
+{
+	struct votable *disable_votable;
+	struct votable *suspend_votable;
+	bool disable_charger = false;
+	bool suspend_charger = false;
+
+	disable_votable = find_votable("WIRED_CHARGING_DISABLE");
+	if (!disable_votable) {
+		chg_err("WIRED_CHARGING_DISABLE votable not found\n");
+		return false;
+	}
+
+	suspend_votable = find_votable("WIRED_CHARGE_SUSPEND");
+	if (!suspend_votable) {
+		chg_err("WIRED_CHARGE_SUSPEND votable not found\n");
+		return false;
+	}
+
+	disable_charger = get_effective_result(disable_votable);
+	suspend_charger = get_effective_result(suspend_votable);
+
+	return disable_charger || suspend_charger;
+}
+
+static void max77939_set_automode_work(struct work_struct *work)
+{
+	struct max77939_device *chip = container_of(work,
+		struct max77939_device, set_automode_work.work);
+	int vbus_mv;
+	struct oplus_voocphy_manager *voocphy = NULL;
+	bool charge_pause = oplus_max77939_get_charge_pause();
+
+	voocphy = chip->voocphy;
+	if (!voocphy) {
+		chg_err("voocphy is NULL\n");
+		return;
+	}
+
+	vbus_mv = max77939_cp_vbus(voocphy);
+	if (chip->batt_status != POWER_SUPPLY_STATUS_CHARGING &&
+	    vbus_mv > 2500 && charge_pause) {
+		max77939_set_chg_auto_mode(voocphy, true);
+		chg_info("batt status is %d, vbus = %d\n", chip->batt_status, vbus_mv);
+	} else {
+		chg_info("not set automode\n");
+	}
+}
+
+static void oplus_max77939_comm_subs_callback(struct mms_subscribe *subs,
+					     enum mms_msg_type type, u32 id)
+{
+	union mms_msg_data data = { 0 };
+	struct max77939_device *chip = NULL;
+
+	if (!subs) {
+		chg_err("subs is NULL\n");
+		return;
+	}
+	chip = subs->priv_data;
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return;
+	}
+
+	switch (type) {
+	case MSG_TYPE_ITEM:
+		switch (id) {
+		case COMM_ITEM_BATT_STATUS:
+			oplus_mms_get_item_data(chip->comm_topic, id, &data, false);
+			chip->batt_status = data.intval;
+			cancel_delayed_work(&chip->set_automode_work);
+			schedule_delayed_work(&chip->set_automode_work, 0);
+			break;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+static void oplus_max77939_subscribe_comm_topic(struct oplus_mms *topic,
+					        void *prv_data)
+{
+	struct max77939_device *chip = prv_data;
+
+	chip->comm_topic = topic;
+	chip->comm_subs = oplus_mms_subscribe(chip->comm_topic, chip, oplus_max77939_comm_subs_callback, "max77939");
+	if (IS_ERR_OR_NULL(chip->comm_subs)) {
+		chg_err("subscribe common topic error, rc=%ld\n", PTR_ERR(chip->comm_subs));
+		return;
+	}
 }
 
 static int max77939_set_vac2v2x_ovpuvp_config(struct oplus_voocphy_manager *chip, bool enable)
@@ -1839,6 +1975,8 @@ static int max77939_charger_probe(struct i2c_client *client,
 	max77939_dump_registers(voocphy);
 	register_voocphy_devinfo();
 	chip->voocphy_enable = false;
+	INIT_DELAYED_WORK(&chip->set_automode_work, max77939_set_automode_work);
+	oplus_mms_wait_topic("common", oplus_max77939_subscribe_comm_topic, chip);
 
 	chg_info("max77939(%s) probe successfully\n", chip->dev->of_node->name);
 

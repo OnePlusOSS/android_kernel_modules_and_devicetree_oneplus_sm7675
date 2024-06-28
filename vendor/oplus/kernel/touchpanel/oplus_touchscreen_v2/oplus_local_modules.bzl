@@ -36,6 +36,96 @@ def define_oplus_local_modules():
     )
 
     define_oplus_ddk_module(
+        name = "oplus_bsp_tp_novatek_common",
+        srcs = native.glob([
+            "**/*.h",
+            "Novatek/novatek_common.c",
+        ]),
+        includes = ["."],
+        ko_deps = [
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_common",
+        ],
+#        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
+    )
+
+    define_oplus_ddk_module(
+        name = "oplus_bsp_tp_nt36672c_noflash",
+        srcs = native.glob([
+            "**/*.h",
+            "Novatek/NT36672C_noflash/nvt_drivers_nt36672c_noflash.c",
+        ]),
+        ko_deps = [
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_common",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_novatek_common",
+        ],
+        includes = ["."],
+#        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
+    )
+    define_oplus_ddk_module(
+        name = "oplus_bsp_tp_ft3683g",
+        srcs = native.glob([
+            "**/*.h",
+            "Focal/ft3683g/ft3683g_driver.c",
+            "Focal/ft3683g/ft3683g_test.c",
+        ]),
+        ko_deps = [
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_common",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_focal_common",
+        ],
+        includes = ["."],
+#        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
+    )
+
+    define_oplus_ddk_module(
+        name = "oplus_bsp_tp_focal_common",
+        srcs = native.glob([
+            "**/*.h",
+            "Focal/focal_common.c",
+        ]),
+        includes = ["."],
+        ko_deps = [
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_common",
+        ],
+#        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
+    )
+
+    define_oplus_ddk_module(
+        name = "oplus_bsp_tp_ft3658u_spi",
+        srcs = native.glob([
+            "**/*.h",
+            "Focal/ft3658u_spi/ft3658u_driver.c",
+            "Focal/ft3658u_spi/ft3658u_test.c",
+        ]),
+        ko_deps = [
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_common",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_focal_common",
+        ],
+        includes = ["."],
+#        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
+    )
+
+    define_oplus_ddk_module(
+        name = "oplus_bsp_tp_ft3518",
+        srcs = native.glob([
+            "**/*.h",
+            "Focal/ft3518/ft3518_driver.c",
+            "Focal/ft3518/ft3518_test.c",
+        ]),
+        ko_deps = [
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_custom",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_common",
+            "//vendor/oplus/kernel/touchpanel/oplus_touchscreen_v2:oplus_bsp_tp_focal_common",
+        ],
+        includes = ["."],
+#        local_defines = ["CONFIG_REMOVE_OPLUS_FUNCTION"],
+    )
+
+    define_oplus_ddk_module(
         name = "oplus_bsp_tp_custom",
         srcs = native.glob([
             "**/*.h",
@@ -88,8 +178,14 @@ def define_oplus_local_modules():
     ddk_copy_to_dist_dir(
         name = "oplus_bsp_tp",
         module_list = [
+            "oplus_bsp_tp_ft3683g",
             "oplus_bsp_tp_syna_common",
             "oplus_bsp_tp_tcm_S3910",
+            "oplus_bsp_tp_novatek_common",
+            "oplus_bsp_tp_nt36672c_noflash",
+            "oplus_bsp_tp_focal_common",
+            "oplus_bsp_tp_ft3658u_spi",
+            "oplus_bsp_tp_ft3518",
             "oplus_bsp_tp_custom",
             "oplus_bsp_tp_common",
         ],

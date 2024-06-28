@@ -641,40 +641,38 @@ int oplus_ofp_parse_dtsi_config(void *dsi_display_mode, void *dsi_parser_utils)
 	}
 	OFP_DEBUG("oplus_ofp_hbm_on_period:%u\n", priv_info->oplus_ofp_hbm_on_period);
 
+	/*
+	 check how many black frames are inserted in aod off cmds flow which will affect hbm on cmds execution time,
+	 then calculate delay time to separate aod off cmds and hbm on cmds to make sure ui ready is accurate
+	*/
+	rc = utils->read_u32(utils->data, "oplus,ofp-aod-off-insert-black-frame", &data);
+	if (rc) {
+		OFP_DEBUG("failed to parse oplus,ofp-aod-off-insert-black-frame\n");
+		priv_info->oplus_ofp_aod_off_insert_black_frame = 0;
+	} else {
+		priv_info->oplus_ofp_aod_off_insert_black_frame = data;
+	}
+	OFP_DEBUG("oplus_ofp_aod_off_insert_black_frame:%u\n", priv_info->oplus_ofp_aod_off_insert_black_frame);
+
 	/* indicates how many frames does uiready need to delay */
 	rc = utils->read_u32(utils->data, "oplus,ofp-uiready-delay-frames", &data);
 	if (rc) {
-		OFP_DEBUG("failed to parse oplus,oplus,ofp-uiready-delay-frames\n");
+		OFP_DEBUG("failed to parse oplus,ofp-uiready-delay-frames\n");
 		priv_info->oplus_ofp_uiready_delay_frames = 0;
 	} else {
 		priv_info->oplus_ofp_uiready_delay_frames = data;
 	}
 	OFP_DEBUG("oplus_ofp_uiready_delay_frames:%u\n", priv_info->oplus_ofp_uiready_delay_frames);
 
-	if (!oplus_ofp_video_mode_aod_fod_is_enabled()) {
-		/*
-		 check how many black frames are inserted in aod off cmds flow which will affect hbm on cmds execution time,
-		 then calculate delay time to separate aod off cmds and hbm on cmds to make sure ui ready is accurate
-		*/
-		rc = utils->read_u32(utils->data, "oplus,ofp-aod-off-insert-black-frame", &data);
-		if (rc) {
-			OFP_DEBUG("failed to parse oplus,ofp-aod-off-insert-black-frame\n");
-			priv_info->oplus_ofp_aod_off_insert_black_frame = 0;
-		} else {
-			priv_info->oplus_ofp_aod_off_insert_black_frame = data;
-		}
-		OFP_DEBUG("oplus_ofp_aod_off_insert_black_frame:%u\n", priv_info->oplus_ofp_aod_off_insert_black_frame);
-
-		/* check the total time of black frames by oscilloscope, which will be used to check whether hbm cmds are sent within black frames or not */
-		rc = utils->read_u32(utils->data, "oplus,ofp-aod-off-black-frame-total-time", &data);
-		if (rc) {
-			OFP_DEBUG("failed to parse oplus,ofp-aod-off-black-frame-total-time\n");
-			priv_info->oplus_ofp_aod_off_black_frame_total_time = 0;
-		} else {
-			priv_info->oplus_ofp_aod_off_black_frame_total_time = data;
-		}
-		OFP_DEBUG("oplus_ofp_aod_off_black_frame_total_time:%u\n", priv_info->oplus_ofp_aod_off_black_frame_total_time);
+	/* check the total time of black frames by oscilloscope, which will be used to check whether hbm cmds are sent within black frames or not */
+	rc = utils->read_u32(utils->data, "oplus,ofp-aod-off-black-frame-total-time", &data);
+	if (rc) {
+		OFP_DEBUG("failed to parse oplus,ofp-aod-off-black-frame-total-time\n");
+		priv_info->oplus_ofp_aod_off_black_frame_total_time = 0;
+	} else {
+		priv_info->oplus_ofp_aod_off_black_frame_total_time = data;
 	}
+	OFP_DEBUG("oplus_ofp_aod_off_black_frame_total_time:%u\n", priv_info->oplus_ofp_aod_off_black_frame_total_time);
 
 	OPLUS_OFP_TRACE_END("oplus_ofp_parse_dtsi_config");
 
@@ -1226,7 +1224,7 @@ int oplus_ofp_lhbm_dbv_vdc_update(void *dsi_panel, unsigned int bl_level, bool e
 
 	cmds = panel->cur_mode->priv_info->cmd_sets[DSI_CMD_LHBM_UPDATE_VDC].cmds;
 	lcm_cmd_count = panel->cur_mode->priv_info->cmd_sets[DSI_CMD_LHBM_UPDATE_VDC].count;
-	vdc_reg_index = 5;
+	vdc_reg_index = 0;
 
 	if (lcm_cmd_count > 32 || lcm_cmd_count < 1) {
 		OFP_ERR("lhbm vdc cmd invalid\n");
@@ -1684,9 +1682,15 @@ static int oplus_ofp_hbm_wait_handle(void *sde_connector, bool hbm_en)
 	}
 
 	OFP_INFO("te_count=%d, delay_us=%u\n", te_count, delay_us);
-	rc = oplus_ofp_vblank_wait(c_conn, te_count, delay_us);
-	if (rc) {
-		OFP_ERR("oplus_ofp_vblank_wait failed\n");
+	if (oplus_ofp_video_mode_aod_fod_is_enabled()) {
+		delay_us = us_per_frame*te_count;
+		usleep_range(delay_us, (delay_us + 10));
+		OFP_DEBUG("video mode seed hbm cmd ,te_count=%d, delay_us=%u\n", te_count, delay_us);
+	} else {
+		rc = oplus_ofp_vblank_wait(c_conn, te_count, delay_us);
+		if (rc) {
+			OFP_ERR("oplus_ofp_vblank_wait failed\n");
+		}
 	}
 
 	OPLUS_OFP_TRACE_END("oplus_ofp_hbm_wait_handle");
@@ -2773,7 +2777,12 @@ int oplus_ofp_aod_off_handle(void *dsi_display)
 	/* update backlight after exit aod mode */
 	OFP_INFO("aod off set backlight\n");
 	mutex_lock(&display->panel->panel_lock);
-	dsi_panel_set_backlight(display->panel, display->panel->bl_config.bl_level);
+	if ((display->panel->power_mode == SDE_MODE_DPMS_OFF)
+			|| !display->panel->panel_initialized) {
+		OFP_INFO("Dont set backlight when panel already power off");
+	} else {
+		dsi_panel_set_backlight(display->panel, display->panel->bl_config.bl_level);
+	}
 	mutex_unlock(&display->panel->panel_lock);
 
 	OPLUS_OFP_TRACE_END("oplus_ofp_aod_off_handle");
@@ -2788,6 +2797,7 @@ int oplus_ofp_power_mode_handle(void *dsi_display, int power_mode)
 	int rc = 0;
 	unsigned int refresh_rate = 0;
 	struct dsi_display *display = dsi_display;
+	struct sde_connector *c_conn = NULL;
 	struct oplus_ofp_params *p_oplus_ofp_params = NULL;
 
 	OFP_DEBUG("start\n");
@@ -2797,6 +2807,11 @@ int oplus_ofp_power_mode_handle(void *dsi_display, int power_mode)
 		return -EINVAL;
 	}
 
+	c_conn = to_sde_connector(display->drm_conn);
+	if (!c_conn) {
+		OFP_ERR("Invalid c_conn params\n");
+		return -EINVAL;
+	}
 #if defined(CONFIG_PXLW_IRIS)
 	if (iris_is_chip_supported() && (!strcmp(display->display_type, "secondary"))) {
 		OFP_ERR("no need to init secondary panel for iris chip\n");
@@ -2843,6 +2858,9 @@ int oplus_ofp_power_mode_handle(void *dsi_display, int power_mode)
 						if (rc) {
 							OFP_ERR("[%s] failed to send DSI_CMD_LHBM_PRESSED_ICON_OFF cmds, rc=%d\n", display->name, rc);
 						}
+					} else if (oplus_ofp_video_mode_aod_fod_is_enabled()) {
+						oplus_ofp_hbm_wait_handle(c_conn, false);
+						OFP_DEBUG("video mode aod and fod need to wait hbm handle\n");
 					} else {
 						rc = oplus_ofp_display_cmd_set(display, DSI_CMD_HBM_OFF);
 						if (rc) {
@@ -3124,7 +3142,7 @@ int oplus_ofp_touchpanel_event_notifier_call(struct notifier_block *nb, unsigned
 int oplus_ofp_aod_off_hbm_on_delay_check(void *sde_encoder_phys)
 {
 	static bool last_aod_unlocking = false;
-	static unsigned int rd_ptr_count = 0;
+	static unsigned int te_count = 0;
 	unsigned int aod_off_insert_black_frame = 0;
 	struct sde_encoder_phys *phys_enc = sde_encoder_phys;
 	struct sde_connector *c_conn = NULL;
@@ -3133,8 +3151,7 @@ int oplus_ofp_aod_off_hbm_on_delay_check(void *sde_encoder_phys)
 
 	OFP_DEBUG("start\n");
 
-	if (oplus_ofp_oled_capacitive_is_enabled() || oplus_ofp_ultrasonic_is_enabled()
-			|| oplus_ofp_video_mode_aod_fod_is_enabled()) {
+	if (oplus_ofp_oled_capacitive_is_enabled() || oplus_ofp_ultrasonic_is_enabled()) {
 		OFP_DEBUG("no need to check aod off hbm on delay\n");
 		return 0;
 	}
@@ -3168,22 +3185,22 @@ int oplus_ofp_aod_off_hbm_on_delay_check(void *sde_encoder_phys)
 	if (aod_off_insert_black_frame) {
 		if (p_oplus_ofp_params->aod_unlocking) {
 			if (!last_aod_unlocking) {
-				rd_ptr_count = 1;
-			} else if (rd_ptr_count && rd_ptr_count < 10) {
-				rd_ptr_count++;
+				te_count = 1;
+			} else if (te_count && te_count < 10) {
+				te_count++;
 			} else {
 				/* 10 irq is enough */
-				rd_ptr_count = 10;
+				te_count = 10;
 			}
 		} else {
-			rd_ptr_count = 0;
+			te_count = 0;
 			p_oplus_ofp_params->aod_off_hbm_on_delay = 0;
 		}
 
-		if (rd_ptr_count < aod_off_insert_black_frame) {
-			p_oplus_ofp_params->aod_off_hbm_on_delay = aod_off_insert_black_frame - rd_ptr_count;
-			OFP_DEBUG("aod_off_insert_black_frame=%d,rd_ptr_count=%d,aod_off_hbm_on_delay=%d\n",
-				aod_off_insert_black_frame, rd_ptr_count, p_oplus_ofp_params->aod_off_hbm_on_delay);
+		if (te_count < aod_off_insert_black_frame) {
+			p_oplus_ofp_params->aod_off_hbm_on_delay = aod_off_insert_black_frame - te_count;
+			OFP_DEBUG("aod_off_insert_black_frame=%d,te_count=%d,aod_off_hbm_on_delay=%d\n",
+				aod_off_insert_black_frame, te_count, p_oplus_ofp_params->aod_off_hbm_on_delay);
 		} else {
 			p_oplus_ofp_params->aod_off_hbm_on_delay = 0;
 		}

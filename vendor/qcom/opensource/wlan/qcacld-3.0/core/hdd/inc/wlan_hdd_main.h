@@ -2652,6 +2652,12 @@ void hdd_adapter_dev_hold_debug(struct hdd_adapter *adapter,
 void hdd_adapter_dev_put_debug(struct hdd_adapter *adapter,
 			       wlan_net_dev_ref_dbgid dbgid);
 
+//#ifdef OPLUS_FEATURE_WIFI
+void oplus_hdd_ConnUeventInit(void);
+void oplus_hdd_ConnUeventDeinit(void);
+void oplus_hdd_ConnSendUevent(char *envp[]);
+//#ifdef OPLUS_FEATURE_WIFI
+
 /**
  * hdd_validate_next_adapter - API to check for infinite loop
  *                             in the adapter list traversal

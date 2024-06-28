@@ -500,7 +500,14 @@ noinline int tracing_mark_write(const char *buf)
 
 void ux_state_systrace_c(unsigned int cpu, struct task_struct *p)
 {
-	int ux_state = (oplus_get_ux_state(p) & (SCHED_ASSIST_UX_MASK | SA_TYPE_INHERIT));
+	int ux_state = 0;
+
+	/* When get_oplus_task_struct is empty, the error code is defined as 123456789
+	 * for debugging purposes */
+	if (IS_ERR_OR_NULL(get_oplus_task_struct(p)))
+		ux_state = SCHED_UX_STATE_DEBUG_MAGIC;
+	else
+		 ux_state = (oplus_get_ux_state(p) & (SCHED_ASSIST_UX_MASK | SA_TYPE_INHERIT));
 
 	if (per_cpu(prev_ux_state, cpu) != ux_state) {
 		char buf[256];
@@ -1215,6 +1222,14 @@ void sched_assist_target_comm(struct task_struct *task, const char *buf)
 		ux_state = oplus_get_ux_state(task);
 		oplus_set_ux_state_lock(task, (ux_state | SA_TYPE_LIGHT), -1, true);
 	}
+#ifdef CONFIG_OPLUS_CAMERA_UX
+	if (CAMERA_UID == task_uid(task).val) {
+		if (!strncmp(comm, CAMERA_PROVIDER_NAME, 15)) {
+			ux_state = oplus_get_ux_state(task);
+			oplus_set_ux_state_lock(task, (ux_state | SA_TYPE_HEAVY), -1, true);
+		}
+	}
+#endif
 }
 
 void adjust_rt_lowest_mask(struct task_struct *p, struct cpumask *local_cpu_mask, int ret, bool force_adjust)

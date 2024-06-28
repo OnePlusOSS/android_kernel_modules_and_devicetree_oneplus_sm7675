@@ -22,6 +22,6 @@ void check_preempt_tick_handler_locking(struct task_struct *p,
 			struct sched_entity *curr, unsigned int granularity);
 extern unsigned int locking_wakeup_preepmt_enable;
 extern bool locking_protect_disable;
-
+void record_lock_starttime(struct task_struct *tsk, unsigned long settime);
 #endif /* _SCHED_ASSIST_LOCKING_H_ */
 #endif /* CONFIG_LOCKING_PROTECT */

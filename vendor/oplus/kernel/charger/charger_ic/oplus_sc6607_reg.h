@@ -701,6 +701,8 @@ struct sc6607 {
 	struct charger_device *chg_dev;
 
 	struct power_supply *psy;
+	struct power_supply *chg_psy;
+	struct power_supply_desc psy_desc;
 	int vbus_type;
 	int hw_aicl_point;
 	bool camera_on;
@@ -718,6 +720,7 @@ struct sc6607 {
 	int soft_bc12_type;
 	bool soft_bc12;
 	bool bc12_done;
+	bool open_adc_by_vbus;
 
 	char chg_power_info[OPLUS_CHG_TRACK_CURX_INFO_LEN];
 	char err_reason[OPLUS_CHG_TRACK_DEVICE_ERR_NAME_LEN];
@@ -752,6 +755,9 @@ struct sc6607 {
 	unsigned long long hvdcp_detect_time;
 	unsigned long long hvdcp_detach_time;
 	struct delayed_work sc6607_vol_convert_work;
+
+	int  bc12_timeouts;
+	struct timer_list bc12_timeout;
 };
 
 struct sc6607_platform_data {
@@ -779,6 +785,7 @@ struct sc6607_platform_data {
 	u32 vpmid_ovp_otg_dis;
 	u32 vbat_ovp_buck_dis;
 	u32 ibat_ocp;
+	u32 ntc_suport_1000k;
 #ifdef OPLUS_FEATURE_CHG_BASIC
 /********* workaround: Octavian needs to enable adc start *********/
 	bool enable_adc;
@@ -794,6 +801,11 @@ struct sc6607_alert_handler {
 struct sc6607_temp_param {
 	__s32 bts_temp;
 	__s32 temperature_r;
+};
+
+struct sc6607_ntc_temp{
+	struct sc6607_temp_param *pst_temp_table;
+	int table_size;
 };
 
 struct sc6607_track_check_reg {

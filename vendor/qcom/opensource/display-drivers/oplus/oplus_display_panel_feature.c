@@ -39,7 +39,6 @@
 
 extern int lcd_closebl_flag;
 extern u32 oplus_last_backlight;
-
 int oplus_panel_get_serial_number_info(struct dsi_panel *panel)
 {
 	struct dsi_parser_utils *utils = NULL;
@@ -250,7 +249,7 @@ void oplus_panel_update_backlight(struct dsi_panel *panel,
 {
 	int rc = 0;
 	u64 inverted_dbv_bl_lvl = 0;
-
+	panel->pwm_params.pack_backlight = false;
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
 	if (oplus_adfr_osync_backlight_filter(panel, bl_lvl)) {
 		return;
@@ -314,7 +313,6 @@ void oplus_panel_update_backlight(struct dsi_panel *panel,
 	mutex_unlock(&panel->panel_tx_lock);
 	if (rc < 0)
 		LCD_ERR("failed to update dcs backlight:%d\n", bl_lvl);
-
 #if defined(CONFIG_PXLW_IRIS)
 	if (iris_is_chip_supported() && !iris_is_pt_mode(panel))
 		rc = iris_update_backlight_value(bl_lvl);
@@ -335,6 +333,8 @@ void oplus_panel_update_backlight(struct dsi_panel *panel,
 
 	LCD_DEBUG_BACKLIGHT("[%s] panel backlight changed: %d -> %d\n",
 			panel->oplus_priv.vendor_name, oplus_last_backlight, bl_lvl);
+
+	oplus_panel_pwm_onepulse_switch(panel);
 
 	oplus_last_backlight = bl_lvl;
 }

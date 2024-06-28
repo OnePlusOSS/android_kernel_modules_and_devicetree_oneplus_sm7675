@@ -392,6 +392,14 @@
 						CURR_LIMIT_7BIT_3_0A CURR_LIMIT_7BIT_3_0A
 						CURR_LIMIT_7BIT_2_0A CURR_LIMIT_7BIT_2_0A>;
 
+		oplus,abnormal_over_80w_adapter_current = <CURR_LIMIT_7BIT_9_5A CURR_LIMIT_7BIT_9_5A
+						CURR_LIMIT_7BIT_7_0A CURR_LIMIT_7BIT_7_0A
+						CURR_LIMIT_7BIT_6_0A CURR_LIMIT_7BIT_6_0A
+						CURR_LIMIT_7BIT_5_0A CURR_LIMIT_7BIT_5_0A
+						CURR_LIMIT_7BIT_4_0A CURR_LIMIT_7BIT_4_0A
+						CURR_LIMIT_7BIT_3_0A CURR_LIMIT_7BIT_3_0A
+						CURR_LIMIT_7BIT_2_0A CURR_LIMIT_7BIT_2_0A>;
+
 		/* first data is strategy used temp type */
 		oplus,general_strategy_name = "cgcl";
 		oplus,general_strategy_data = < OPLUS_STRATEGY_USE_SHELL_TEMP
@@ -1228,8 +1236,6 @@
 
 		oplus,cp_ic_connect = <OPLUS_CHG_IC_CONNECT_PARALLEL>;
 		oplus,main_cp = <0>;
-
-		oplus,reg_proc_node;
 	};
 };
 

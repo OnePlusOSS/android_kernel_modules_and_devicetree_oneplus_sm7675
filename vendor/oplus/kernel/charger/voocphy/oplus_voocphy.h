@@ -890,6 +890,7 @@ struct oplus_voocphy_manager {
 	bool high_curr_setting;
 	bool copycat_vooc_support;
 	int identify_algorithm_version;
+	int copycat_vooc_count;
 	enum oplus_fastchg_copycat_type copycat_type;
 	enum oplus_adapter_abnormal_type adapter_abnormal_type;
 

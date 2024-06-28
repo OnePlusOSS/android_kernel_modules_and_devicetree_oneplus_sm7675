@@ -1588,10 +1588,11 @@ QDF_STATUS hif_rtpm_sync_resume(void);
 /**
  * hif_rtpm_check_and_request_resume() - check if bus is suspended and
  *                                       request resume.
+ * @suspend_in_progress: Request resume if suspend is in progress
  *
  * Return: void
  */
-void hif_rtpm_check_and_request_resume(void);
+void hif_rtpm_check_and_request_resume(bool suspend_in_progress);
 
 /**
  * hif_rtpm_set_client_job() - Set job for the client.
@@ -1852,7 +1853,7 @@ void hif_rtpm_request_resume(void)
 {}
 
 static inline
-void hif_rtpm_check_and_request_resume(void)
+void hif_rtpm_check_and_request_resume(bool suspend_in_progress)
 {}
 
 static inline

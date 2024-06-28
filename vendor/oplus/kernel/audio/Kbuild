@@ -12,6 +12,7 @@ obj-y += codecs/sipa/
 #add for aw87xxx pa
 obj-y += codecs/aw87xxx/
 obj-y += qcom/oplus_speaker_manager/
+obj-y += codecs/usbc_switch/
 
 else
 #MTK Platform

@@ -566,7 +566,7 @@ static int force_shrink_batch(struct mem_cgroup * memcg,
 #define	BATCH_4M	(1 << 10)
 #define	RECLAIM_INACTIVE	0
 #define	RECLAIM_ALL		1
-unsigned long get_reclaim_pages(struct mem_cgroup *memcg, bool file,
+static unsigned long get_reclaim_pages(struct mem_cgroup *memcg, bool file,
 				char *buf, unsigned long *batch,
 				unsigned long *nr_reclaimed, bool chp)
 {
@@ -575,6 +575,9 @@ unsigned long get_reclaim_pages(struct mem_cgroup *memcg, bool file,
 	unsigned long reclaim_batch = 0;
 	int lru = LRU_BASE + (file ? LRU_FILE : 0);
 	int ret;
+
+	if (!batch || !buf)
+		return 0;
 
 	buf = strstrip(buf);
 	ret = sscanf(buf, "%lu %lu", &reclaim_flag, &reclaim_batch);
@@ -669,13 +672,13 @@ static inline bool folio_evictable(struct folio *folio)
 }
 
 /**
- * isolate_folio_from_lru - a copy of folio_isolate_lru
+ * isolate_folio_from_lru - a copy of folio_isolate_lru, but
+ * lru_lock must be held before calling this function.
  * Context:
  * (1) Must be called with an elevated refcount on the folio. This is a
  *     fundamental difference from isolate_lru_folios() (which is called
  *     without a stable reference).
- * (2) The lru_lock must not be held.
- * (3) Interrupts must be enabled.
+ * (2) The lru_lock must be held.
  */
 static int isolate_folio_from_lru(struct folio *folio, struct lruvec *lruvec)
 {
@@ -685,9 +688,7 @@ static int isolate_folio_from_lru(struct folio *folio, struct lruvec *lruvec)
 
 	if (folio_test_clear_lru(folio)) {
 		folio_get(folio);
-		spin_lock_irq(&lruvec->lru_lock);
 		lruvec_del_folio(lruvec, folio);
-		spin_unlock_irq(&lruvec->lru_lock);
 		ret = 0;
 	}
 
@@ -710,43 +711,23 @@ static unsigned long isolate_folios_to_folio_list(struct lruvec *lruvec,
 		unsigned long nr_to_isolate)
 {
 	unsigned long nr_isolated = 0, nr_scanned = 0, nr_pages;
-	struct folio *folio = NULL;
 	struct list_head *src = &lruvec->lists[lru];
 
 	while (!list_empty(src) && nr_scanned < nr_to_isolate) {
-		folio = lru_to_folio(src);
+		struct folio *folio = lru_to_folio(src);
 		nr_pages = folio_nr_pages(folio);
 		nr_scanned += nr_pages;
 
-		if (unlikely(!folio_evictable(folio)))
-			continue;
-
 		if (likely(folio_try_get(folio))) {
 			if (isolate_folio_from_lru(folio, lruvec)) {
+				spin_unlock_irq(&lruvec->lru_lock);
 				folio_put(folio);
+				spin_lock_irq(&lruvec->lru_lock);
 				continue;
 			}
 			folio_put(folio);
 		} else
 			continue;
-
-		if (unlikely(!folio_evictable(folio))) {
-			putback_folio_to_lru(folio);
-			continue;
-		}
-
-		/*
-		 * MADV_FREE clears pte dirty bit and then marks the folio
-		 * lazyfree (clear SwapBacked). Inbetween if this lazyfreed folio
-		 * is touched by user then it becomes dirty.  PPR in
-		 * shrink_folio_list in try_to_unmap finds the folio dirty, marks
-		 * it back as SwapBacked and skips reclaim. This can cause
-		 * isolated count mismatch.
-		 */
-		if (folio_test_anon(folio) && !folio_test_swapbacked(folio)) {
-			putback_folio_to_lru(folio);
-			continue;
-		}
 
 		list_add(&folio->lru, folio_list);
 		nr_isolated += nr_pages;
@@ -759,11 +740,10 @@ static void seperate_list(struct list_head *src,
 			  struct list_head *inactive,
 			  struct mem_cgroup *memcg)
 {
-	struct folio *folio;
 	unsigned long vm_flags;
 
 	while (!list_empty(src)) {
-		folio = lru_to_folio(src);
+		struct folio *folio = lru_to_folio(src);
 		list_del(&folio->lru);
 
 		if (unlikely(!folio_evictable(folio))) {
@@ -783,16 +763,16 @@ static void seperate_list(struct list_head *src,
 }
 
 /*
- * move_folios_into_lru(), a copy of move_folios_to_lru(), but keep zero ref folios in lru
+ * move_folios_into_lru(), a copy of move_folios_to_lru(), but
+ * lru_lock must not be held before calling this function.
  * Moves folios from private @list to appropriate LRU list.
  *
  * Returns the number of pages moved to the given lruvec.
  */
-static unsigned int move_folios_into_lru(struct lruvec *lruvec,
+static unsigned long move_folios_into_lru(struct lruvec *lruvec,
 		struct list_head *list)
 {
-	int nr_pages, nr_moved = 0;
-	LIST_HEAD(folios_to_free);
+	unsigned long nr_moved = 0;
 
 	while (!list_empty(list)) {
 		struct folio *folio = lru_to_folio(list);
@@ -800,9 +780,7 @@ static unsigned int move_folios_into_lru(struct lruvec *lruvec,
 		VM_BUG_ON_FOLIO(folio_test_lru(folio), folio);
 		list_del(&folio->lru);
 		if (unlikely(!folio_evictable(folio))) {
-			spin_unlock_irq(&lruvec->lru_lock);
 			putback_folio_to_lru(folio);
-			spin_lock_irq(&lruvec->lru_lock);
 			continue;
 		}
 
@@ -817,30 +795,20 @@ static unsigned int move_folios_into_lru(struct lruvec *lruvec,
 		 *     list_add(&folio->lru,)
 		 *                                        list_add(&folio->lru,)
 		 */
-		folio_set_lru(folio);
-
-		if (unlikely(folio_ref_count(folio) == 1)) {
-			__folio_clear_lru_flags(folio);
-			list_add(&folio->lru, &folios_to_free);
-			continue;
-		}
-
-		folio_put(folio);
 
 		/*
 		 * All pages were isolated from the same lruvec (and isolation
 		 * inhibits memcg migration).
 		 */
+		spin_lock_irq(&lruvec->lru_lock);
 		VM_BUG_ON_FOLIO(!folio_matches_lruvec(folio, lruvec), folio);
+		folio_set_lru(folio);
 		lruvec_add_folio(lruvec, folio);
-		nr_pages = folio_nr_pages(folio);
-		nr_moved += nr_pages;
-	}
+		nr_moved += folio_nr_pages(folio);
+		spin_unlock_irq(&lruvec->lru_lock);
 
-	/*
-	 * To save our caller's stack, now use input list for pages to free.
-	 */
-	list_splice(&folios_to_free, list);
+		folio_put(folio);
+	}
 
 	return nr_moved;
 }
@@ -849,55 +817,79 @@ static void mem_cgroup_aging_anon_lruvec(struct mem_cgroup *memcg,
 		struct lruvec *lruvec, unsigned long lru_mask, bool is_chp)
 {
 	pg_data_t *pgdat = NODE_DATA(0);
-	unsigned long nr_to_scan = 0;
+	unsigned long nr_to_isolate_active = 0, nr_to_isolate_inactive = 0, total_isolated = 0;
+#ifdef CHP_SWAP_CLUSTER_MAX
+	unsigned int each_batch = (is_chp ? CHP_SWAP_CLUSTER_MAX : SWAP_CLUSTER_MAX);
+#else
+	unsigned int each_batch = SWAP_CLUSTER_MAX;
+#endif
 
 	LIST_HEAD(l_hold);
 	LIST_HEAD(l_active);
 	LIST_HEAD(l_inactive);
 
 	if (BIT(LRU_INACTIVE_ANON) & lru_mask) {
-		unsigned long nr_to_isolate = memcg_lru_pages(memcg, LRU_INACTIVE_ANON, is_chp);
-		nr_to_scan +=
-			isolate_folios_to_folio_list(lruvec, LRU_INACTIVE_ANON, &l_hold, nr_to_isolate);
+		nr_to_isolate_inactive = memcg_lru_pages(memcg, LRU_INACTIVE_ANON, is_chp);
 		log_info("nr_to_isolate from %s inactive anon: %lu",
-			 is_chp ? "chp" : "normal", nr_to_isolate);
+			 is_chp ? "chp" : "normal", nr_to_isolate_inactive);
 	}
 
 	if (BIT(LRU_ACTIVE_ANON) & lru_mask) {
-		unsigned long nr_to_isolate = memcg_lru_pages(memcg, LRU_ACTIVE_ANON, is_chp);
-		nr_to_scan +=
-			isolate_folios_to_folio_list(lruvec, LRU_ACTIVE_ANON, &l_hold, nr_to_isolate);
+		nr_to_isolate_active = memcg_lru_pages(memcg, LRU_ACTIVE_ANON, is_chp);
 		log_info("nr_to_isolate from %s active anon: %lu",
-			 is_chp ? "chp" : "normal", nr_to_isolate);
+			 is_chp ? "chp" : "normal", nr_to_isolate_active);
 	}
 
-	mod_node_page_state(pgdat, NR_ISOLATED_ANON, nr_to_scan);
+	while ((nr_to_isolate_inactive && memcg_lru_pages(memcg, LRU_INACTIVE_ANON, is_chp))
+		|| (nr_to_isolate_active && memcg_lru_pages(memcg, LRU_ACTIVE_ANON, is_chp))) {
+		unsigned long isolated = 0;
+		unsigned long cur_isolated = 0;
 
-	log_info("nr_isolated: %lu %s pages", nr_to_scan, is_chp ? "chp" : "normal");
+		if (nr_to_isolate_inactive) {
+			spin_lock_irq(&lruvec->lru_lock);
+			isolated =
+				isolate_folios_to_folio_list(lruvec, LRU_INACTIVE_ANON, &l_hold, each_batch);
+			spin_unlock_irq(&lruvec->lru_lock);
+
+			cur_isolated += isolated;
+			total_isolated += isolated;
+			nr_to_isolate_inactive -= min(nr_to_isolate_inactive, isolated);
+			log_dbg("inactive isolated, batch: %lu, total: %lu, left %lu", isolated,
+					total_isolated, nr_to_isolate_inactive);
+		}
+
+		if (nr_to_isolate_active) {
+			spin_lock_irq(&lruvec->lru_lock);
+			isolated =
+				isolate_folios_to_folio_list(lruvec, LRU_ACTIVE_ANON, &l_hold, each_batch);
+			spin_unlock_irq(&lruvec->lru_lock);
+
+			cur_isolated += isolated;
+			total_isolated += isolated;
+			nr_to_isolate_active -= min(nr_to_isolate_active, isolated);
+			log_dbg("active isolated, batch: %lu, total: %lu, left %lu", isolated,
+					total_isolated, nr_to_isolate_active);
+		}
+
+		mod_node_page_state(pgdat, NR_ISOLATED_ANON, cur_isolated);
+	}
+
+	log_info("total_isolated: %lu %s pages", total_isolated, is_chp ? "chp" : "normal");
 
 	/* Seperate the isolated list to active list and inactive list */
 	seperate_list(&l_hold, &l_active, &l_inactive, memcg);
 
-	/* Move folios to the active list */
-	spin_lock_irq(&lruvec->lru_lock);
 	move_folios_into_lru(lruvec, &l_active);
-	spin_unlock_irq(&lruvec->lru_lock);
-	put_pages_list(&l_active);
-
-	/* Move folios to the inactive list */
-	spin_lock_irq(&lruvec->lru_lock);
 	move_folios_into_lru(lruvec, &l_inactive);
-	spin_unlock_irq(&lruvec->lru_lock);
-	put_pages_list(&l_inactive);
 
-	mod_node_page_state(pgdat, NR_ISOLATED_ANON, -nr_to_scan);
+	mod_node_page_state(pgdat, NR_ISOLATED_ANON, -total_isolated);
 }
 
 static ssize_t mem_cgroup_aging_anon(struct kernfs_open_file *of,
 		char *buf, size_t nbytes, loff_t off)
 {
 	unsigned long lru_mask = 0;
-	struct lruvec *lruvec;
+	struct lruvec *lruvec = NULL;
 	pg_data_t *pgdat = NODE_DATA(0);
 	struct mem_cgroup *memcg = mem_cgroup_from_css(of_css(of));
 

@@ -456,6 +456,7 @@ struct oplus_ufcs_protocol_operations {
 	int (*ufcs_ic_get_master_ibus)(void);
 	int (*ufcs_ic_get_master_vac)(void);
 	int (*ufcs_ic_get_master_vout)(void);
+	int (*ufcs_ic_get_master_vbat)(void);
 	int (*ufcs_ic_event_handle)(void);
 };
 int oplus_ufcs_ops_register(struct oplus_ufcs_protocol_operations *protocol_ops, char *name);

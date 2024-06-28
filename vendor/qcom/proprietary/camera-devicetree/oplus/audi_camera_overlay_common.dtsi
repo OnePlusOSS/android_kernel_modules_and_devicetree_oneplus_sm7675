@@ -185,8 +185,12 @@
 		clock-names = "cam_clk";
 		clock-cntl-level = "nominal";
 		clock-rates = <24000000>;
+		enable_qsc_write_in_advance = <1>;
+		qsc_reg_addr = <0x2210>;
+		eeprom_slave_addr = <0xA0>;
+		qsc_data_size = <3072>;
+		write_qsc_addr = <0xC000>;
 		status = "ok";
-		// is-power-up-advance = <1>;
 	};
 
 	eeprom_rear_ultrawide: qcom,eeprom1 {

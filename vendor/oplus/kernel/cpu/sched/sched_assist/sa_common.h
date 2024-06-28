@@ -108,9 +108,12 @@
 
 #define ROOT_UID               0
 #define SYSTEM_UID             1000
+#define CAMERA_UID             1047
 #define FIRST_APPLICATION_UID  10000
 #define LAST_APPLICATION_UID   19999
+#define SCHED_UX_STATE_DEBUG_MAGIC  123456789
 
+#define CAMERA_PROVIDER_NAME "ider-service_64"
 extern pid_t save_audio_tgid;
 extern pid_t save_top_app_tgid;
 extern unsigned int top_app_type;
@@ -455,6 +458,14 @@ static inline void init_task_ux_info(struct task_struct *t)
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
 	atomic_set(&ots->pipeline_cpu, -1);
+#endif
+
+#ifdef CONFIG_OPLUS_CAMERA_UX
+	if (CAMERA_UID == task_uid(t).val) {
+		if (!strncmp(t->comm, CAMERA_PROVIDER_NAME, 15)) {
+			ots->ux_state = SA_TYPE_HEAVY;
+		}
+	}
 #endif
 
 #if IS_ENABLED(CONFIG_ARM64_AMU_EXTN) && IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_JANKINFO)

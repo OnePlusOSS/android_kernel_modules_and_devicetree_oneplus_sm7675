@@ -97,7 +97,6 @@
 #define SET_BIT(data, flag) ((data) |= (flag))
 #define CLR_BIT(data, flag) ((data) &= ~(flag))
 #define CHK_BIT(data, flag) ((data) & (flag))
-#define CHK_BIT_NUM(data, flag) ((data) & (1 << (flag)))
 #define VK_TAB {KEY_MENU, KEY_HOMEPAGE, KEY_BACK, KEY_SEARCH}
 
 #define SET_GESTURE_BIT(state, state_flag, config, config_flag)\
@@ -158,7 +157,6 @@
 #define SYNAPTICS    0x0901
 #define S3910        0x0901
 #define S3908        0x0902
-#define S3910_SECOND 0x0903
 
 #define GOODIX       0x0902
 #define GT9966       0x0901
@@ -198,6 +196,7 @@ typedef enum {
 	MODE_PEN_SCAN,
 	MODE_PEN_CTL,
 	MODE_PALM_TO_SLEEP,
+	MODE_WATERPROOF,
 } work_mode;
 
 typedef enum {
@@ -458,6 +457,7 @@ struct panel_info {
 #ifndef CONFIG_REMOVE_OPLUS_FUNCTION
 	struct manufacture_info manufacture_info;       /*touchpanel device info*/
 #endif
+	void *touch_custom_data;
 };
 
 struct hw_resource {
@@ -575,16 +575,6 @@ typedef enum {
 	TYPE_PENCIL_HAVON = 1,
 	TYPE_PENCIL_MAXEYE = 2,
 } pencil_type;
-
-typedef enum {
-	HEALTH_SIMULATE_BIT_IRQ_GPIO = 0,
-	HEALTH_SIMULATE_BIT_AVDD_VDDI,
-	HEALTH_SIMULATE_BIT_ESD,
-	HEALTH_SIMULATE_BIT_MODE_SWITCH,
-	HEALTH_SIMULATE_BIT_BUS,
-	HEALTH_SIMULATE_BIT_IC_HEALTHINFO = 5,
-	HEALTH_SIMULATE_BIT_FW_UPDATE,
-} health_simulate_bit;
 
 struct point_state_monitor {
 	u64 time_counter;
@@ -756,6 +746,10 @@ struct monitor_data {
 	u64 force_bus_ready_count;
 	u64 bus_not_ready_early_event_count;
 	u64 bus_not_ready_event_count;
+	u64 bus_not_ready_notify_count;
+	u64 bus_not_ready_off_early_event_count;
+	u64 bus_not_ready_off_event_count;
+	u64 bus_not_ready_tp_suspend_count;
 	/*max count*/
 	u64 irq_need_dev_resume_max_count;
 	/*all count*/
@@ -1051,6 +1045,9 @@ struct touchpanel_data {
 	int pen_mode_tp_state;
 
 	int palm_to_sleep_enable;                            /*detect palm need to sleep when device in Screen lock*/
+
+	int waterproof_support;
+	int waterproof;
 
 	bool report_rate_white_list_support;
 

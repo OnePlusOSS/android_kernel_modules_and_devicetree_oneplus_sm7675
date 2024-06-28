@@ -60,6 +60,7 @@ qdf_declare_param(qdf_log_flush_timer_period, uint);
 #ifdef OPLUS_FEATURE_SOFTAP_DCS_SWITCH
 //Add for softap connect SAE status
 #include <wlan_hdd_hostapd.h>
+#include <wlan_hdd_main.h>
 #endif /* OPLUS_FEATURE_SOFTAP_DCS_SWITCH */
 
 /* Global qdf print id */
@@ -1499,6 +1500,19 @@ void qdf_dp_log_proto_pkt_info(uint8_t *sa, uint8_t *da, uint8_t type,
 	default:
 		break;
 	}
+
+	//add SAP/STA FW send M1/M2 fail monitor
+	switch (subtype) {
+	case QDF_PROTO_EAPOL_M1:
+	case QDF_PROTO_EAPOL_M2:
+		if (dir == QDF_TX) {
+			qdf_send_eapol_uevent(type, subtype, status);
+		}
+		break;
+	default:
+		break;
+	}
+
 #endif /* OPLUS_FEATURE_SOFTAP_DCS_SWITCH */
 
 	if (status == QDF_TX_RX_STATUS_INVALID)
@@ -1518,6 +1532,27 @@ qdf_export_symbol(qdf_dp_log_proto_pkt_info);
 
 #ifdef OPLUS_FEATURE_SOFTAP_DCS_SWITCH
 //Add for softap connect EAPOL status
+void qdf_send_eapol_uevent(uint8_t type, uint8_t subtype, uint8_t status)
+{
+	char event[] = "HOSTAPD_EVENT=sta_connect";
+	char sta_connect_event[30] = {'\0'};
+	char pkt_type[30] = {'\0'};
+	char pkt_statu[30] = {'\0'};
+	char *envp[5];
+
+	snprintf(sta_connect_event, sizeof(sta_connect_event), "STA_CONNECT_EVENT=auth");
+	snprintf(pkt_type, sizeof(pkt_type), "PKTTYPE=%s", qdf_get_pkt_type_string(type, subtype));
+	snprintf(pkt_statu, sizeof(pkt_statu), "PKTSTATU=%s", qdf_get_pkt_status_string(status));
+
+	envp[0] = (char *)&event;
+	envp[1] = (char *)&sta_connect_event;
+	envp[2] = (char *)&pkt_type;
+	envp[3] = (char *)&pkt_statu;
+	envp[4] = NULL;
+
+	oplus_hdd_ConnSendUevent(envp);
+}
+
 void hostapd_send_eapol_uevent(uint8_t type, uint8_t subtype, uint8_t status)
 {
 	char event[] = "HOSTAPD_EVENT=sta_connect";
@@ -1538,6 +1573,9 @@ void hostapd_send_eapol_uevent(uint8_t type, uint8_t subtype, uint8_t status)
 
 	hostapdConnSendUevent(envp);
 }
+
+
+
 #endif /* OPLUS_FEATURE_SOFTAP_DCS_SWITCH */
 
 /**

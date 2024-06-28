@@ -29,13 +29,15 @@
 #endif
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
-#define OEM_OPCODE_READ_BUFFER    0x10000
-#define BCC_OPCODE_READ_BUFFER    0x10003
-#define PPS_OPCODE_READ_BUFFER    0x10004
-#define UFCS_OPCODE_READ_BUFFER   0x10005
-#define OEM_READ_WAIT_TIME_MS    500
+#define OEM_OPCODE_READ_BUFFER     0x10000
+#define BCC_OPCODE_READ_BUFFER     0x10003
+#define PPS_OPCODE_READ_BUFFER     0x10004
+#define AP_OPCODE_UFCS_BUFFER      0x10005
+#define OEM_READ_WAIT_TIME_MS      500
 #define MAX_OEM_PROPERTY_DATA_SIZE 128
-#define QC_TYPE_CHECK_INTERVAL 200 /* ms */
+#define QC_TYPE_CHECK_INTERVAL     200 /* ms */
+#define AP_UFCS_WAIT_TIME_MS       500
+#define MAX_UFCS_CAPS_ITEM         16
 #endif
 
 #define MSG_OWNER_BC			32778
@@ -88,6 +90,7 @@
 #define BC_UFCS_POWER_READY		0X70
 #define BC_UFCS_HANDSHAKE_OK		0X71
 #define BC_UFCS_DISABLE_MOS		0X72
+#define BC_UFCS_PDO_READY		0X74
 #endif
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
@@ -302,6 +305,17 @@ struct oem_read_buffer_req_msg {
 struct oem_read_buffer_resp_msg {
 	struct pmic_glink_hdr hdr;
 	u32 data_buffer[MAX_OEM_PROPERTY_DATA_SIZE];
+	u32 data_size;
+};
+
+struct oplus_ap_read_ufcs_req_msg {
+	struct pmic_glink_hdr hdr;
+	u32 data_size;
+};
+
+struct oplus_ap_read_ufcs_resp_msg {
+	struct pmic_glink_hdr hdr;
+	u64 data_buffer[MAX_UFCS_CAPS_ITEM];
 	u32 data_size;
 };
 #endif
@@ -810,6 +824,7 @@ struct battery_chg_dev {
 	bool				ufcs_test_mode;
 	bool				ufcs_power_ready;
 	bool				ufcs_handshake_ok;
+	bool				ufcs_pdo_ready;
 	struct delayed_work 	hvdcp_disable_work;
 	struct delayed_work 	pd_only_check_work;
 	bool					voocphy_err_check;
@@ -850,6 +865,7 @@ struct battery_chg_dev {
 	struct oem_read_buffer_resp_msg  bcc_read_buffer_dump;
 	struct mutex	ufcs_read_buffer_lock;
 	struct completion	 ufcs_read_ack;
+	struct oplus_ap_read_ufcs_resp_msg ufcs_read_buffer_dump;
 	int otg_scheme;
 	int otg_boost_src;
 	int otg_curr_limit_max;

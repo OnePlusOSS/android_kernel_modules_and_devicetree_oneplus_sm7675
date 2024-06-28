@@ -463,6 +463,12 @@ static int syna_get_report_data(struct syna_tcm_hcd *tcm_hcd, unsigned int offse
 
 	return 0;
 }
+int get_palm_status_example(void)
+{
+	if (g_tcm_hcd)
+		return g_tcm_hcd->touch_hcd->touch_data.palm_status;
+	return -1;
+}
 
 /**
  * touch_parse_report() - Parse touch report
@@ -816,6 +822,19 @@ static int syna_parse_report(struct syna_tcm_hcd *tcm_hcd)
 			touch_data->nsm_state = data;
 			offset += bits;
 			break;
+		case TOUCH_REPORT_PALM_DETECTED:
+			bits = config_data[idx++];
+			retval = syna_get_report_data(tcm_hcd, offset, bits, &data);
+			if (retval < 0) {
+				if (tcm_hcd->health_monitor_support) {
+					tp_healthinfo_report(tcm_hcd->monitor_data, HEALTH_REPORT, "parse_report_err_nsmstate");
+				}
+				TPD_INFO("Failed to get NSM state\n");
+				return retval;
+			}
+			touch_data->palm_status = data;
+			offset += bits;
+			break;
 		case TOUCH_NUM_OF_ACTIVE_OBJECTS:
 			bits = config_data[idx++];
 			retval = syna_get_report_data(tcm_hcd, offset, bits, &data);
@@ -995,6 +1014,8 @@ static int syna_set_normal_report_config(struct syna_tcm_hcd *tcm_hcd)
 
 	/*touch_hcd->out.buf[idx++] = TOUCH_GESTURE_DOUBLE_TAP;*/
 	/*touch_hcd->out.buf[idx++] = 8;*/
+	touch_hcd->out.buf[idx++] = TOUCH_REPORT_PALM_DETECTED;
+	touch_hcd->out.buf[idx++] = 8;
 	touch_hcd->out.buf[idx++] = TOUCH_FOREACH_ACTIVE_OBJECT;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_INDEX;
 	touch_hcd->out.buf[idx++] = 4;
@@ -1207,6 +1228,8 @@ static void syna_tcm_resize_chunk_size(struct syna_tcm_hcd *tcm_hcd)
 static void syna_tcm_dispatch_report(struct syna_tcm_hcd *tcm_hcd)
 {
 	int ret = 0;
+	struct touch_hcd *touch_hcd = tcm_hcd->touch_hcd;
+	struct touch_data *touch_data = &touch_hcd->touch_data;
 	LOCK_BUFFER(tcm_hcd->in);
 	LOCK_BUFFER(tcm_hcd->report.buffer);
 
@@ -1227,6 +1250,10 @@ static void syna_tcm_dispatch_report(struct syna_tcm_hcd *tcm_hcd)
 			syna_set_trigger_reason(tcm_hcd, IRQ_GESTURE);
 		} else {
 			syna_set_trigger_reason(tcm_hcd, IRQ_TOUCH);
+			if (touch_data->palm_status == PALM_TO_SLEEP) {
+				syna_set_trigger_reason(tcm_hcd, IRQ_PALM);
+				touch_data->palm_status = PALM_TO_DEFAULT;
+			}
 		}
 	} else if (tcm_hcd->report.id == REPORT_IDENTIFY) {
 		if (tcm_hcd->id_info.mode == MODE_HOST_DOWNLOAD) {
@@ -2791,6 +2818,39 @@ exit:
 	kfree(resp_buf);
 
 	return retval;
+}
+
+static void syna_rate_white_list_ctrl(void *chip_data, int value)
+{
+	struct syna_tcm_hcd *tcm_hcd = (struct syna_tcm_hcd *)chip_data;
+	unsigned short cmd = 1;
+	int retval = 0;
+	if (tcm_hcd == NULL) {
+		return;
+	}
+
+	switch (value) {
+	case 120: /* 120Hz */
+		cmd = 1;
+		break;
+	case 180: /* 180Hz */
+		cmd = 2;
+		break;
+	case 240: /* 240Hz */
+		cmd = 3;
+		break;
+	default:
+		TPD_INFO("%s: report rate not support\n", __func__);
+		return;
+	}
+	retval = syna_tcm_set_dynamic_config(tcm_hcd,
+					     DC_SET_REPORT_FRE,
+					     cmd);
+	if (retval < 0) {
+		TPD_INFO("Failed to set dynamic report frequence config\n");
+	}
+	TPD_INFO("%s: DC_SET_REPORT_FRE: %d  %s!\n",
+		 __func__, cmd, retval < 0 ? "failed" : "success");
 }
 
 static int syna_tcm_reset(void *chip_data)
@@ -4500,6 +4560,7 @@ static struct oplus_touchpanel_operations syna_tcm_ops = {
 	.resume_timedout_operate = syna_tcm_resume_timedout_operate,
 	.set_touch_direction    = synaptics_set_touch_direction,
 	.get_touch_direction    = synaptics_get_touch_direction,
+	.rate_white_list_ctrl   = syna_rate_white_list_ctrl,
 /*	.freq_hop_trigger = syna_freq_hop_trigger,*/
 };
 
@@ -4750,7 +4811,13 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 	ts->s_client = spi;
 	ts->s_client->mode = SPI_MODE_3;
 	ts->s_client->bits_per_word = 8;
-
+	spi->bits_per_word = 8;
+	spi->cs_setup.value = 1;
+	spi->cs_setup.unit = 0;
+	spi->cs_hold.value = 1;
+	spi->cs_hold.unit = 0;
+	spi->cs_inactive.value = 1;
+	spi->cs_inactive.unit = 0;
 	ts->irq = spi->irq;
 	ts->irq_flags_cover = 0x2008;
 	/*ts->has_callback = true;*/

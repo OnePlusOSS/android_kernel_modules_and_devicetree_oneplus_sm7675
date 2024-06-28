@@ -295,6 +295,7 @@ static void syna_tcm_v2_dispatch_report(struct tcm_dev *tcm_dev)
 		if (0x0b == tcm_dev->dev_mode) {
 			tcm_dev->firmware_mode_count++;
 			if (!tcm_dev->upload_flag && tcm_dev->firmware_mode_count >= FIRMWARE_MODE_BL_MAX) {
+				tp_healthinfo_report(tcm_dev->monitor_data, HEALTH_REPORT, "firmware mode = 0x0b");
 				tcm_dev->upload_flag = 1;
 			}
 		}

@@ -79,6 +79,7 @@ int oplus_hbm_pwm_state(struct dsi_panel *panel, bool hbm_state);
 int oplus_display_panel_set_pwm_turbo(void *data);
 int oplus_display_panel_get_pwm_turbo(void *data);
 inline bool oplus_panel_pwm_onepulse_is_enabled(struct dsi_panel *panel);
+inline bool oplus_panel_pwm_onepulse_is_used(struct dsi_panel *panel);
 inline bool oplus_panel_pwm_onepulse_switch_state(struct dsi_panel *panel);
 int oplus_panel_send_pwm_pulse_dcs_unlock(struct dsi_panel *panel, bool enabled);
 int oplus_panel_update_pwm_pulse_lock(struct dsi_panel *panel, bool enabled);
@@ -86,6 +87,7 @@ int oplus_display_panel_set_pwm_pulse(void *data);
 int oplus_display_panel_get_pwm_pulse(void *data);
 int oplus_panel_pwm_switch_wait_te_tx_cmd(struct dsi_panel *panel, u32 pwm_switch_cmd);
 void oplus_pwm_disable_duty_set_work_handler(struct work_struct *work);
+int oplus_panel_pwm_onepulse_switch(struct dsi_panel *panel);
 /* -------------------- oplus api nodes ----------------------------------------------- */
 ssize_t oplus_get_pwm_turbo_debug(struct kobject *obj, struct kobj_attribute *attr, char *buf);
 ssize_t oplus_set_pwm_turbo_debug(struct kobject *obj, struct kobj_attribute *attr, const char *buf, size_t count);

@@ -798,6 +798,7 @@ struct oplus_ufcs_operations {
 	int (*ufcs_get_cp_master_ibus)(void);
 	int (*ufcs_get_cp_master_vac)(void);
 	int (*ufcs_get_cp_master_vout)(void);
+	int (*ufcs_get_cp_master_vbat)(void);
 
 	int (*ufcs_event_handle)(void);
 };
