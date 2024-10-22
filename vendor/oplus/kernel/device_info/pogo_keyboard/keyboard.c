@@ -128,6 +128,7 @@ int pogo_keyboard_input_init(char *keyboard_name)
     __set_bit(LED_CAPSL, pogo_keyboard_input->ledbit);
     //__set_bit(LED_MUTE, pogo_keyboard_input->ledbit);
     //__set_bit(LED_MIC_MUTE, pogo_keyboard_input->ledbit);
+    __set_bit(KEY_TOUCHPAD_TOGGLE, pogo_keyboard_input->keybit);
     pogo_keyboard_input->event = pogo_keyboard_event_hander;
     for (i = 0; i < KEYBOARD_NUM_KEYS; i++) {
         if (pogo_keyboard[i] != 0 && pogo_keyboard[i] != unk) {

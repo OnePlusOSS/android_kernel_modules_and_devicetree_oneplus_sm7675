@@ -1774,6 +1774,11 @@ static bool dp_fisa_aggregation_should_stop(
 	uint32_t l3_hdr_offset, l4_hdr_offset, l2_l3_hdr_len;
 	uint32_t cumulative_ip_len_delta = hal_cumulative_ip_len -
 					   fisa_flow->hal_cumultive_ip_len;
+	uint32_t ip_csum_err = 0;
+	uint32_t tcp_udp_csum_err = 0;
+
+	hal_rx_tlv_csum_err_get(fisa_flow->dp_ctx->hal_soc, rx_tlv_hdr,
+				&ip_csum_err, &tcp_udp_csum_err);
 
 	hal_rx_get_l3_l4_offsets(fisa_flow->dp_ctx->hal_soc, rx_tlv_hdr,
 				 &l3_hdr_offset, &l4_hdr_offset);
@@ -1781,6 +1786,12 @@ static bool dp_fisa_aggregation_should_stop(
 	l2_l3_hdr_len = l3_hdr_offset + l4_hdr_offset;
 
 	/**
+	 * If l3/l4 checksum validation failed for MSDU, then data
+	 * is not trust worthy to build aggregated skb, so do not
+	 * allow for aggregation. And also in aggregated case it
+	 * is job of driver to make sure checksum is valid before
+	 * computing partial checksum for final aggregated skb.
+	 *
 	 * kernel network panic if UDP data length < 12 bytes get aggregated,
 	 * no solid conclusion currently, as a SW WAR, only allow UDP
 	 * aggregation if UDP data length >= 16 bytes.
@@ -1793,6 +1804,7 @@ static bool dp_fisa_aggregation_should_stop(
 	 * otherwise, current fisa flow aggregation should be stopped.
 	 */
 	if (fisa_flow->do_not_aggregate ||
+	    (ip_csum_err || tcp_udp_csum_err) ||
 	    msdu_len < (l2_l3_hdr_len + FISA_MIN_L4_AND_DATA_LEN) ||
 	    hal_cumulative_ip_len <= fisa_flow->hal_cumultive_ip_len ||
 	    cumulative_ip_len_delta > FISA_MAX_SINGLE_CUMULATIVE_IP_LEN ||

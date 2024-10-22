@@ -23,14 +23,34 @@
 #include "sipa_tuning_if.h"
 #include "sipa_parameter.h"
 
-#define LOAD_FW_BY_DELAY_WORK
-#define LOAD_TIME_OUT 	(13000)
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+#define OPLUS_AUDIO_EVENTID_SMARTPA_ERR 		10041
+#endif
 
+#define LOAD_FW_BY_DELAY_WORK
+#define LOAD_TIME_OUT 	(2000)
+#define LOAD_TIME_RETRY (2000)
+#define LOAD_FW_RETRIES			(15)
+
+char *sipa_fw_name = NULL;
 static SIPA_PARAM *sipa_parameters = NULL;
 static uint32_t sipa_fw_loaded = 0;
 static struct mutex sipa_fw_load_lock;
 
 extern int sipa_pending_actions(sipa_dev_t *si_pa);
+
+static void sipa_fw_load_retry(sipa_dev_t *si_pa)
+{
+	si_pa->fw_load_count++;
+	if (si_pa->fw_load_count < LOAD_FW_RETRIES) {
+		queue_delayed_work(si_pa->sia91xx_wq,
+			&si_pa->fw_load_work, msecs_to_jiffies(LOAD_TIME_RETRY));
+	} else {
+		pr_err("[  err][%s] %s: load retries failed !\r\n",
+			LOG_FLAG, __func__);
+	}
+}
 
 #ifndef LOAD_FW_BY_DELAY_WORK
 static void sipa_container_loaded(
@@ -41,15 +61,20 @@ static void sipa_container_loaded(
 	const SIPA_PARAM_FW *param = NULL;
 	sipa_dev_t *si_pa = context;
 
-	if (NULL == cont) {
-		pr_err("[  err][%s] %s: NULL == cont \r\n", LOG_FLAG, __func__);
-		return;
-	}
+	pr_debug("[debug][%s] %s: enter load\r\n", LOG_FLAG, __func__);
 
 	if (NULL == si_pa) {
 		pr_err("[  err][%s] %s: NULL == si_pa \r\n", LOG_FLAG, __func__);
 		return;
 	}
+	if (NULL == cont) {
+		pr_debug("[debug][%s] %s: load fw failed, need retry!\r\n",
+			LOG_FLAG, __func__);
+		sipa_fw_load_retry(si_pa);
+		return;
+	}
+
+
 
 	// 多声道的fw_load动作是并行处理
 	mutex_lock(&sipa_fw_load_lock);
@@ -104,6 +129,7 @@ pending_actions:
 	release_firmware(cont);
 
 	sipa_pending_actions(si_pa);
+	pr_debug("[debug][%s] %s: out load\r\n", LOG_FLAG, __func__);
 	return;
 
 load_error:
@@ -117,6 +143,23 @@ load_error:
 
 	release_firmware(cont);
 }
+
+static void sipa_fw_load_work_routine(struct work_struct *work)
+{
+	sipa_dev_t *si_pa = container_of(work, sipa_dev_t, fw_load_work.work);
+
+	pr_debug("[debug][%s] %s: enter load work routine!\r\n", LOG_FLAG, __func__);
+
+	request_firmware_nowait(
+			THIS_MODULE,
+			FW_ACTION_UEVENT,
+			sipa_fw_name,
+			&(si_pa->pdev->dev),
+			GFP_KERNEL,
+			si_pa,
+			sipa_container_loaded);
+}
+
 #else
 static void sipa_fw_loaded_work(struct work_struct *work)
 {
@@ -125,8 +168,11 @@ static void sipa_fw_loaded_work(struct work_struct *work)
 	const SIPA_PARAM_FW *param = NULL;
 	sipa_dev_t *si_pa = container_of(work, sipa_dev_t, fw_load_work.work);
 	const struct firmware *cont = NULL;
-	char *sipa_fw_name = "../../../../odm/firmware/sipa.bin";
 	void *fw = NULL;
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	char fd_buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
+#endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
+	pr_debug("[debug][%s] %s: enter load\r\n", LOG_FLAG, __func__);
 
 	if (NULL == si_pa) {
 		pr_err("[  err][%s] %s: NULL == si_pa \r\n", LOG_FLAG, __func__);
@@ -142,8 +188,15 @@ static void sipa_fw_loaded_work(struct work_struct *work)
 
 	ret = request_firmware(&cont, sipa_fw_name, &si_pa->pdev->dev);
 	if (ret) {
-		pr_err("[  err][%s]: request_firmware err ret = %d\r\n", LOG_FLAG, ret);
-		goto load_error;
+		pr_debug("[debug][%s] %s: load fw failed, need retry! ret = %d.\r\n",
+			LOG_FLAG, __func__, ret);
+		mutex_unlock(&sipa_fw_load_lock);
+		sipa_fw_load_retry(si_pa);
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		scnprintf(fd_buf, sizeof(fd_buf) - 1, "payload@@sipa_fw_loaded_work: load fw failed!! ret: %d", ret);
+		mm_fb_audio(OPLUS_AUDIO_EVENTID_SMARTPA_ERR, MM_FB_KEY_RATELIMIT_5MIN, FEEDBACK_DELAY_60S, FB_HIGH, fd_buf);
+#endif
+		return;
 	}
 
 	sz = sizeof(SIPA_PARAM_FW);
@@ -223,16 +276,12 @@ void sipa_param_load_fw(struct device *dev, char *fwname)
 		mutex_init(&sipa_fw_load_lock);
 		load_lock_init_flag = true;
 	}
-
+	sipa_fw_name = fwname;
+	si_pa->fw_load_count = 0;
 #ifndef LOAD_FW_BY_DELAY_WORK
-	request_firmware_nowait(
-		THIS_MODULE,
-		FW_ACTION_HOTPLUG,
-		fwname,
-		dev,
-		GFP_KERNEL,
-		si_pa,
-		sipa_container_loaded);
+	INIT_DELAYED_WORK(&si_pa->fw_load_work, sipa_fw_load_work_routine);
+	queue_delayed_work(si_pa->sia91xx_wq,
+		&si_pa->fw_load_work, msecs_to_jiffies(0));
 #else
 	INIT_DELAYED_WORK(&si_pa->fw_load_work, sipa_fw_loaded_work);
 	queue_delayed_work(si_pa->sia91xx_wq,
@@ -334,15 +383,16 @@ int sipa_param_read_extra_cfg(
 
 	return 0;
 }
-
-const SIPA_PARAM *sipa_param_instance(void)
+/* remove unused function which would also cause compile error*/
+/*
+const SIPA_PARAM *sipa_param_instance()
 {
 	if (1 != sipa_fw_loaded)
 		return NULL;
 
 	return sipa_parameters;
 }
-
+*/
 bool sipa_param_is_loaded(void)
 {
 	if (1 == sipa_fw_loaded && NULL != sipa_parameters)

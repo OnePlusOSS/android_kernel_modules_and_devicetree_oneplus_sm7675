@@ -39,6 +39,13 @@
 #endif
 #endif /*CONFIG_OPLUS_FEATURE_MM_FEEDBACK*/
 
+#ifdef OPLUS_ARCH_EXTENDS
+#define GLOBAL_SKB_LEN  128
+static struct sk_buff *gskb = NULL;
+static bool gskb_used = false;
+static spinlock_t gskb_lock;
+#endif /* OPLUS_ARCH_EXTENDS */
+
 /* Define IPC Logging Macros */
 #define AUDIO_PKT_IPC_LOG_PAGE_CNT 2
 static void *audio_pkt_ilctxt;
@@ -197,7 +204,18 @@ int audio_pkt_release(struct inode *inode, struct file *file)
 	/* Discard all SKBs */
 	while (!skb_queue_empty(&audpkt_dev->queue)) {
 		skb = skb_dequeue(&audpkt_dev->queue);
+#ifndef OPLUS_ARCH_EXTENDS
 		kfree_skb(skb);
+#else /* OPLUS_ARCH_EXTENDS */
+		if (skb != gskb) {
+			kfree_skb(skb);
+		} else {
+			// clear gskb
+			skb_reset_tail_pointer(gskb);
+			skb_trim(gskb, 0);
+			gskb_used = false;
+		}
+#endif /* OPLUS_ARCH_EXTENDS */
 	}
 	wake_up_interruptible(&audpkt_dev->readq);
 	spin_unlock_irqrestore(&audpkt_dev->queue_lock, flags);
@@ -227,7 +245,18 @@ static int audio_pkt_internal_release(struct platform_device *adev)
 	/* Discard all SKBs */
 	while (!skb_queue_empty(&audpkt_dev->queue)) {
 		skb = skb_dequeue(&audpkt_dev->queue);
+#ifndef OPLUS_ARCH_EXTENDS
 		kfree_skb(skb);
+#else /* OPLUS_ARCH_EXTENDS */
+		if (skb != gskb) {
+			kfree_skb(skb);
+		} else {
+			// clear gskb
+			skb_reset_tail_pointer(gskb);
+			skb_trim(gskb, 0);
+			gskb_used = false;
+		}
+#endif /* OPLUS_ARCH_EXTENDS */
 	}
 	spin_unlock_irqrestore(&audpkt_dev->queue_lock, flags);
 
@@ -297,8 +326,18 @@ ssize_t audio_pkt_read(struct file *file, char __user *buf,
 	if (copy_to_user(buf, skb->data, use))
 		use = -EFAULT;
 	temp = (uint32_t *) skb->data;
+#ifndef OPLUS_ARCH_EXTENDS
 	kfree_skb(skb);
-
+#else /* OPLUS_ARCH_EXTENDS */
+	if (skb != gskb) {
+		kfree_skb(skb);
+	} else {
+		// clear gskb
+		skb_reset_tail_pointer(gskb);
+		skb_trim(gskb, 0);
+		gskb_used = false;
+	}
+#endif  /* OPLUS_ARCH_EXTENDS */
 	return use;
 }
 
@@ -480,7 +519,11 @@ static int audio_pkt_srvc_callback(struct gpr_device *adev,
 	struct audio_pkt_device *audpkt_dev = ap_priv->ap_dev;
 
 	unsigned long flags;
+#ifndef OPLUS_ARCH_EXTENDS
 	struct sk_buff *skb;
+#else /* OPLUS_ARCH_EXTENDS */
+	struct sk_buff *skb = NULL;
+#endif /* OPLUS_ARCH_EXTENDS */
 	struct gpr_hdr *hdr = (struct gpr_hdr *)data;
 	uint16_t hdr_size, pkt_size;
 	hdr_size = GPR_PKT_GET_HEADER_BYTE_SIZE(hdr->header);
@@ -490,12 +533,27 @@ static int audio_pkt_srvc_callback(struct gpr_device *adev,
 		__func__,hdr_size, pkt_size);
 
 	skb = alloc_skb(pkt_size, GFP_ATOMIC);
+#ifndef OPLUS_ARCH_EXTENDS
+	if (!skb)
+		return -ENOMEM;
+#else /* OPLUS_ARCH_EXTENDS */
 	if (!skb) {
-#ifdef OPLUS_ARCH_EXTENDS
+		AUDIO_PKT_ERR("alloc_skb failed, pkt_size = 0x%x, gskb_used = %d\n", pkt_size, gskb_used);
+		spin_lock_irqsave(&gskb_lock, flags);
+		if (!gskb_used && gskb && (pkt_size <= GLOBAL_SKB_LEN)) {
+			gskb_used = true;
+			skb = gskb;
+			dev_info(&adev->dev, "%s: gskb_used=%d\n", __func__, gskb_used);
+		}
+		spin_unlock_irqrestore(&gskb_lock, flags);
+	}
+
+	if (!skb) {
 		AUDIO_PKT_ERR("alloc_skb failed, pkt_size = 0x%x \n", pkt_size);
-#endif
 		return -ENOMEM;
 	}
+#endif /* OPLUS_ARCH_EXTENDS */
+
 	skb_put_data(skb, data, pkt_size);
 
 	spin_lock_irqsave(&audpkt_dev->queue_lock, flags);
@@ -527,6 +585,14 @@ static int audio_pkt_probe(struct gpr_device *adev)
 		mutex_unlock(&ap_priv->lock);
 
 		dev_set_drvdata(&adev->dev, ap_priv);
+
+#ifdef OPLUS_ARCH_EXTENDS
+		gskb = alloc_skb(GLOBAL_SKB_LEN, GFP_ATOMIC);
+		if (!gskb) {
+			dev_dbg(&adev->dev, "%s: alloc_skb 256 failed \n", __func__);
+		}
+		spin_lock_init(&gskb_lock);
+#endif /* OPLUS_ARCH_EXTENDS */
 
 		dev_dbg(&adev->dev, "%s: Driver[%s] Probed\n",
 		 __func__, adev->name);
@@ -560,6 +626,13 @@ static int audio_pkt_remove(struct gpr_device *adev)
 		ap_priv->adev = NULL;
 		ap_priv->status = AUDIO_PKT_REMOVED;
 		mutex_unlock(&ap_priv->lock);
+
+#ifdef OPLUS_ARCH_EXTENDS
+		if (gskb) {
+			kfree_skb(gskb);
+		}
+#endif /* OPLUS_ARCH_EXTENDS */
+
 		dev_dbg(&adev->dev, "%s: Driver[%s] Removing\n",
 		 __func__, adev->name);
 		dev_set_drvdata(&adev->dev, NULL);

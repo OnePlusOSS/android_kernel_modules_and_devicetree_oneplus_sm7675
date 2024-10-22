@@ -2080,8 +2080,41 @@ static int fts_enable_charge_mode(struct chip_data_ft3658u *ts_data, bool enable
 
 static int fts_enable_game_mode(struct chip_data_ft3658u *ts_data, bool enable)
 {
-	TPD_INFO("MODE_GAME, write 0xC3=%d", enable);
-	return fts_write_reg(FTS_REG_GAME_MODE_EN, enable);
+	int ret = 0;
+	int report_rate = FTS_120HZ_REPORT_RATE;
+	struct touchpanel_data *ts = spi_get_drvdata(ts_data->ft_spi);
+
+	if (ts_data->switch_game_rate_support) {/*tcm_info->game_rate_switch_support*/
+		switch (ts->noise_level) {
+		case FTS_GET_RATE_0:
+			report_rate = FTS_120HZ_REPORT_RATE;
+			break;
+		case FTS_GET_RATE_180:
+			report_rate = FTS_180HZ_REPORT_RATE;
+			break;
+		case FTS_GET_RATE_300:
+			report_rate = FTS_360HZ_REPORT_RATE;
+			break;
+		default:
+			report_rate = FTS_240HZ_REPORT_RATE;
+			break;
+		}
+		TPD_INFO("MODE_GAME, write report_rate=%d 0xC3=%d", report_rate, ts->noise_level);
+		ret = fts_write_reg(FTS_REG_GAME_MODE_EN, report_rate);
+		if (ret < 0) {
+			TPD_INFO("Failed to set dynamic report frequence config\n");
+			return ret;
+		}
+	} else {
+		report_rate = enable;
+		TPD_INFO("MODE_GAME, write report_rate 0xC3=%d", enable);
+		ret = fts_write_reg(FTS_REG_GAME_MODE_EN, enable);
+		if (ret < 0) {
+			TPD_INFO("Failed to fts_enable_game_mode\n");
+			return ret;
+		}
+	}
+	return ret;
 }
 
 static int fts_enable_headset_mode(struct chip_data_ft3658u *ts_data,
@@ -2311,6 +2344,7 @@ static u32 fts_u32_trigger_reason(void *chip_data, int gesture_enable,
 	struct chip_data_ft3658u *ts_data = (struct chip_data_ft3658u *)chip_data;
 	int ret = 0;
 	u8 cmd = FTS_REG_POINTS;
+	u8 cmd_grip = FTS_REG_GRIP;
 	u32 result_event = 0;
 	u8 *touch_buf = ts_data->touch_buf;
 	u8 val = 0xFF;
@@ -2318,6 +2352,18 @@ static u32 fts_u32_trigger_reason(void *chip_data, int gesture_enable,
 	fts_prc_queue_work(ts_data);
 
 	memset(touch_buf, 0xFF, FTS_MAX_POINTS_LENGTH);
+
+	if (ts_data->ts->palm_to_sleep_enable && !ts_data->ts->is_suspended) {
+		ret = fts_read_reg(FTS_REG_PALM_TO_SLEEP_STATUS, &val);
+		if (ret < 0) {
+			TPD_INFO("ft3658u_read_reg  PALM_TO_SLEEP_STATUS  error \n");
+		}
+		if(val == 1) {
+			result_event = IRQ_PALM;
+			TPD_INFO("fts_enable_palm_to_sleep enable\n");
+			return result_event;
+		}
+	}
 
 	if (gesture_enable && is_suspended) {
 		ret = fts_read_reg(FTS_REG_GESTURE_EN, &val);
@@ -2330,6 +2376,13 @@ static u32 fts_u32_trigger_reason(void *chip_data, int gesture_enable,
 	if (ret < 0) {
 		TPD_INFO("read touch point one fail");
 		return IRQ_IGNORE;
+	}
+
+	if (ts_data->ft3658u_grip_v2_support) {
+		ret = fts_read(&cmd_grip, 1, &touch_buf[FTS_MAX_POINTS_LENGTH], FTS_GRIP_LENGTH);
+		if (ret < 0) {
+			TPD_INFO("[prevent-ft] read grip_info one fail");
+		}
 	}
 
 	if ((touch_buf[1] == 0xFF) && (touch_buf[2] == 0xFF) && (touch_buf[3] == 0xFF)) {
@@ -2391,6 +2444,7 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 	int i = 0;
 	int obj_attention = 0;
 	int base = 0;
+	int base_prevent = 0;
 	int event_num = 0;
 	u8 finger_num = 0;
 	u8 pointid = 0;
@@ -2401,11 +2455,12 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 
 	if (finger_num > max_num) {
 		TPD_INFO("invalid point_num(%d),max_num(%d)", finger_num, max_num);
-		return -EIO;
+		return -EINVAL;
 	}
 
 	for (i = 0; i < max_num; i++) {
 		base = 6 * i;
+		base_prevent = 4 * i;
 		pointid = (touch_buf[4 + base]) >> 4;
 
 		if (pointid >= FTS_MAX_ID) {
@@ -2424,6 +2479,15 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 			points[pointid].width_major = touch_buf[7 + base];
 			points[pointid].z =  touch_buf[7 + base];
 			event_flag = (touch_buf[2 + base] >> 6);
+
+			if (ts_data->ft3658u_grip_v2_support) {
+				points[pointid].tx_press = touch_buf[62 + base_prevent];
+				points[pointid].rx_press = touch_buf[63 + base_prevent];
+				points[pointid].tx_er = touch_buf[65 + base_prevent];
+				points[pointid].rx_er = touch_buf[64 + base_prevent];
+				TPD_DEBUG("[prevent-ft] id:%2d x:%3d y:%3d | tx_press:%3d rx_press:%3d tx_er:%3d rx_er:%3d", pointid, points[		pointid].x, points[pointid].y,
+					points[pointid].tx_press, points[pointid].rx_press, points[pointid].tx_er, points[pointid].rx_er);
+			}
 		} else if (ts_data->high_resolution_support_x8) {
 			points[pointid].x = (((touch_buf[2 + base] & 0x0F) << 11) +
 			                     ((touch_buf[3 + base] & 0xFF) << 3) +
@@ -2435,6 +2499,15 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 			points[pointid].width_major = touch_buf[7 + base];
 			points[pointid].z =  touch_buf[7 + base];
 			event_flag = (touch_buf[2 + base] >> 6);
+
+			if (ts_data->ft3658u_grip_v2_support) {
+			points[pointid].tx_press = touch_buf[62 + base_prevent];
+			points[pointid].rx_press = touch_buf[63 + base_prevent];
+			points[pointid].tx_er = touch_buf[65 + base_prevent];
+			points[pointid].rx_er = touch_buf[64 + base_prevent];
+			TPD_DEBUG("[prevent-ft] id:%2d x:%3d y:%3d | tx_press:%3d rx_press:%3d tx_er:%3d rx_er:%3d", pointid, points[pointid].x, points[pointid].y,
+				points[pointid].tx_press, points[pointid].rx_press, points[pointid].tx_er, points[pointid].rx_er);
+			}
 		}
 
 		points[pointid].status = 0;
@@ -2445,14 +2518,14 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 
 			if (finger_num == 0) {
 				TPD_INFO("abnormal touch data from fw");
-				return -EIO;
+				return -EINVAL;
 			}
 		}
 	}
 
 	if (event_num == 0) {
 		TPD_INFO("no touch point information");
-		return -EIO;
+		return -EINVAL;
 	}
 
 	if (ts_data->touch_analysis_support && ts_data->ta_flag) {
@@ -2468,10 +2541,17 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 
 static void fts_health_report(void *chip_data, struct monitor_data *mon_data)
 {
+	struct chip_data_ft3658u *ts_data = (struct chip_data_ft3658u *)chip_data;
 	int ret = 0;
 	u8 val = 0;
 
 	ret = fts_read_reg(0x01, &val);
+	if (val & 0x01) {
+		ts_data->water_mode = 1;
+	}
+	else {
+		ts_data->water_mode = 0;
+	}
 	TPD_INFO("Health register(0x01):0x%x", val);
 	ret = fts_read_reg(FTS_REG_HEALTH_1, &val);
 	TPD_INFO("Health register(0xFD):0x%x", val);
@@ -2754,7 +2834,7 @@ static int fts_set_high_frame_rate(void *chip_data, int level, int time)
 	TPD_INFO("set high_frame_rate to %d, keep %ds", level, time);
 	if (level > 0) {
 		TPD_INFO("Enter high_frame mode, MODE_GAME, write 0xC3=%d, MODE_HIGH_FRAME write 0x8E=%d, HIGH_FRAME_TIME write 0x8A=%d", true, true, time);
-		ret = fts_write_reg(FTS_REG_GAME_MODE_EN, true);
+		ret = fts_write_reg(FTS_REG_GAME_MODE_EN, FTS_240HZ_REPORT_RATE);
 		if (ret < 0) {
 			return ret;
 		}
@@ -2810,9 +2890,12 @@ static int ft3658u_parse_dts(struct chip_data_ft3658u *ts_data, struct spi_devic
 {
 	struct device *dev;
 	struct device_node *np;
+	struct device_node *chip_np;
 
 	dev = &spi->dev;
 	np = dev->of_node;
+
+	chip_np = of_get_child_by_name(np, "FT3658U");
 
 	ts_data->high_resolution_support = of_property_read_bool(np, "high_resolution_support");
 	ts_data->high_resolution_support_x8 = of_property_read_bool(np, "high_resolution_support_x8");
@@ -2820,6 +2903,14 @@ static int ft3658u_parse_dts(struct chip_data_ft3658u *ts_data, struct spi_devic
 	         ts_data->high_resolution_support_x8);
 	ts_data->i2c_spi_compatible_support = of_property_read_bool(np, "i2c_spi_compatible_support");
 	TPD_INFO("%s:i2c_spi_compatible_support is:%d\n", __func__, ts_data->i2c_spi_compatible_support);
+
+	if (!chip_np) {
+		ts_data->switch_game_rate_support = 0;
+	} else {
+		ts_data->switch_game_rate_support = of_property_read_bool(chip_np, "switch_report_rate");
+		TPD_INFO("%s:switch_report_rate is:%d\n", __func__,
+			ts_data->switch_game_rate_support);
+	}
 	return 0;
 }
 
@@ -2841,7 +2932,83 @@ int fts_set_spi_max_speed(unsigned int speed, char mode)
 	}
 	return rc;
 }
+static int fts_diaphragm_touch_lv_set(void *chip_data, int level)
+{
+	u8 diaphragm_mode = FTS_DIAPHRAGM_MODE_0;
+	switch (level) {
+	case DIAPHRAGM_DEFAULT_MODE:
+		diaphragm_mode = FTS_DIAPHRAGM_MODE_0;
+		break;
+	case DIAPHRAGM_FILM_MODE:
+		diaphragm_mode = FTS_DIAPHRAGM_MODE_1;
+		break;
+	case DIAPHRAGM_WATERPROO_MODE:
+		diaphragm_mode = FTS_DIAPHRAGM_MODE_2;
+		break;
+	case DIAPHRAGM_FILM_WATERPROO_MODE:
+		diaphragm_mode = FTS_DIAPHRAGM_MODE_3;
+		break;
+	default:
+		TPD_INFO("error, level = %d", level);
+		return 0;
+	}
+	TPD_INFO("diaphragm_mode level = %d", level);
+	return fts_write_reg(FT3658U_REG_DIAPHRAGM_EN, diaphragm_mode);
+}
 
+static void fts_read_water_flag(void *chip_data)
+{
+	struct chip_data_ft3658u *ts_data = (struct chip_data_ft3658u *)chip_data;
+	struct touchpanel_data *ts = spi_get_drvdata(ts_data->ft_spi);
+	TPD_INFO("%s: water mode %d!\n", __func__, ts_data->water_mode);
+	if (ts_data->water_mode == 1) {
+		ts->water_mode = 1;
+	}
+	else {
+		ts->water_mode = 0;
+	}
+}
+
+static void fts_force_water_mode(void *chip_data, bool enable)
+{
+	TPD_INFO("%s: %s force_water_mode is not supported .\n", __func__, enable ? "Enter" : "Exit");
+}
+
+static void fts_rate_white_list_ctrl(void *chip_data, int value)
+{
+	struct chip_data_ft3658u *ts_data = (struct chip_data_ft3658u *)chip_data;
+	u8 send_value = FTS_120HZ_REPORT_RATE;
+	int ret = 0;
+
+	if (ts_data == NULL) {
+		return;
+	}
+
+	if (ts_data->ts->is_suspended) {
+		return;
+	}
+
+	switch (value) {
+		/* TP RATE */
+	case FTS_WRITE_RATE_120:
+		send_value = FTS_120HZ_REPORT_RATE;
+		break;
+	case FTS_WRITE_RATE_180:
+		send_value = FTS_180HZ_REPORT_RATE;
+		break;
+	case FTS_WRITE_RATE_240:
+		send_value = FTS_240HZ_REPORT_RATE; /*IC does not support reporting rate*/
+		break;
+	default:
+		TPD_INFO("%s: report rate = %d, not support\n", __func__, value);
+		return;
+	}
+
+	TPD_INFO("%s, got value = %d, set value = %d\n", __func__, value, send_value);
+	ret = fts_write_reg(FTS_REG_GAME_MODE_EN, send_value);
+	if(ret < 0)
+		TPD_INFO("%s: setting new report rate failed!\n", __func__);
+}
 static struct oplus_touchpanel_operations fts_ops = {
 	.power_control              = fts_power_control,
 	.get_vendor                 = fts_get_vendor,
@@ -2867,6 +3034,10 @@ static struct oplus_touchpanel_operations fts_ops = {
 	.set_gesture_state          = fts_set_gesture_state,
 	.tp_refresh_switch          = fts_refresh_switch,
 	.set_high_frame_rate        = fts_set_high_frame_rate,
+	.diaphragm_touch_lv_set     = fts_diaphragm_touch_lv_set,
+	.get_water_mode            = fts_read_water_flag,
+	.force_water_mode           = fts_force_water_mode,
+	.rate_white_list_ctrl       = fts_rate_white_list_ctrl,
 };
 
 static struct focal_auto_test_operations ft3658u_test_ops = {
@@ -3002,6 +3173,7 @@ static int fts_tp_probe(struct spi_device *spi)
 	}
 
 	ts_data->black_gesture_indep = ts->black_gesture_indep_support;
+	ts_data->ft3658u_grip_v2_support = ts->kernel_grip_support;
 	ts_data->monitor_data = &ts->monitor_data;
 	/*step6:create ftxxxx-debug related proc files*/
 	fts_create_apk_debug_channel(ts_data);

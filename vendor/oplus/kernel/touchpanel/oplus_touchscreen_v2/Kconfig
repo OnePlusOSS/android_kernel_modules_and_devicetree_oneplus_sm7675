@@ -107,6 +107,12 @@ config TOUCHPANEL_ST
 	help
 	Say Y to enable driver for Touchpanel using st IC
 	Say M to enable driver for Touchpanel using st IC as module.
+	
+config TOUCHPANEL_CHIPONE
+	tristate "TP st IC enable or not for OPLUS"
+	help
+	Say Y to enable driver for Touchpanel using chipone IC
+	Say M to enable driver for Touchpanel using st IC as module.
 
 if TOUCHPANEL_SYNAPTICS
 source "drivers/input/touchscreen/oplus_touchscreen_v2/Synaptics/Kconfig"
@@ -136,4 +142,8 @@ source "drivers/input/touchscreen/oplus_touchscreen_v2/ilitek/Kconfig"
 endif
 if TOUCHPANEL_ST
 source "drivers/input/touchscreen/oplus_touchscreen_v2/St/Kconfig"
+endif
+
+if TOUCHPANEL_CHIPONE
+source "drivers/input/touchscreen/oplus_touchscreen_v2/chipone/Kconfig"
 endif

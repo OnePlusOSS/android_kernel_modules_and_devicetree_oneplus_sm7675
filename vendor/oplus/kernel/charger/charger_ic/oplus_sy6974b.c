@@ -44,6 +44,8 @@
 
 #include "../oplus_chg_ops_manager.h"
 #include "../voocphy/oplus_voocphy.h"
+#include "../oplus_pps.h"
+#include "../oplus_ufcs.h"
 
 #include "oplus_sy6974b.h"
 
@@ -1361,20 +1363,22 @@ int sy6974b_unsuspend_charger(void)
 		}
 
 		if (g_oplus_chip) {
-				if (oplus_vooc_get_fastchg_to_normal() == false
-						&& oplus_vooc_get_fastchg_to_warm() == false) {
-					if (g_oplus_chip->authenticate
-							&& g_oplus_chip->mmi_chg
-							&& !g_oplus_chip->balancing_bat_stop_chg
-							&& (g_oplus_chip->charging_state != CHARGING_STATUS_FAIL)
-							&& oplus_vooc_get_allow_reading()
-							&& !oplus_is_rf_ftm_mode()) {
-						sy6974b_enable_charging();
-					}
+			if (oplus_vooc_get_fastchg_to_normal() == false
+					&& oplus_vooc_get_fastchg_to_warm() == false
+					&& oplus_pps_get_pps_mos_started() == false
+					&& oplus_ufcs_get_ufcs_mos_started() == false) {
+				if (g_oplus_chip->authenticate
+						&& g_oplus_chip->mmi_chg
+						&& !g_oplus_chip->balancing_bat_stop_chg
+						&& (g_oplus_chip->charging_state != CHARGING_STATUS_FAIL)
+						&& oplus_vooc_get_allow_reading()
+						&& !oplus_is_rf_ftm_mode()) {
+					sy6974b_enable_charging();
 				}
-			} else {
-				sy6974b_enable_charging();
 			}
+		} else {
+			sy6974b_enable_charging();
+		}
 	return rc;
 #endif
 }

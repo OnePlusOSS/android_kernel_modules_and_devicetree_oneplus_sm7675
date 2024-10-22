@@ -2843,7 +2843,7 @@ static bool hx83102j_ic_package_check(struct chip_data_hx83102j *chip_info)
 	uint8_t tmp_addr[4];
 	uint8_t tmp_data[8] = {0};
 	uint8_t ret_data = 0x00;
-	int i = 0;
+	/*int i = 0;*/
 
 #ifdef HX_RST_PIN_FUNC
 	hx83102j_resetgpio_set(chip_info->hw_res, false);
@@ -2857,53 +2857,53 @@ static bool hx83102j_ic_package_check(struct chip_data_hx83102j *chip_info)
 	hx83102j_sense_off(chip_info);
 
 
-	for (i = 0; i < 5; i++) {
+	/*for (i = 0; i < 5; i++) {*/
 		/* Product ID */
 		/* Touch*/
-		tmp_addr[3] = 0x90;
-		tmp_addr[2] = 0x00;
-		tmp_addr[1] = 0x00;
-		tmp_addr[0] = 0xD0;
-		hx83102j_register_read(chip_info, tmp_addr, 8, tmp_data, false);
+	tmp_addr[3] = 0x90;
+	tmp_addr[2] = 0x00;
+	tmp_addr[1] = 0x00;
+	tmp_addr[0] = 0xD0;
+	hx83102j_register_read(chip_info, tmp_addr, 8, tmp_data, false);
 
 
-		TPD_INFO("%s: Read driver IC ID: tmp_data[0]=0x%02X, tmp_data[1]=0x%02X, tmp_data[2]=0x%02X, tmp_data[3]=0x%02X \n",
-			__func__, tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
+	TPD_INFO("%s: Read driver IC ID: tmp_data[0]=0x%02X, tmp_data[1]=0x%02X, tmp_data[2]=0x%02X, tmp_data[3]=0x%02X \n",
+		__func__, tmp_data[0], tmp_data[1], tmp_data[2], tmp_data[3]);
 
 
-		/*if ((tmp_data[3] == 0x83) && (tmp_data[2] == 0x11) && ((tmp_data[1] == 0x2f) || (tmp_data[1] == 0x2f)))*/
-		/*if ((tmp_data[3] == 0x83) && (tmp_data[2] == 0x10) && (tmp_data[1] == 0x29)) {*/
-		chip_info->ic_type = HX_83102J_SERIES_PWON;
-		chip_info->ic_checksum = HX_TP_BIN_CHECKSUM_CRC;
-		hx_0f_init(chip_info);
+	/*if ((tmp_data[3] == 0x83) && (tmp_data[2] == 0x11) && ((tmp_data[1] == 0x2f) || (tmp_data[1] == 0x2f)))*/
+	/*if ((tmp_data[3] == 0x83) && (tmp_data[2] == 0x10) && (tmp_data[1] == 0x29)) {*/
+	chip_info->ic_type = HX_83102J_SERIES_PWON;
+	chip_info->ic_checksum = HX_TP_BIN_CHECKSUM_CRC;
+	hx_0f_init(chip_info);
 
-		chip_info->fw_ver_maj_flash_addr   = 59397;
-		chip_info->fw_ver_maj_flash_leng   = 1;
-		chip_info->fw_ver_min_flash_addr   = 59398;
-		chip_info->fw_ver_min_flash_leng   = 1;
-		chip_info->cfg_ver_maj_flash_addr = 59648;
-		chip_info->cfg_ver_maj_flash_leng = 1;
-		chip_info->cfg_ver_min_flash_addr = 59649;
-		chip_info->cfg_ver_min_flash_leng = 1;
-		chip_info->cid_ver_maj_flash_addr = 59394;
-		chip_info->cid_ver_maj_flash_leng = 1;
-		chip_info->cid_ver_min_flash_addr = 59395;
-		chip_info->cid_ver_min_flash_leng = 1;
+	chip_info->fw_ver_maj_flash_addr   = 59397;
+	chip_info->fw_ver_maj_flash_leng   = 1;
+	chip_info->fw_ver_min_flash_addr   = 59398;
+	chip_info->fw_ver_min_flash_leng   = 1;
+	chip_info->cfg_ver_maj_flash_addr = 59648;
+	chip_info->cfg_ver_maj_flash_leng = 1;
+	chip_info->cfg_ver_min_flash_addr = 59649;
+	chip_info->cfg_ver_min_flash_leng = 1;
+	chip_info->cid_ver_maj_flash_addr = 59394;
+	chip_info->cid_ver_maj_flash_leng = 1;
+	chip_info->cid_ver_min_flash_addr = 59395;
+	chip_info->cid_ver_min_flash_leng = 1;
 
 #ifdef HX_AUTO_UPDATE_FW
-		g_i_FW_VER = i_CTPM_FW[chip_info->fw_ver_maj_flash_addr] << 8 | i_CTPM_FW[chip_info->fw_ver_min_flash_addr];
-		g_i_CFG_VER = i_CTPM_FW[chip_info->cfg_ver_maj_flash_addr] << 8 | i_CTPM_FW[chip_info->cfg_ver_min_flash_addr];
-		g_i_CID_MAJ = i_CTPM_FW[chip_info->cid_ver_maj_flash_addr];
-		g_i_CID_MIN = i_CTPM_FW[chip_info->cid_ver_min_flash_addr];
+	g_i_FW_VER = i_CTPM_FW[chip_info->fw_ver_maj_flash_addr] << 8 | i_CTPM_FW[chip_info->fw_ver_min_flash_addr];
+	g_i_CFG_VER = i_CTPM_FW[chip_info->cfg_ver_maj_flash_addr] << 8 | i_CTPM_FW[chip_info->cfg_ver_min_flash_addr];
+	g_i_CID_MAJ = i_CTPM_FW[chip_info->cid_ver_maj_flash_addr];
+	g_i_CID_MIN = i_CTPM_FW[chip_info->cid_ver_min_flash_addr];
 #endif
-		TPD_INFO("Himax IC package 83102j_in\n");
-		ret_data = true;
-		break;
-		/*} else {
+	TPD_INFO("Himax IC package 83102j_in\n");
+	ret_data = true;
+		/*break;
+		} else {
 			ret_data = false;
 			TPD_INFO("%s:Read driver ID register Fail:\n", __func__);
-		}*/
-	}
+		}
+	}*/
 
 	return ret_data;
 }
@@ -7458,7 +7458,7 @@ static fw_check_state hx83102j_fw_check(void *chip_data, struct resolution_info 
 	panel_data->tp_fw = hx83102j_get_fw_id(chip_info);
 #ifndef HIMAX_DBG
 	if (panel_data->manufacture_info.version)
-		sprintf(panel_data->manufacture_info.version, "0x%x-%03X", panel_data->tp_fw, chip_info->touch_ver);
+		sprintf(panel_data->manufacture_info.version, "0x%8x-%03X", panel_data->tp_fw, chip_info->touch_ver);
 #endif
 
 	return FW_NORMAL;

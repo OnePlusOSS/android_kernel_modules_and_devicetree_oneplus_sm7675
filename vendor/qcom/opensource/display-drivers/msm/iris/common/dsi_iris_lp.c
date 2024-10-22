@@ -1250,9 +1250,10 @@ bool iris_abyp_switch_proc(struct dsi_display *display, int mode)
 
 	if (pcfg->iris_chip_type == CHIP_IRIS7P) {
 		if (pcfg->panel->dyn_clk_caps.dyn_clk_support) {
-			if (pcfg->display->cached_clk_rate != pcfg->panel->cur_mode->priv_info->bit_clk_list.rates[1]) {
+			u32 cur_clk_rate = iris_display_get_dsi_clk_rate(pcfg->display);
+			if (cur_clk_rate != pcfg->panel->cur_mode->priv_info->bit_clk_list.rates[1]) {
 				IRIS_LOGE("%s: clk_rate_hz:%u not supported! expect clk_rate_hz: %u.", __func__,
-					pcfg->display->cached_clk_rate, pcfg->panel->cur_mode->priv_info->bit_clk_list.rates[1]);
+					cur_clk_rate, pcfg->panel->cur_mode->priv_info->bit_clk_list.rates[1]);
 				return 0;
 			}
 		}
@@ -1764,14 +1765,18 @@ void iris_dump_status(void)
 	u32 len = _iris_get_regs_dump_len();
 	uint8_t read_path = PATH_I2C;
 	int rc = 0;
+	u32 cur_clk_rate = 0;
 
 	pcfg = iris_get_cfg();
 
 	if (iris_esd_ctrl_get() & 0x20)
 		return;
+
+	cur_clk_rate = iris_display_get_dsi_clk_rate(pcfg->display);
+
 	IRIS_LOGI("X7_dump_status:");
-	IRIS_LOGI("ESD - ctrl:%d, iris_cnt:%d, panel_cnt:%d",
-		pcfg->lp_ctrl.esd_ctrl, pcfg->lp_ctrl.esd_cnt_iris, pcfg->lp_ctrl.esd_cnt_panel);
+	IRIS_LOGI("ESD - ctrl:%d, iris_cnt:%d, panel_cnt:%d, cur_clk_rate:%u",
+		pcfg->lp_ctrl.esd_ctrl, pcfg->lp_ctrl.esd_cnt_iris, pcfg->lp_ctrl.esd_cnt_panel, cur_clk_rate);
 	IRIS_LOGI("Power - dpg:%d, bsram:%d, frc:%d, hdr:%d",
 		pcfg->lp_ctrl.dynamic_power, _iris_bsram_power, _iris_frc_power, _iris_hdr_power);
 	IRIS_LOGI("ABYP - mode:%d, lp:%d, gpio:%d, fail:%d",
@@ -2443,12 +2448,14 @@ static int _iris_print_esd_mesg_to_buffer(char *p_buff)
 	int tot = 0, rc = 0;
 	u32 value, i, len;
 	struct iris_cfg *pcfg;
+	u32 cur_clk_rate = 0;
 
 	pcfg = iris_get_cfg();
+	cur_clk_rate = iris_display_get_dsi_clk_rate(pcfg->display);
 
 	tot = scnprintf(p_buff, DUMP_BUFFER_LENGTH,
-		"ESD - ctrl:%d, iris_cnt:%d, panel_cnt:%d\n",
-		pcfg->lp_ctrl.esd_ctrl, pcfg->lp_ctrl.esd_cnt_iris, pcfg->lp_ctrl.esd_cnt_panel);
+		"ESD - ctrl:%d, iris_cnt:%d, panel_cnt:%d, cur_clk_rate:%u\n",
+		pcfg->lp_ctrl.esd_ctrl, pcfg->lp_ctrl.esd_cnt_iris, pcfg->lp_ctrl.esd_cnt_panel, cur_clk_rate);
 	tot += scnprintf(p_buff + tot, DUMP_BUFFER_LENGTH - tot,
 		"Power - dpg:%d, bsram:%d, frc:%d, hdr:%d\n",
 		pcfg->lp_ctrl.dynamic_power, _iris_bsram_power, _iris_frc_power, _iris_hdr_power);

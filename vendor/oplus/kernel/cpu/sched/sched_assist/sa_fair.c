@@ -705,7 +705,27 @@ void android_rvh_place_entity_handler(void *unused, struct cfs_rq *cfs_rq, struc
 	int cpu = cpu_of(rq_of(cfs_rq));
 	unsigned int cluster_id = topology_physical_package_id(cpu);
 	u64 adjust_time = 0;
+#endif
 
+#ifdef CONFIG_OPLUS_SCHED_GROUP_OPT
+	unsigned long thresh = sysctl_sched_latency;
+
+	if (entity_is_task(se))
+		return;
+
+	if (se->my_q && se->my_q->idle > 0)
+		return;
+
+	if (initial)
+		return;
+
+	if (sched_feat(GENTLE_FAIR_SLEEPERS))
+		thresh >>= 2;
+
+	*vruntime += thresh;
+#endif
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_VT_CAP)
 	if (!sa_adjust_group_enable || oplus_cap_multiple[cluster_id] <= 100)
 		return;
 

@@ -4604,7 +4604,6 @@ static void tp_resume(struct device *dev)
 	ts->is_suspended = 0;
 	ts->suspend_state = TP_RESUME_COMPLETE;
 	ts->disable_gesture_ctrl = false;
-	ts->hall_status = false;
 
 	if (ts->loading_fw) {
 		goto NO_NEED_RESUME;

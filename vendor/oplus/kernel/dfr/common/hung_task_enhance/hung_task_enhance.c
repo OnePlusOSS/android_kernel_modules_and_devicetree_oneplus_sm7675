@@ -206,7 +206,7 @@ static void oplus_check_hung_task(struct task_struct *t, unsigned long timeout, 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_THEIA) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 			memset(extra_info, 0, sizeof(extra_info));
 			snprintf(extra_info, 64, "DeathHealer task %s:%d io wait too long time", t->comm, t->pid);
-			theia_send_event(THEIA_EVENT_HUNGTASK, THEIA_LOGINFO_KERNEL_LOG, t->pid, extra_info);
+			theia_send_event(THEIA_EVENT_HUNGTASK, THEIA_LOGINFO_ANDROID_LOG | THEIA_LOGINFO_KERNEL_LOG, t->pid, extra_info);
 #endif
                 }
 	}
@@ -237,7 +237,7 @@ static void oplus_check_hung_task(struct task_struct *t, unsigned long timeout, 
 		snprintf(extra_info, 64, "DeathHealer: task %s:%d blocked for more than %lu seconds in state 0x%lx. Count:%d\n",
 			t->comm, t->pid, timeout, GET_STATE(t), death_count + 1);
 #endif
-		theia_send_event(THEIA_EVENT_HUNGTASK, THEIA_LOGINFO_KERNEL_LOG, t->pid, extra_info);
+		theia_send_event(THEIA_EVENT_HUNGTASK, THEIA_LOGINFO_ANDROID_LOG | THEIA_LOGINFO_KERNEL_LOG, t->pid, extra_info);
 #endif
 
 #if IS_ENABLED (CONFIG_OPLUS_BSP_DFR_USERSPACE_BACKTRACE)

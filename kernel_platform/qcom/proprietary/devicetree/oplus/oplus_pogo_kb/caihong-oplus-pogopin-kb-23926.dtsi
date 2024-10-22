@@ -125,12 +125,13 @@
         pinctrl-6 = <&pogo_power_disable>;
 
         tty-name-string = "ttyHS5";
+        pogopin-battery-support;
         keyboard-name-strings =
-            "OPPO Touchpad Keyboard(Pogo Pin)",
+            "OPPO Pad 3 Pro Keyboard(Pogo Pin)",
             "OnePlus Pad Pro Keyboard(Pogo Pin)",
             "OnePlus Pad Smart Keyboard(Pogo Pin)";
         keyboard-ble-name-strings =
-            "OPPO Touchpad Keyboard",
+            "OPPO Pad 3 Pro Keyboard",
             "OnePlus Pad Pro Keyboard",
             "OnePlus Pad Smart Keyboard";
         touchpad-xy-max = <2764 1630>;

@@ -61,6 +61,9 @@ MODULE_PARM_DESC(e30_test, "debug e30");
 #define PROGRAM_PAGE2_RESULT	14
 #define PROGRAM_PAGE3_RESULT	15
 #define DECREASINGCOUNTERVALUE_RESULT	16
+#define CRC_CORRECT_BIT_NUMBER	3
+short rbit_lowtime_buffer[CRC_CORRECT_BIT_NUMBER][2];
+unsigned short rbit_counter;
 
 unsigned char testingitemresult[TESTING_ITEM_NUMBER];   /* maximal testing items */
 
@@ -928,6 +931,7 @@ int authenticate_ds28e30(struct maxim_sn_num_info *sn_num_info, int page_number)
 	}
 
 	if ((ds28e30_read_romno_manid_hardware_version()) == false) {
+		ret = false;
 		chg_err("%s: read romid failed\n", __func__);
 		goto ERR;
 	} else {
@@ -1080,6 +1084,192 @@ u8 ds28e30_get_last_result_byte(void)
 	return last_result_byte;
 }
 
+/*
+try to correct 1-wire read data packet if crc16 is error in function command Compute and Read Page Authentication(0xA5)
+if return true, the read data packet is corrected
+if false, the read data packet is still wrong in crc16
+*/
+static int read_data_correction(u8 *read_buf, int read_len, u8 *write_buf, int write_len)
+{
+	u8 pkt[256];
+	int i, j;
+	unsigned char temp[8] = {PROT_RP, PROT_WP, PROT_EM, PROT_DC, PROT_PRI, PROT_AUTH, PROT_ECH, PROT_ECW};
+
+	/* check crc16 */
+	memcpy(pkt, read_buf, read_len + EXPECTED_READ_LENGTH_2);
+	crc16 = ZERO_VALUE;
+	docrc16(read_len);
+	for (j = 0; j < read_len + EXPECTED_READ_LENGTH_2; j++)
+		docrc16(pkt[j]);
+	if (crc16 == SKIP_CRC_CHECK)
+		return DATA_PACKET_BITS_CORRECT;
+	if (write_buf[0] != CMD_COMP_READ_AUTH && write_buf[0] != CMD_READ_MEM)
+		return DATA_PACKET_NO_ACTION;
+
+	/* try to correct only one bit */
+	for (i = 0; i < CRC_CORRECT_BIT_NUMBER; i++) {
+		memcpy(pkt, read_buf, read_len + EXPECTED_READ_LENGTH_2);
+		pkt[rbit_lowtime_buffer[i][1] / 8] ^= temp[rbit_lowtime_buffer[i][1] % 8];
+
+		/* check crc16 */
+		crc16 = ZERO_VALUE;
+		docrc16(read_len);
+		for (j = 0; j < read_len + EXPECTED_READ_LENGTH_2; j++)
+			docrc16(pkt[j]);
+		if (crc16 != SKIP_CRC_CHECK)
+			continue;
+		read_buf[rbit_lowtime_buffer[i][1] / 8] ^= temp[rbit_lowtime_buffer[i][1] % 8];
+
+		return DATA_PACKET_2_BITS_ERROR;
+	}
+
+	/* try to correct 2 bits */
+	for (i = 0; i < CRC_CORRECT_BIT_NUMBER; i++) {
+		memcpy(pkt, read_buf, read_len + EXPECTED_READ_LENGTH_2);
+		pkt[rbit_lowtime_buffer[0][1] / 8] ^= temp[rbit_lowtime_buffer[0][1] % 8];
+		pkt[rbit_lowtime_buffer[1][1] / 8] ^= temp[rbit_lowtime_buffer[1][1] % 8];
+		pkt[rbit_lowtime_buffer[2][1] / 8] ^= temp[rbit_lowtime_buffer[2][1] % 8];
+		pkt[rbit_lowtime_buffer[i][1] / 8] ^= temp[rbit_lowtime_buffer[i][1] % 8];
+
+		/* check crc16 */
+		crc16 = ZERO_VALUE;
+		docrc16(read_len);
+		for (j = 0; j < read_len + EXPECTED_READ_LENGTH_2; j++)
+			docrc16(pkt[j]);
+		if (crc16 != SKIP_CRC_CHECK)
+			continue;
+
+		read_buf[rbit_lowtime_buffer[0][1] / 8] ^= temp[rbit_lowtime_buffer[0][1] % 8];
+		read_buf[rbit_lowtime_buffer[1][1] / 8] ^= temp[rbit_lowtime_buffer[1][1] % 8];
+		read_buf[rbit_lowtime_buffer[2][1] / 8] ^= temp[rbit_lowtime_buffer[2][1] % 8];
+		read_buf[rbit_lowtime_buffer[i][1] / 8] ^= temp[rbit_lowtime_buffer[i][1] % 8];
+
+		return DATA_PACKET_3_BITS_ERROR;
+	}
+
+	/* try to correct 3 bits */
+	memcpy(pkt, read_buf, read_len + EXPECTED_READ_LENGTH_2);
+	pkt[rbit_lowtime_buffer[0][1] / 8] ^= temp[rbit_lowtime_buffer[0][1] % 8];
+	pkt[rbit_lowtime_buffer[1][1] / 8] ^= temp[rbit_lowtime_buffer[1][1] % 8];
+	pkt[rbit_lowtime_buffer[2][1] / 8] ^= temp[rbit_lowtime_buffer[2][1] % 8];
+
+	/* check crc16 */
+	crc16 = ZERO_VALUE;
+	docrc16(read_len);
+	for (j = 0; j < read_len + EXPECTED_READ_LENGTH_2; j++)
+		docrc16(pkt[j]);
+	if (crc16 != SKIP_CRC_CHECK)
+		return DATA_PACKET_NO_ACTION;
+
+	read_buf[rbit_lowtime_buffer[0][1] / 8] ^= temp[rbit_lowtime_buffer[0][1] % 8];
+	read_buf[rbit_lowtime_buffer[1][1] / 8] ^= temp[rbit_lowtime_buffer[1][1] % 8];
+	read_buf[rbit_lowtime_buffer[2][1] / 8] ^= temp[rbit_lowtime_buffer[2][1] % 8];
+
+	return DATA_PACKET_4_BITS_ERROR;
+}
+
+/*
+try to correct 1-wire read ROMID if CRC-8 is error in reading ROMID function
+if return not false, the read ROMID packet is corrected
+if false, the read data packet is still wrong in crc16
+*/
+static int read_romid_correction(u8 *read_buf)
+{
+	u8 pkt[256];
+	int i, j;
+	unsigned char temp[8] = {PROT_RP, PROT_WP, PROT_EM, PROT_DC, PROT_PRI, PROT_AUTH, PROT_ECH, PROT_ECW};
+
+	/* verify CRC8 */
+	memcpy(pkt, read_buf, 8);
+	crc8 = ZERO_VALUE;
+	for (i = 0; i < 8; i++)
+		docrc8(pkt[i]);
+	if (crc8 == ZERO_VALUE)
+		return DATA_PACKET_BITS_CORRECT;
+
+	/* try to correct only one bit */
+	for (i = 0; i < CRC_CORRECT_BIT_NUMBER; i++) {
+		memcpy(pkt, read_buf, 8);
+		pkt[rbit_lowtime_buffer[i][1] / 8] ^= temp[rbit_lowtime_buffer[i][1] % 8];
+		/* verify CRC8 */
+		crc8 = ZERO_VALUE;
+		for (j = 0; j < 8; j++)
+			docrc8(pkt[j]);
+		if (crc8 != ZERO_VALUE)
+			continue;
+		read_buf[rbit_lowtime_buffer[i][1] / 8] ^= temp[rbit_lowtime_buffer[i][1] % 8];
+
+		return DATA_PACKET_2_BITS_ERROR;
+	}
+
+	/* try to correct 2 bits */
+	for (i = 0; i < CRC_CORRECT_BIT_NUMBER; i++) {
+		memcpy(pkt, read_buf, 8);
+		pkt[rbit_lowtime_buffer[0][1] / 8] ^= temp[rbit_lowtime_buffer[0][1] % 8];
+		pkt[rbit_lowtime_buffer[1][1] / 8] ^= temp[rbit_lowtime_buffer[1][1] % 8];
+		pkt[rbit_lowtime_buffer[2][1] / 8] ^= temp[rbit_lowtime_buffer[2][1] % 8];
+		pkt[rbit_lowtime_buffer[i][1] / 8] ^= temp[rbit_lowtime_buffer[i][1] % 8];
+
+		/* verify CRC8 */
+		crc8 = ZERO_VALUE;
+		for (j = 0; j < 8; j++)
+			docrc8(pkt[j]);
+		if (crc8 != ZERO_VALUE)
+			continue;
+
+		read_buf[rbit_lowtime_buffer[0][1] / 8] ^= temp[rbit_lowtime_buffer[0][1] % 8];
+		read_buf[rbit_lowtime_buffer[1][1] / 8] ^= temp[rbit_lowtime_buffer[1][1] % 8];
+		read_buf[rbit_lowtime_buffer[2][1] / 8] ^= temp[rbit_lowtime_buffer[2][1] % 8];
+		read_buf[rbit_lowtime_buffer[i][1] / 8] ^= temp[rbit_lowtime_buffer[i][1] % 8];
+
+		return DATA_PACKET_3_BITS_ERROR;
+	}
+
+	/* try to correct 3 bits */
+	memcpy(pkt, read_buf, 8);
+	pkt[rbit_lowtime_buffer[0][1] / 8] ^= temp[rbit_lowtime_buffer[0][1] % 8];
+	pkt[rbit_lowtime_buffer[1][1] / 8] ^= temp[rbit_lowtime_buffer[1][1] % 8];
+	pkt[rbit_lowtime_buffer[2][1] / 8] ^= temp[rbit_lowtime_buffer[2][1] % 8];
+
+	/* verify CRC8 */
+	crc8 = ZERO_VALUE;
+	for (i = 0; i < 8; i++)
+		docrc8(pkt[i]);
+	if (crc8 != ZERO_VALUE)
+		return DATA_PACKET_NO_ACTION;
+
+	read_buf[rbit_lowtime_buffer[0][1] / 8] ^= temp[rbit_lowtime_buffer[0][1] % 8];
+	read_buf[rbit_lowtime_buffer[1][1] / 8] ^= temp[rbit_lowtime_buffer[1][1] % 8];
+	read_buf[rbit_lowtime_buffer[2][1] / 8] ^= temp[rbit_lowtime_buffer[2][1] % 8];
+
+	return DATA_PACKET_4_BITS_ERROR;
+}
+
+void check_romid_bit(long r_diff_ns, unsigned int vamm, unsigned char cnt)
+{
+	if (vamm == 1) {
+		if (r_diff_ns > rbit_lowtime_buffer[0][0]) {
+			for (cnt = CRC_CORRECT_BIT_NUMBER - 1; cnt > 0; cnt--) {
+				rbit_lowtime_buffer[cnt][0] = rbit_lowtime_buffer[cnt - 1][0];
+				rbit_lowtime_buffer[cnt][1] = rbit_lowtime_buffer[cnt - 1][1];
+			}
+			rbit_lowtime_buffer[0][0] = r_diff_ns;
+			rbit_lowtime_buffer[0][1] = rbit_counter;
+		} else if (r_diff_ns > rbit_lowtime_buffer[1][0] && r_diff_ns <= rbit_lowtime_buffer[0][0]) {
+			for (cnt = CRC_CORRECT_BIT_NUMBER - 1; cnt > 1; cnt--) {
+				rbit_lowtime_buffer[cnt][0] = rbit_lowtime_buffer[cnt - 1][0];
+				rbit_lowtime_buffer[cnt][1] = rbit_lowtime_buffer[cnt - 1][1];
+			}
+			rbit_lowtime_buffer[1][0] = r_diff_ns;
+			rbit_lowtime_buffer[1][1] = rbit_counter;
+		} else if (r_diff_ns > rbit_lowtime_buffer[2][0]) {
+			rbit_lowtime_buffer[2][0] = r_diff_ns;
+			rbit_lowtime_buffer[2][1] = rbit_counter;
+		}
+	}
+	rbit_counter++;
+}
+
 /*  @internal
  Sent/receive standard flow command
  @param[in] write_buf
@@ -1169,13 +1359,31 @@ int standard_cmd_flow(u8 *write_buf, int write_len, int delayms, int expect_read
 	/* read FF and the length byte */
 	pkt[0] = read_byte();
 	pkt[1] = read_byte();
+	if (get_maxim_romid_crc_support()) {
+		if (write_buf[0] == CMD_COMP_READ_AUTH)
+			pkt[1] = EXPECTED_READ_LENGTH_65;
+		if (write_buf[0] == CMD_READ_MEM)
+			pkt[1] = EXPECTED_READ_LENGTH_33;
+	}
+
 	*read_len = pkt[1];
 
 	/* make sure there is a valid length */
 	if (*read_len != RESULT_FAIL_COMMUNICATION) {
+		if (get_maxim_romid_crc_support()) {
+			/* initialize 1-wire read data correction global variables */
+			rbit_counter = ZERO_VALUE;
+			memset((u8 *)rbit_lowtime_buffer, RESULT_FAIL_VERIFY, sizeof(short) * CRC_CORRECT_BIT_NUMBER * 2);
+		}
 		/* read packet */
 		for(i = 0; i <  *read_len+BYTE_LENGTH_2; i++)
 			read_buf[i] = read_byte();
+		if (get_maxim_romid_crc_support()) {
+			/* try to correct 1-wire read data if crc16 is error */
+			i = read_data_correction(read_buf, *read_len, write_buf, write_len);
+			if (i >= 2)
+				chg_info("%s: correct %d-bit error at read data packet!", __func__, i-1);
+		}
 		/* check crc16 */
 		crc16 = ZERO_VALUE;
 		docrc16(*read_len);
@@ -1336,8 +1544,19 @@ int ow_read_rom(void)
 
 	if (ow_reset() == 1) {
 		write_byte(READ_ROM); /* READ ROM command */
+		if (get_maxim_romid_crc_support()) {
+			/* initialize 1-wire read data correction global variables */
+			rbit_counter = ZERO_VALUE;
+			memset((u8 *)rbit_lowtime_buffer, RESULT_FAIL_VERIFY, sizeof(short) * CRC_CORRECT_BIT_NUMBER * 2);
+		}
 		for(i = 0; i < 8; i++)
 			buf[i] = read_byte();
+		if (get_maxim_romid_crc_support()) {
+			/* try to correct 1-wire read ROMID if CRC-8 is error */
+			i = read_romid_correction(buf);
+			if (i >= 2)
+				chg_info("%s: correct %d-bit error at OWReadROM() function!", __func__, i-1);
+		}
 		chg_info("RomID = %02x, %02x, %02x, %02x, %02x, %02x, %02x, %02x\n",
 			buf[0], buf[1], buf[2], buf[3],
 			buf[4], buf[5], buf[6], buf[7]);

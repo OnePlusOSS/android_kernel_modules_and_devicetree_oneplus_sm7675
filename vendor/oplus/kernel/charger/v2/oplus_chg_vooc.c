@@ -258,6 +258,7 @@ struct oplus_chg_vooc {
 	int subboard_ntc_abnormal_cool_down;
 	int subboard_ntc_abnormal_current;
 
+	bool chg_ctrl_by_sale_mode;
 	bool slow_chg_enable;
 	int slow_chg_pct;
 	int slow_chg_watt;
@@ -900,6 +901,7 @@ static bool oplus_vooc_batt_volt_is_good(struct oplus_chg_vooc *chip)
 		index = TEMP_REGION_PRE_NORMAL - VOOC_BAD_VOLT_INDEX;
 		break;
 	case TEMP_REGION_NORMAL:
+	case TEMP_REGION_NORMAL_HIGH:
 	case TEMP_REGION_WARM:
 	case TEMP_REGION_HOT:
 		index = TEMP_REGION_NORMAL - VOOC_BAD_VOLT_INDEX;
@@ -1077,6 +1079,7 @@ oplus_vooc_fastchg_allow_or_enable_check(struct oplus_chg_vooc *chip)
 		if (chip->ui_soc < spec->vooc_warm_soc_thr ||
 		    chip->temperature <
 			    (chip->efficient_vooc_normal_high_temp)) {
+			oplus_vooc_reset_temp_range(chip);
 			vote(chip->vooc_not_allow_votable, WARM_SOC_VOTER,
 			     false, 0, false);
 		}
@@ -1086,6 +1089,7 @@ oplus_vooc_fastchg_allow_or_enable_check(struct oplus_chg_vooc *chip)
 		if (chip->batt_volt < (spec->vooc_warm_vol_thr) ||
 		    chip->temperature <
 			    (chip->efficient_vooc_normal_high_temp)) {
+			oplus_vooc_reset_temp_range(chip);
 			vote(chip->vooc_not_allow_votable, WARM_VOL_VOTER,
 			     false, 0, false);
 		}
@@ -1216,10 +1220,14 @@ static bool oplus_vooc_is_allow_fast_chg(struct oplus_chg_vooc *chip)
 			vote(chip->vooc_not_allow_votable, WARM_VOL_VOTER,
 			     false, 0, false);
 	} else {
-		vote(chip->vooc_not_allow_votable, WARM_SOC_VOTER, false, 0,
-		     false);
-		vote(chip->vooc_not_allow_votable, WARM_VOL_VOTER, false, 0,
-		     false);
+		if ((chip->temperature < chip->efficient_vooc_normal_high_temp)
+		    && (is_client_vote_enabled(chip->vooc_not_allow_votable, WARM_SOC_VOTER)
+		    || is_client_vote_enabled(chip->vooc_not_allow_votable, WARM_VOL_VOTER))) {
+			chg_info(" WARM_VOL_VOTER||WARM_SOC_VOTER restart fastchg, reset temp range\n");
+			oplus_vooc_reset_temp_range(chip);
+			vote(chip->vooc_not_allow_votable, WARM_SOC_VOTER, false, 0, false);
+			vote(chip->vooc_not_allow_votable, WARM_VOL_VOTER, false, 0, false);
+		}
 	}
 
 	fastchg_to_warm_full = is_client_vote_enabled(
@@ -2003,7 +2011,8 @@ static int oplus_vooc_get_temp_range(struct oplus_chg_vooc *chip,
 			ret = chip->vooc_temp_cur_range - 2;
 		else
 			ret = chip->vooc_temp_cur_range - 1;
-		if (chip->vooc_temp_cur_range == FASTCHG_TEMP_RANGE_LITTLE_COOL_HIGH)
+
+		if (chip->vooc_temp_cur_range >= FASTCHG_TEMP_RANGE_LITTLE_COOL_HIGH)
 			chip->bcc_temp_range = chip->vooc_temp_cur_range - 2;
 		else
 			chip->bcc_temp_range = chip->vooc_temp_cur_range - 1;
@@ -2399,8 +2408,14 @@ static int oplus_vooc_fastchg_process(struct oplus_chg_vooc *chip)
 	oplus_vooc_check_temp_range(chip, chip->temperature);
 
 	if (chip->cool_down > 0) {
-		ret_info =
-			oplus_vooc_get_min_curr_level(chip, ret_info, chip->cool_down,
+		if (chip->chg_ctrl_by_sale_mode)
+			ret_info =
+				oplus_vooc_get_min_curr_level(chip, ret_info, SALE_MODE_COOL_DOWN_VAL,
+						      chip->sid,
+						      config->data_width == 7);
+		else
+			ret_info =
+				oplus_vooc_get_min_curr_level(chip, ret_info, chip->cool_down,
 						      chip->sid,
 						      config->data_width == 7);
 	}
@@ -2411,9 +2426,9 @@ static int oplus_vooc_fastchg_process(struct oplus_chg_vooc *chip)
 	    sid_to_adapter_chg_type(chip->sid) == CHARGER_TYPE_VOOC)
 		ret_info = 0x02;
 
-	chg_info("volt=%d, temp=%d, soc=%d, uisoc=%d, curr=%d, cool_down=%d\n",
+	chg_info("volt=%d, temp=%d, soc=%d, uisoc=%d, curr=%d, cool_down=%d, ret_info=%d\n",
 		 chip->batt_volt, chip->temperature, chip->soc, chip->ui_soc, chip->icharging,
-		 chip->cool_down);
+		 chip->cool_down, ret_info);
 
 	return ret_info;
 }
@@ -3480,6 +3495,11 @@ static void oplus_vooc_comm_subs_callback(struct mms_subscribe *subs,
 			vote(chip->vooc_disable_votable, DEBUG_VOTER,
 			     data.intval, data.intval, false);
 			break;
+		case COMM_ITEM_SALE_MODE:
+			oplus_mms_get_item_data(chip->comm_topic, id, &data,
+						false);
+			chip->chg_ctrl_by_sale_mode = data.intval;
+			break;
 		default:
 			break;
 		}
@@ -3522,6 +3542,9 @@ static void oplus_vooc_subscribe_comm_topic(struct oplus_mms *topic,
 	oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_SHELL_TEMP, &data,
 				true);
 	chip->temperature = data.intval;
+	oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_SALE_MODE, &data,
+				true);
+	chip->chg_ctrl_by_sale_mode = data.intval;
 	rc = oplus_mms_get_item_data(chip->comm_topic,
 				     COMM_ITEM_CHARGING_DISABLE, &data, true);
 	if (rc < 0) {

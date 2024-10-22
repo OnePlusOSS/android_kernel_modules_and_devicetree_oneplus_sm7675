@@ -105,6 +105,7 @@ struct oplus_task_struct {
 	s8 preferred_cluster_id;
 	s8 fbg_depth;
 	u64 last_wake_ts;
+	int fbg_cur_group;
 /*#ifdef CONFIG_LOCKING_PROTECT*/
 	unsigned long locking_start_time;
 	struct list_head locking_entry;

@@ -65,6 +65,7 @@ struct oplus_gki_device {
 	int soc;
 	int batt_fcc;
 	int batt_rm;
+	int pre_batt_status;
 	int batt_status;
 	int batt_health;
 	int batt_chg_type;
@@ -73,6 +74,7 @@ struct oplus_gki_device {
 	int time_to_full;
 
 	bool wired_online;
+	int pre_wired_type;
 	int wired_type;
 	int vbus_mv;
 	int charger_cycle;
@@ -1015,19 +1017,24 @@ static void oplus_gki_wired_subs_callback(struct mms_subscribe *subs,
 				    oplus_gki_bc12_is_completed(chip))
 					usb_psy_desc.type = POWER_SUPPLY_TYPE_USB_DCP;
 			}
-			chg_info("psy_type=%d\n", usb_psy_desc.type);
-			if (!IS_ERR_OR_NULL(chip->batt_psy))
+			chg_info("psy_type = %d, pre_wired_type = %d, wired_type = %d\n",
+				  usb_psy_desc.type, chip->pre_wired_type, chip->wired_type);
+			if (!IS_ERR_OR_NULL(chip->batt_psy) &&
+			    chip->pre_wired_type != chip->wired_type) {
+				chip->pre_wired_type = chip->wired_type;
 				power_supply_changed(chip->batt_psy);
+			}
 			break;
 		case WIRED_ITEM_BC12_COMPLETED:
 			if (chip->wired_type == OPLUS_CHG_USB_TYPE_UNKNOWN)
 				usb_psy_desc.type = POWER_SUPPLY_TYPE_USB_DCP;
+			break;
+		case WIRED_ITEM_OTG_ENABLE:
+			chg_info("otg enable power supply changed.\n");
 			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		default:
-			if (!IS_ERR_OR_NULL(chip->batt_psy))
-				power_supply_changed(chip->batt_psy);
 			break;
 		}
 		break;
@@ -1194,8 +1201,13 @@ static void oplus_gki_comm_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
 						false);
 			chip->batt_status = data.intval;
-			if (!IS_ERR_OR_NULL(chip->batt_psy))
+
+			chg_info("batt_status = %d, pre_batt_status = %d, wired_online = %d\n",
+				  chip->batt_status, chip->pre_batt_status, chip->wired_online);
+			if (!IS_ERR_OR_NULL(chip->batt_psy) && chip->pre_batt_status != chip->batt_status) {
+				chip->pre_batt_status = chip->batt_status;
 				power_supply_changed(chip->batt_psy);
+			}
 			break;
 		case COMM_ITEM_BATT_HEALTH:
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
@@ -1208,8 +1220,6 @@ static void oplus_gki_comm_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
 						false);
 			chip->batt_chg_type = data.intval;
-			if (!IS_ERR_OR_NULL(chip->batt_psy))
-				power_supply_changed(chip->batt_psy);
 			break;
 		case COMM_ITEM_UI_SOC:
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
@@ -1239,8 +1249,6 @@ static void oplus_gki_comm_subs_callback(struct mms_subscribe *subs,
 					vote(chip->pps_curr_votable, HIDL_VOTER, false, 0, false);
 			}
 			break;
-		case COMM_ITEM_CHARGING_DISABLE:
-		case COMM_ITEM_CHARGE_SUSPEND:
 		case COMM_ITEM_NOTIFY_CODE:
 			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
@@ -1317,8 +1325,6 @@ static void oplus_gki_vooc_subs_callback(struct mms_subscribe *subs,
 				power_supply_changed(chip->batt_psy);
 			break;
 		default:
-			if (!IS_ERR_OR_NULL(chip->batt_psy))
-				power_supply_changed(chip->batt_psy);
 			break;
 		}
 		break;
@@ -1356,10 +1362,11 @@ static void oplus_gki_ufcs_subs_callback(struct mms_subscribe *subs,
 {
 	struct oplus_gki_device *chip = subs->priv_data;
 
+	if (NULL == chip)
+		return;
+
 	switch (type) {
 	case MSG_TYPE_ITEM:
-		if (chip->batt_psy)
-			power_supply_changed(chip->batt_psy);
 		break;
 	default:
 		break;

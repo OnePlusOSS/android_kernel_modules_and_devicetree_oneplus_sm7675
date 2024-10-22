@@ -287,6 +287,9 @@ struct charger_custom_data {
 	int min_charger_voltage_1;
 	int min_charger_voltage_2;
 	int max_dmivr_charger_current;
+
+	/* pd 5V 3A*/
+	int pd_support_5v3a;
 };
 
 struct charger_data {

@@ -682,27 +682,16 @@ int oplus_gauge_get_deep_count_cali(struct oplus_mms *topic)
 	return chip->deep_spec.config.count_cali;
 }
 
-#define DEEP_RATIO_HYST	10
-static void oplus_gauge_get_ratio_status(struct oplus_mms_gauge *chip)
+void oplus_gauge_get_ratio_value(struct oplus_mms_gauge *chip)
 {
 	union mms_msg_data data = { 0 };
-	int rc = 0, index_count = 0;
-	int index_cc = 0, counts = 0;
+	int rc = 0;
+
 	if (!chip || !chip->deep_spec.support)
 		return;
 
-	for (index_count = chip->deep_spec.count_curves.nums - 1; index_count >= 0; index_count--) {
-		counts = chip->deep_spec.count_curves.limits[index_count].count < chip->deep_spec.config.count_cali ?
-			0 : (chip->deep_spec.count_curves.limits[index_count].count - chip->deep_spec.config.count_cali);
-		if (chip->deep_spec.counts >= counts) {
-			chip->deep_spec.config.count_thr = counts;
-			chip->deep_spec.count_curves.curve_level = index_count;
-			break;
-		}
-	}
-
 	rc = oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_CC, &data, true);
-	if (rc != 0) {
+	if (rc < 0) {
 		chg_err("can't get cc, rc=%d\n", rc);
 		chip->deep_spec.cc = 0;
 	} else {
@@ -715,13 +704,36 @@ static void oplus_gauge_get_ratio_status(struct oplus_mms_gauge *chip)
 		else
 			chip->deep_spec.ratio = chip->deep_spec.counts * 100;
 
-		index_cc = 0;
 	} else {
 		chip->deep_spec.ratio = chip->deep_spec.counts * 100 / chip->deep_spec.cc;
+	}
+}
+
+#define DEEP_RATIO_HYST	10
+static void oplus_gauge_get_ratio_status(struct oplus_mms_gauge *chip)
+{
+	int index_cc = 0, index_count = 0, counts = 0;
+
+	if (!chip || !chip->deep_spec.support)
+		return;
+
+	oplus_gauge_get_ratio_value(chip);
+	for (index_count = chip->deep_spec.count_curves.nums - 1; index_count >= 0; index_count--) {
+		counts = chip->deep_spec.count_curves.limits[index_count].count < chip->deep_spec.config.count_cali ?
+			0 : (chip->deep_spec.count_curves.limits[index_count].count - chip->deep_spec.config.count_cali);
+		if (chip->deep_spec.counts >= counts) {
+			chip->deep_spec.config.count_thr = counts;
+			chip->deep_spec.count_curves.curve_level = index_count;
+			break;
+		}
+	}
+
+	if (chip->deep_spec.cc <= 0 || chip->deep_spec.cc >= INVALID_CC_VALUE || chip->deep_spec.cc_curves.nums <= 0) {
+		index_cc = 0;
+	} else {
 		for (index_cc = chip->deep_spec.cc_curves.nums - 1; index_cc >= 0; index_cc--) {
-			if (chip->deep_spec.cc >= chip->deep_spec.cc_curves.limits[index_cc].count) {
+			if (chip->deep_spec.cc >= chip->deep_spec.cc_curves.limits[index_cc].count)
 				break;
-			}
 		}
 	}
 	if (!chip->deep_spec.config.ratio_status && chip->deep_spec.ratio >= chip->deep_spec.config.ratio_shake) {
@@ -2715,7 +2727,7 @@ static void oplus_mms_subboard_ntc_err_work(struct work_struct *work)
 static int mms_gauge_debug_track = 0;
 module_param(mms_gauge_debug_track, int, 0644);
 MODULE_PARM_DESC(mms_gauge_debug_track, "debug track");
-#define TRACK_UPLOAD_COUNT_MAX 1000
+#define TRACK_UPLOAD_COUNT_MAX 3
 #define TRACK_LOCAL_T_NS_TO_S_THD 1000000000
 #define TRACK_DEVICE_ABNORMAL_UPLOAD_PERIOD (24 * 3600)
 
@@ -2838,6 +2850,7 @@ static void oplus_gauge_update_deep_dischg(struct oplus_mms_gauge *chip)
 			chip->deep_spec.counts += step;
 			track_check = true;
 			oplus_gauge_set_deep_dischg_count(chip->gauge_topic, chip->deep_spec.counts);
+			oplus_gauge_get_ratio_value(chip);
 		} else {
 			update_delay = msecs_to_jiffies(5000);
 		}
@@ -2873,6 +2886,7 @@ static void oplus_gauge_deep_ratio_work(struct work_struct *work)
 
 
 	oplus_gauge_get_ratio_status(chip);
+	schedule_delayed_work(&chip->deep_track_work, 0);
 }
 
 static void oplus_gauge_deep_dischg_check(struct oplus_mms_gauge *chip)

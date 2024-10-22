@@ -603,6 +603,7 @@ typedef enum {
 	TYPE_PENCIL_MAXEYE = 2,
 	TYPE_PENCIL_MAXEYE_2ND = 3,
 	TYPE_PENCIL_SUNWODA = 4,
+	TYPE_PENCIL_MAXEYE_3RD = 5,
 } pencil_type;
 
 typedef enum {

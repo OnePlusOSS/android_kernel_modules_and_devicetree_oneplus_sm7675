@@ -2054,9 +2054,6 @@ static void oplus_track_upload_bcc_si(struct work_struct *work)
 	struct oplus_chg_track_hidl_bcc_si *bcc_si = container_of(
 		dwork, struct oplus_chg_track_hidl_bcc_si, bcc_si_load_trigger_work);
 
-	if (!bcc_si)
-		return;
-
 	curr_time = oplus_chg_track_get_local_time_s();
 	if (curr_time - pre_upload_time > TRACK_SOFT_ABNORMAL_UPLOAD_PERIOD)
 		upload_count = 0;

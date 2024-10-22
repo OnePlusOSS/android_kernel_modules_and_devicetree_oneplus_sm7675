@@ -490,8 +490,9 @@
 				       CHG_PROTOCOL_PD 18
 				       CHG_PROTOCOL_QC 18>;
 		oplus,default_protocol_list = <CHG_PROTOCOL_UFCS
-					       CHG_PROTOCOL_PD
-					       CHG_PROTOCOL_VOOC>;
+					       CHG_PROTOCOL_VOOC
+					       CHG_PROTOCOL_PPS
+					       CHG_PROTOCOL_PD>;
 	};
 
 	oplus_ufcs_virtual_cp: oplus,ufcs_virtual_cp {
@@ -981,6 +982,8 @@
 		oplus,dpdm_switch_ic = <&oplus_adsp_dpdm_switch>;
 
 		// oplus,impedance_unit = <&oplus_pps_impedance_unit>;
+
+		oplus,pps_enable_pps_status;
 
 		oplus,target_vbus_mv = <11000>;
 		oplus,curr_max_ma = <5000>;

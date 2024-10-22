@@ -1546,6 +1546,17 @@ static void mtk_charger_parse_dt(struct mtk_charger *info,
 		info->data.max_dmivr_charger_current =
 					MAX_DMIVR_CHARGER_CURRENT;
 	}
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (of_property_read_u32(np, "qcom,pd_support_5v3a", &val) >= 0) {
+                info->data.pd_support_5v3a = val;
+        } else {
+                chg_err("use pd_support_5v3a false\n");
+                info->data.pd_support_5v3a = 0;
+        }
+
+#endif
+
 	/* fast charging algo support indicator */
 	info->enable_fast_charging_indicator =
 			of_property_read_bool(np, "enable_fast_charging_indicator");
@@ -4355,6 +4366,53 @@ recheck:
 	return 0;
 }
 
+#define OPLUS_MIN_PDO_VOL 5000
+#define OPLUS_MIN_PDO_CUR 3000
+int oplus_pps_pd_exit(void)
+{
+	int ret = -1;
+	int vbus_mv_t = OPLUS_MIN_PDO_VOL;
+	int ibus_ma_t = OPLUS_MIN_PDO_CUR;
+
+	struct oplus_chg_chip *chip = g_oplus_chip;
+	struct tcpc_device *tcpc = NULL;
+
+	if (chip == NULL) {
+		chg_err("no oplus_chg_chip");
+		return -ENODEV;
+	}
+
+	if(chip->chg_ops->check_chrdet_status) {
+		if (chip->chg_ops->check_chrdet_status() == false)
+			return ret;
+	}
+
+	tcpc = tcpc_dev_get_by_name("type_c_port0");
+	if (tcpc == NULL) {
+		chg_err("get type_c_port0 fail");
+		return -EINVAL;
+	}
+
+	ret = tcpm_set_pd_charging_policy(tcpc, DPM_CHARGING_POLICY_VSAFE5V, NULL);
+
+	ret = tcpm_dpm_pd_request(tcpc, vbus_mv_t, ibus_ma_t, NULL);
+	if (ret != TCPM_SUCCESS) {
+		chg_err("tcpm_dpm_pd_request fail");
+		return -EINVAL;
+	}
+
+	ret = tcpm_inquire_pd_contract(tcpc, &vbus_mv_t, &ibus_ma_t);
+	if (ret != TCPM_SUCCESS) {
+		chg_err("inquire current vbus_mv and ibus_ma fail");
+		return -EINVAL;
+	}
+
+	msleep(100);
+	chg_err("PD Default vbus_mv[%d], ibus_ma[%d]", vbus_mv_t, ibus_ma_t);
+
+	return ret;
+}
+
 static void oplus_chg_pps_get_source_cap(struct mtk_charger *info)
 {
 	struct tcpm_power_cap_val apdo_cap;
@@ -6864,6 +6922,24 @@ int oplus_chg_pd_setup(void)
 		__func__, chip->calling_on,
 		chip->camera_on, chip->charger_volt,
 		chip->soc, chip->temperature, chip->cool_down_force_5v);
+	if(pinfo->data.pd_support_5v3a) {
+		if (pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO
+			|| pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK
+			|| pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30) {
+			adapter_dev_get_cap(pinfo->pd_adapter, MTK_PD_APDO, &cap);
+			for (i = 0; i < cap.nr; i++) {
+				if (cap.min_mv[i] <= VBUS_5V && VBUS_5V <= cap.max_mv[i]) {
+					vbus_mv = VBUS_5V;
+					ibus_ma = cap.ma[i];
+					if (ibus_ma > IBUS_3A)
+						ibus_ma = IBUS_3A;
+					break;
+				}
+			}
+		}
+                ret = oplus_pdc_setup(&vbus_mv, &ibus_ma);
+		return ret;
+        }
 	if (!chip->calling_on
 		&& !chip->camera_on
 		&& chip->charger_volt < PD_CHG_9V2A_VOLT_THRESHOLD

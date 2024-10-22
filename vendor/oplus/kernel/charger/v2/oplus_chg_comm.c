@@ -2502,6 +2502,29 @@ static void oplus_comm_set_ffc_step(struct oplus_chg_comm *chip, int step)
 	}
 }
 
+static void oplus_comm_set_sale_mode(struct oplus_chg_comm *chip, bool sale_mode)
+{
+	struct mms_msg *msg;
+	int rc;
+	static int last_sale_mode = 0;
+
+	if (last_sale_mode == sale_mode)
+		return;
+	last_sale_mode = sale_mode;
+	chg_info("set sale_mode to %d\n", sale_mode);
+	msg = oplus_mms_alloc_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM,
+				  COMM_ITEM_SALE_MODE);
+	if (msg == NULL) {
+		chg_err("alloc msg error\n");
+		return;
+	}
+	rc = oplus_mms_publish_msg(chip->comm_topic, msg);
+	if (rc < 0) {
+		chg_err("publish ffc_step msg error, rc=%d\n", rc);
+		kfree(msg);
+	}
+}
+
 static void oplus_comm_set_ffc_status(struct oplus_chg_comm *chip,
 				enum oplus_chg_ffc_status ffc_status)
 {
@@ -3003,6 +3026,8 @@ static int oplus_comm_set_cool_down_level(struct oplus_chg_comm *chip, int level
 		return 0;
 	chip->cool_down = level;
 	chg_info("set cool_down=%d\n", level);
+	oplus_comm_set_sale_mode(chip,
+		(level == SALE_MODE_COOL_DOWN || level == SALE_MODE_COOL_DOWN_TWO));
 
 	msg = oplus_mms_alloc_msg(MSG_TYPE_ITEM, MSG_PRIO_MEDIUM,
 				  COMM_ITEM_COOL_DOWN);
@@ -4567,6 +4592,30 @@ static int oplus_comm_update_cool_down(struct oplus_mms *mms,
 	return 0;
 }
 
+static int oplus_comm_update_sale_mode(struct oplus_mms *mms,
+                                       union mms_msg_data *data)
+{
+	struct oplus_chg_comm *chip;
+
+	if (mms == NULL) {
+		chg_err("mms is NULL");
+		return -EINVAL;
+	}
+	if (data == NULL) {
+		chg_err("data is NULL");
+		return -EINVAL;
+	}
+	chip = oplus_mms_get_drvdata(mms);
+
+	if (chip->cool_down == SALE_MODE_COOL_DOWN ||
+	    chip->cool_down == SALE_MODE_COOL_DOWN_TWO)
+		data->intval = true;
+	else
+		data->intval = false;
+
+	return 0;
+}
+
 static int oplus_comm_update_batt_status(struct oplus_mms *mms,
 					 union mms_msg_data *data)
 {
@@ -5215,7 +5264,16 @@ static struct mms_item oplus_comm_item[] = {
 		.desc = {
 			.item_id = COMM_ITEM_UISOC_KEEP_2_ERROR,
 		}
-	}
+	}, {
+		.desc = {
+			.item_id = COMM_ITEM_SALE_MODE,
+			.str_data = false,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = oplus_comm_update_sale_mode,
+		}
+	},
 };
 
 static const struct oplus_mms_desc oplus_comm_desc = {

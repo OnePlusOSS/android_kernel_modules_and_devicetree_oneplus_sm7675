@@ -470,5 +470,6 @@ int iris_debug_display_info_get(char *kbuf, int size);
 int iris_debug_display_mode_get(char *kbuf, int size, bool debug);
 int iris_debug_pq_info_get_i7(char *kbuf, int size, bool debug);
 int iris_debug_pq_info_get(char *kbuf, int size, bool debug);
+u32 iris_display_get_dsi_clk_rate(struct dsi_display *display);
 
 #endif // _DSI_IRIS_LIGHTUP_H_

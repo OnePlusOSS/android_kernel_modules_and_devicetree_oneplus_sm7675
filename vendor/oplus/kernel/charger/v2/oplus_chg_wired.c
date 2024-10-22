@@ -47,13 +47,12 @@
 #define FACTORY_MODE_PDQC_9V_THR	4100
 #define PDQC_BUCK_DEF_CURR_MA		500
 #define PDQC_BUCK_VBUS_THR		7500
-#define SALE_MODE_COOL_DOWN		501
-#define SALE_MODE_COOL_DOWN_TWO		502
 #define OPLUS_CHG_500_CHARGING_CURRENT	500
 #define OPLUS_CHG_900_CHARGING_CURRENT	900
 #define OPLUS_CHG_VBUS_5V		5000
 #define OPLUS_CHG_VBUS_9V		9000
 #define OPLUS_CHG_SHUTDOWN_WAIT		100
+#define PDQC_SALE_MODE_CURR_LIMIT_MA	1200
 
 struct oplus_wired_spec_config {
 	int32_t pd_iclmax_ma;
@@ -518,6 +517,14 @@ static int oplus_wired_current_set(struct oplus_chg_wired *chip,
 	} else {
 		vote(chip->fcc_votable, LED_ON_VOTER, false, 0, false);
 	}
+
+	if (chip->chg_ctrl_by_sale_mode &&
+	    (chip->chg_mode == OPLUS_WIRED_CHG_MODE_QC ||
+	     chip->chg_mode == OPLUS_WIRED_CHG_MODE_PD))
+		vote(chip->fcc_votable, SALE_MODE_VOTER, true, PDQC_SALE_MODE_CURR_LIMIT_MA, false);
+	else
+		vote(chip->fcc_votable, SALE_MODE_VOTER, false, 0, false);
+
 	icl_changed = (icl_tmp_ma != get_effective_result(chip->icl_votable));
 	chg_info("vbus_changed=%s, icl_changed=%s\n",
 		 true_or_false_str(vbus_changed),
@@ -1368,12 +1375,6 @@ static void oplus_wired_comm_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
 						false);
 			chip->cool_down = data.intval;
-			if (chip->cool_down == SALE_MODE_COOL_DOWN ||
-			    chip->cool_down == SALE_MODE_COOL_DOWN_TWO) {
-				chip->chg_ctrl_by_sale_mode = true;
-			} else {
-				chip->chg_ctrl_by_sale_mode = false;
-			}
 			/*
 			 * Need to recheck the type and check whether the
 			 * charging voltage needs to be adjusted.
@@ -1433,6 +1434,11 @@ static void oplus_wired_comm_subs_callback(struct mms_subscribe *subs,
 						false);
 			schedule_work(&chip->led_on_changed_work);
 			break;
+		case COMM_ITEM_SALE_MODE:
+			oplus_mms_get_item_data(chip->comm_topic, id, &data,
+						false);
+			chip->chg_ctrl_by_sale_mode = data.intval;
+			break;
 		default:
 			break;
 		}
@@ -1468,11 +1474,9 @@ static void oplus_wired_subscribe_comm_topic(struct oplus_mms *topic,
 	oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_COOL_DOWN, &data,
 				true);
 	chip->cool_down = data.intval;
-	if (chip->cool_down == SALE_MODE_COOL_DOWN ||
-	    chip->cool_down == SALE_MODE_COOL_DOWN_TWO)
-		chip->chg_ctrl_by_sale_mode = true;
-	else
-		chip->chg_ctrl_by_sale_mode = false;
+	oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_SALE_MODE, &data,
+				true);
+	chip->chg_ctrl_by_sale_mode = data.intval;
 	rc = oplus_mms_get_item_data(chip->comm_topic,
 				     COMM_ITEM_CHARGING_DISABLE, &data, true);
 	if (rc < 0)
@@ -1612,16 +1616,12 @@ static int oplus_wired_fcc_vote_callback(struct votable *votable, void *data,
 					 int fcc_ma, const char *client,
 					 bool step)
 {
-	struct oplus_chg_wired *chip = data;
 	int rc;
 
 	if (fcc_ma < 0)
 		return 0;
 
 	rc = oplus_wired_set_fcc(fcc_ma);
-
-	if (is_batt_psy_available(chip))
-		power_supply_changed(chip->batt_psy);
 
 	return rc;
 }
@@ -1643,9 +1643,6 @@ static int oplus_wired_icl_vote_callback(struct votable *votable, void *data,
 	else
 		rc = oplus_wired_set_icl(icl_ma, step);
 	mutex_unlock(&chip->icl_lock);
-
-	if (is_usb_psy_available(chip))
-		power_supply_changed(chip->usb_psy);
 
 	return rc;
 }
@@ -1704,9 +1701,6 @@ static int oplus_wired_input_suspend_vote_callback(struct votable *votable,
 	} else {
 		suspend = disable;
 	}
-
-	if (is_usb_psy_available(chip))
-		power_supply_changed(chip->usb_psy);
 
 	return rc;
 }
@@ -1767,9 +1761,6 @@ static int oplus_wired_output_suspend_vote_callback(struct votable *votable,
 	} else {
 		suspend = disable;
 	}
-
-	if (is_batt_psy_available(chip))
-		power_supply_changed(chip->batt_psy);
 
 	return rc;
 }

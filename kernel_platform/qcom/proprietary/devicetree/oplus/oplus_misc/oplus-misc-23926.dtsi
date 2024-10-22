@@ -29,6 +29,7 @@
 
 &wcd_usbss {
 	qcom,wcd_usbss_equalizer1 = /bits/ 8 <0xa>;
+	wcd-usb-sbu-compliance; /* Disable SBU1/2 2K PLDN */
 };
 
 &usb0 {

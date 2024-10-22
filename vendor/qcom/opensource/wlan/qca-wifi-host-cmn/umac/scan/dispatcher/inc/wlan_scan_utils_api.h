@@ -1647,11 +1647,25 @@ util_scan_entry_t2lm(struct scan_cache_entry *scan_entry)
 {
 	return scan_entry->ie_list.t2lm[0];
 }
+
+/**
+ * util_scan_entry_t2lm_len() - API to get t2lm IE length
+ * @scan_entry: scan entry
+ *
+ * Return, Length or 0 if ie is not present
+ */
+uint32_t util_scan_entry_t2lm_len(struct scan_cache_entry *scan_entry);
 #else
 static inline uint8_t*
 util_scan_entry_t2lm(struct scan_cache_entry *scan_entry)
 {
 	return NULL;
+}
+
+static inline uint32_t
+util_scan_entry_t2lm_len(struct scan_cache_entry *scan_entry)
+{
+	return 0;
 }
 #endif
 

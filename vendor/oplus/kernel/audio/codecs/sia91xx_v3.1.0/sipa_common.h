@@ -35,7 +35,7 @@
 #include <linux/mutex.h>
 
 
-#define SIPA_DRIVER_VERSION					("3.1.0b")
+#define SIPA_DRIVER_VERSION					("3.1.0c")
 #define SIPA_MAX_CHANNEL_SUPPORT			(8)
 
 struct sipa_err {
@@ -94,7 +94,7 @@ typedef struct sipa_dev_s {
 	uint32_t en_spk_cal_dl;
 	uint32_t spk_model_flag;
 	uint8_t  pa_status;
-
+	uint8_t  fw_load_count;
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 /* 2023/04/18, Add for smartpa err feedback. */
 	ktime_t last_fb;

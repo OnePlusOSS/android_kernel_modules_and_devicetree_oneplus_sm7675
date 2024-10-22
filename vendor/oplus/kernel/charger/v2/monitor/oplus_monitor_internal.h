@@ -161,6 +161,7 @@ struct oplus_monitor {
 	int batt_soh_comp;
 	int uisoc_keep_2_err;
 	struct super_endurance_mode_info sem_info;
+	bool gauge_inited;
 
 	/* charge */
 	int fcc_ma;

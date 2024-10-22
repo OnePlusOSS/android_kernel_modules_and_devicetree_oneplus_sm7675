@@ -16,7 +16,7 @@
 #include "dsi_iris_memc.h"
 #include "dsi_iris_dts_fw.h"
 #include "dsi_iris_timing_switch_def.h"
-
+#include "oplus_display_interface.h"
 
 #define to_dsi_display(x) container_of(x, struct dsi_display, host)
 
@@ -933,7 +933,7 @@ int iris_switch(struct dsi_panel *panel,
 		SDE_ATRACE_END(__func__);
 		return rc;
 	}
-
+	oplus_panel_cmdq_pack_handle(panel, switch_cmds->type, true);
 	switch (switch_case) {
 	case SWITCH_ABYP_TO_ABYP:
 		SDE_ATRACE_BEGIN("iris_abyp_send_panel_cmd");
@@ -964,7 +964,7 @@ int iris_switch(struct dsi_panel *panel,
 		IRIS_LOGE("%s(), invalid case: %u", __func__, switch_case);
 		break;
 	}
-
+	oplus_panel_cmdq_pack_handle(panel, switch_cmds->type, false);
 	SDE_ATRACE_END(__func__);
 	IRIS_LOGI("%s(), return %d, total cost '%d us'",
 			__func__,

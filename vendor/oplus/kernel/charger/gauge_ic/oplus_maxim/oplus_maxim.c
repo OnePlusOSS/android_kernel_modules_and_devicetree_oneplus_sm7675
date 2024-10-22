@@ -35,8 +35,7 @@
 #define OPLUS_MAXIM_AUTH_TAG      "maxim_auth="
 #define OPLUS_MAXIM_AUTH_SUCCESS  "maxim_auth=TRUE"
 #define OPLUS_MAXIM_AUTH_FAILED   "maxim_auth=FALSE"
-#define TEST_COUNT         10
-#define DEF_WORK_CPU_ID    7
+#define TEST_COUNT         15
 struct maxim_test_result {
 	int test_count_total;
 	int test_count_now;
@@ -68,6 +67,7 @@ struct oplus_maxim_gauge_chip {
 	int try_count;
 	struct delayed_work auth_work;
 	struct delayed_work test_work;
+	int cpu_id;
 };
 
 static char __oplus_chg_cmdline[COMMAND_LINE_SIZE];
@@ -217,6 +217,51 @@ static int oplus_maxim_parse_dt(struct oplus_maxim_gauge_chip *chip)
 		chg_info("gpio-addr-offset 0x%x\n", chip->gpio_info.gpio_addr_offset);
 	}
 
+	rc = of_property_read_u32(node, "gpio-set-out-val", &chip->gpio_info.onewire_gpio_cfg_out_val);
+	if (rc) {
+		chip->gpio_info.onewire_gpio_cfg_out_val = (0x1 << chip->gpio_info.gpio_addr_offset);
+	}
+	chg_info("gpio-set-out-val 0x%x\n", chip->gpio_info.onewire_gpio_cfg_out_val);
+
+	rc = of_property_read_u32(node, "gpio-set-in-val", &chip->gpio_info.onewire_gpio_cfg_in_val);
+	if (rc) {
+		chip->gpio_info.onewire_gpio_cfg_in_val = (0x1 << chip->gpio_info.gpio_addr_offset);
+	}
+	chg_info("gpio-set-in-val 0x%x\n", chip->gpio_info.onewire_gpio_cfg_in_val);
+
+	rc = of_property_read_u32(node, "gpio_level_high_val", &chip->gpio_info.onewire_gpio_level_high_val);
+	if (rc) {
+		chip->gpio_info.onewire_gpio_level_high_val = (0x1 << chip->gpio_info.gpio_addr_offset);
+	}
+	chg_info("gpio_level_high_val 0x%x\n", chip->gpio_info.onewire_gpio_level_high_val);
+
+	rc = of_property_read_u32(node, "gpio_level_low_val", &chip->gpio_info.onewire_gpio_level_low_val);
+	if (rc) {
+		chip->gpio_info.onewire_gpio_level_low_val = (0x1 << chip->gpio_info.gpio_addr_offset);
+	}
+	chg_info("gpio_level_low_val 0x%x\n", chip->gpio_info.onewire_gpio_level_low_val);
+
+	rc = of_property_read_u32(node, "write_begin_low_level_time", &chip->gpio_info.write_begin_low_level_time);
+	if (rc) {
+		chip->gpio_info.write_begin_low_level_time = 1000;
+	}
+	chg_info("write_begin_low_level_time %d\n", chip->gpio_info.write_begin_low_level_time);
+
+	rc = of_property_read_u32(node, "write_relese_ic_time", &chip->gpio_info.write_relese_ic_time);
+	if (rc) {
+		chip->gpio_info.write_relese_ic_time = 5;
+	}
+	chg_info("write_relese_ic_time %d\n", chip->gpio_info.write_relese_ic_time);
+
+	rc = of_property_read_u32(node, "cpu-id", &chip->cpu_id);
+	if (rc) {
+		chip->cpu_id = 7;
+	}
+	chg_info("cpu-id:%d\n", chip->cpu_id);
+
+	chip->gpio_info.maxim_romid_crc_support = of_property_read_bool(node, "oplus,maxim_romid_crc_support");
+	chg_info("maxim_romid_crc_support %d\n", chip->gpio_info.maxim_romid_crc_support);
+
 	chip->support_maxim_in_kernel = true;
 	chg_info("support_maxim_in_kernel: %d\n", chip->support_maxim_in_kernel);
 
@@ -255,12 +300,13 @@ static void oplus_maxim_auth_work(struct work_struct *work)
 	try_count++;
 	g_maxim_chip->test_result.real_test_count_now++;
 	g_maxim_chip->hmac_status.real_total_count++;
+	onewire_set_gpio_config_out();
 	ret = authenticate_ds28e30(&g_maxim_chip->sn_num_info, 0);
 	if (ret == false) {
 		g_maxim_chip->test_result.real_test_fail_count++;
 		g_maxim_chip->hmac_status.real_fail_count++;
 		if (try_count < g_maxim_chip->try_count) {
-			schedule_delayed_work_on(DEF_WORK_CPU_ID, &g_maxim_chip->auth_work, 0);
+			schedule_delayed_work_on(g_maxim_chip->cpu_id, &g_maxim_chip->auth_work, msecs_to_jiffies(100));
 			return;
 		} else {
 			complete(&g_maxim_chip->is_complete);
@@ -279,11 +325,12 @@ int oplus_maxim_auth(void)
 		return 0;
 	}
 	reinit_completion(&g_maxim_chip->is_complete);
-	schedule_delayed_work_on(DEF_WORK_CPU_ID, &g_maxim_chip->auth_work, 0);
+	schedule_delayed_work_on(g_maxim_chip->cpu_id, &g_maxim_chip->auth_work, 0);
 	if (!wait_for_completion_timeout(&g_maxim_chip->is_complete,
 			msecs_to_jiffies(5000 * g_maxim_chip->try_count))) {
 		chg_err("time out!\n");
 	}
+	cancel_delayed_work_sync(&g_maxim_chip->auth_work);
 	return g_maxim_chip->authenticate_result;
 }
 
@@ -312,7 +359,7 @@ int oplus_maxim_get_external_auth_hmac(void)
 	}
 	if(g_maxim_chip->authenticate_result == false) {
 		g_maxim_chip->hmac_status.total_count++;
-		g_maxim_chip->try_count = 1;
+		g_maxim_chip->try_count = TEST_COUNT;
 		ret = oplus_maxim_auth();
 		if (ret == false) {
 			g_maxim_chip->hmac_status.fail_count++;
@@ -332,7 +379,7 @@ int oplus_maxim_start_test(int count)
 	g_maxim_chip->test_result.test_fail_count = 0;
 	g_maxim_chip->test_result.real_test_count_now = 0;
 	g_maxim_chip->test_result.real_test_fail_count = 0;
-	schedule_delayed_work_on(DEF_WORK_CPU_ID, &g_maxim_chip->test_work, 0);
+	schedule_delayed_work_on(g_maxim_chip->cpu_id, &g_maxim_chip->test_work, 0);
 	return 0;
 }
 

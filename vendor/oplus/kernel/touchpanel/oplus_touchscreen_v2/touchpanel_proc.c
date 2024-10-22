@@ -638,7 +638,7 @@ static ssize_t proc_gesture_control_write(struct file *file,
 	default:
 		TPD_DEBUG("invalid setting %d\n", value);
 	}
-	TPD_INFO("%s: gesture_enable = %d, value = %d\n", __func__, ts->gesture_enable, value);
+	TPD_INFO("%s: gesture_enable = %d, value = %d, hall_status = %d\n", __func__, ts->gesture_enable, value, ts->hall_status);
 
 	mutex_unlock(&ts->mutex);
 

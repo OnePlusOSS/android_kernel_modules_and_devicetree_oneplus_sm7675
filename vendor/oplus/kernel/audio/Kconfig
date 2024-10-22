@@ -54,6 +54,15 @@ config SND_SOC_AW87XXX_2_X_0
         help
           This option enables support for AW87XXX Smart K PA.
 
+config OPLUS_MT6835_USE_FSA4480
+	tristate "No Support mt6338_accdet_irq_check_and_set"
+	default n
+	help
+	  This adds for fsa4480/dio4480 audio switch driver
+	  that can be used with other platforms
+	  Select m if you have such device.
+	  If unsure select "N"
+
 config SND_SOC_AW882XX
 	tristate "Support AW882XX speaker amplifier"
 	depends on I2C

@@ -184,6 +184,7 @@ enum {
     KEYBOARD_HOST_CHECK_EVENT,
     KEYBOARD_TEST_EVENT,
     KEYBOARD_REPORT_SN_EVENT,
+    KEYBOARD_REPORT_TOUCH_STATUS_EVENT,
 };
 
 enum {
@@ -330,6 +331,10 @@ struct pogo_keyboard_data {
 
     bool plug_timer_one_time;
     u8 report_sn[DEFAULT_SN_LEN];
+    bool pogo_report_touch_status;
+
+    bool pogo_battery_support;
+    u8 pogo_battery_power_level;
 };
 
 

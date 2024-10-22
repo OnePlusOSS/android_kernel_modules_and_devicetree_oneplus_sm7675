@@ -1996,13 +1996,18 @@ void iris_kernel_status_get_i7p(u32 get_op, u32 count, u32 *values)
 		IRIS_LOGI("GET_MV_RESOLUTION: %d", count);
 		break;
 	case GET_AP_DSI_CLOCK_STATUS:
-		IRIS_LOGI("%s: cached_clk_rate:%u, clk_rate_hz:%u, expect clk_rate_hz: %u.", __func__,
-					pcfg->display->cached_clk_rate,
-					pcfg->panel->cur_mode->timing.clk_rate_hz, pcfg->display->dyn_bit_clk);
-		if (pcfg->display->cached_clk_rate == pcfg->display->dyn_bit_clk)
-			*values = 1;
-		else
-			*values = 0;
+		*values = 0;
+		if (pcfg->panel->dyn_clk_caps.dyn_clk_support) {
+			u32 cur_clk_rate = iris_display_get_dsi_clk_rate(pcfg->display);
+			if (cur_clk_rate == pcfg->display->dyn_bit_clk)
+				*values = 1;
+
+			IRIS_LOGI("[%s] cur_clk_rate: %u, cached_clk_rate:%u, clk_rate_hz:%u, expect clk_rate_hz: %u.", __func__,
+				cur_clk_rate,
+				pcfg->display->cached_clk_rate,
+				pcfg->panel->cur_mode->timing.clk_rate_hz,
+				pcfg->display->dyn_bit_clk);
+		}
 		break;
 	default:
 		break;

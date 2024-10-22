@@ -102,6 +102,7 @@
 #define EVENTBUFFER_EXT_PEN_MODE_4TH_ON           0x15       /*notify Xingwangda pencil connected*/
 #define EVENTBUFFER_EXT_PEN_VIBRATOR_ON           0x16
 #define EVENTBUFFER_EXT_PEN_VIBRATOR_OFF          0x17
+#define EVENTBUFFER_EXT_PEN_MODE_5TH_ON           0x18       /* notify maxeye-3RD pencil connected */
 #define PEN_CTL_FEEDBACK                          0xffff
 
 #define NVT_TOUCH_FW_DEBUG_INFO (1)

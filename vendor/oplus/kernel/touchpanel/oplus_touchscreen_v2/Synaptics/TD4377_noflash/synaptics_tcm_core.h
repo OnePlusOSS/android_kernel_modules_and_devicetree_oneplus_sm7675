@@ -133,6 +133,7 @@ enum touch_report_code {
 	TOUCH_REPORT_GESTURE_INFO = 198,
 	TOUCH_REPORT_GESTURE_COORDINATE = 199,
 	TOUCH_REPORT_PALM_DETECTED = 200,
+	TOUCH_GET_WATER_MODE = 202,
 };
 
 enum module_type {
@@ -434,6 +435,7 @@ struct touch_data {
 	unsigned int num_of_active_objects;
 	unsigned int num_of_cpu_cycles;
 	unsigned int palm_status;
+	unsigned int water_mode;
 };
 
 struct touch_hcd {
@@ -560,6 +562,7 @@ struct syna_tcm_hcd {
 	unsigned int grip_darkzone_y;
 	unsigned int grip_darkzone_v2_x;
 	unsigned int grip_darkzone_v2_y;
+	unsigned int error_state_count;
 
 	bool irq_trigger_hdl_support;
 	bool health_monitor_support;

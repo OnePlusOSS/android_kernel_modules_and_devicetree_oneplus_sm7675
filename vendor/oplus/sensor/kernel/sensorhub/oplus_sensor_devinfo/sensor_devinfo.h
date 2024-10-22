@@ -86,6 +86,7 @@ enum panel_id{
 	FT8057P,
 	P_7,
 	ILI7807S,
+	DJN,
 	PANEL_NUM
 };
 

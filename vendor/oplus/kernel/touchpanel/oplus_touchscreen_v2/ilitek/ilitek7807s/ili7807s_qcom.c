@@ -3118,6 +3118,20 @@ static int ilitek_sensitive_lv_set(void *chip_data, int level)
 	return ret;
 }
 
+static int ilitek_diaphragm_touch_lv_set(void *chip_data, int level)
+{
+	struct ilitek_ts_data *chip_info = (struct ilitek_ts_data *)chip_data;
+	int ret = 0;
+	uint8_t temp[3] = {0x01, 0x31, 0x00};
+
+	mutex_lock(&chip_info->touch_mutex);
+	temp[2] = level;
+	ILI_INFO("write 0x01, 0x31, 0x00, 0x%X(level)\n", level);
+	ret = ilits->wrapper(temp, 3, NULL, 0, OFF, OFF);
+	mutex_unlock(&chip_info->touch_mutex);
+	return ret;
+}
+
 static void ilitek_rate_white_list_ctrl(void *chip_data, int value)
 {
 	struct ilitek_ts_data* chip_info = (struct ilitek_ts_data*)chip_data;
@@ -3194,6 +3208,46 @@ static bool ilitek_irq_throw_away(void *chip_data)
 	return false;
 }
 
+static void ilitek_force_water_mode(void *chip_data, bool enable)
+{
+	TPD_INFO("%s: %s force_water_mode is not supported .\n", __func__, enable ? "Enter" : "Exit");
+}
+
+static void ilitek_read_water_flag(void *chip_data)
+{
+	struct ilitek_ts_data *chip_info = (struct ilitek_ts_data *)chip_data;
+	struct touchpanel_data *ts = spi_get_drvdata(chip_info->spi);
+	uint32_t ret = 0;
+	uint8_t temp[3] = {0x01, 0x32, 0x00};
+	uint8_t data[4] = {0};
+
+	mutex_lock(&chip_info->touch_mutex);
+	ILI_INFO("write 0x01, 0x32, 0x00 than read\n");
+/*
+	ret = ilits7807s->wrapper(temp, 3, NULL, 0, OFF, OFF);
+	if (ret < 0) {
+        ILI_ERR("Failed to write 0x01, 0x32, 0x00 command, %d\n", ret);
+        goto out;
+    }
+
+    mdelay(1);//ritchie add use mdelay not use int 20240311
+*/
+	ret = ilits->wrapper(temp, 3, data, 4, ON, OFF);
+	if (ret < 0) {
+		ILI_ERR("write than Read waterflage failed, %d\n", ret);
+		goto out;
+	}
+	if((data[0] == 0x01) && (data[1] == 0x32) && (data[2] == 0x00)) {
+		ILI_INFO("get waterflag successful\n");
+		ts->water_mode = data[3];
+		ILI_INFO("get waterflag = %d\n", ts->water_mode);
+	} else {
+		ILI_ERR("get waterflage failed\n");
+	}
+out:
+	mutex_unlock(&chip_info->touch_mutex);
+}
+
 static struct oplus_touchpanel_operations ilitek_ops = {
 	.ftm_process                = ilitek_ftm_process,
 	.ftm_process_extra          = ilitek_ftm_process_extra,
@@ -3215,6 +3269,9 @@ static struct oplus_touchpanel_operations ilitek_ops = {
 	.tp_queue_work_prepare      = ilitek_reset_queue_work_prepare,
 	.tp_irq_throw_away          = ilitek_irq_throw_away,
 	.rate_white_list_ctrl   	= ilitek_rate_white_list_ctrl,
+	.diaphragm_touch_lv_set     = ilitek_diaphragm_touch_lv_set,
+	.get_water_mode             = ilitek_read_water_flag,
+	.force_water_mode           = ilitek_force_water_mode,
 };
 
 static int ilitek_read_debug_data(struct seq_file *s,

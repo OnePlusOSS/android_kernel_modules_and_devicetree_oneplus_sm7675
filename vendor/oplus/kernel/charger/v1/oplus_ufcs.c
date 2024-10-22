@@ -3039,10 +3039,22 @@ static int oplus_ufcs_action_status_start(struct oplus_ufcs_chip *chip)
 static int oplus_ufcs_action_open_mos(struct oplus_ufcs_chip *chip)
 {
 	int ret = 0;
+	int cnt = 0;
+	int cp_ibus = 0;
+
 	if (!chip)
 		return -ENODEV;
 
 	ret = oplus_ufcs_charging_enable_master(chip, true);
+	/* wait ibus raised after enable MOS */
+	for (cnt = 0; cnt < UFCS_ENALBE_CHECK_CNTS; cnt++) {
+		msleep(50);
+		cp_ibus = chip->ops->ufcs_get_cp_master_ibus();
+		if (cp_ibus < UFCS_DISCONNECT_IOUT_MIN)
+			ufcs_err("ibus not raised, ibus[%d], cnt[%d]\n", cp_ibus, cnt);
+		else
+			break;
+	}
 
 	chip->ufcs_status = OPLUS_UFCS_STATUS_VOLT_CHANGE;
 	chip->timer.batt_curve_time = 0;

@@ -835,6 +835,19 @@ static int syna_parse_report(struct syna_tcm_hcd *tcm_hcd)
 			touch_data->palm_status = data;
 			offset += bits;
 			break;
+		case TOUCH_GET_WATER_MODE:
+			bits = config_data[idx++];
+			retval = syna_get_report_data(tcm_hcd, offset, bits, &data);
+			if (retval < 0) {
+				if (tcm_hcd->health_monitor_support) {
+					tp_healthinfo_report(tcm_hcd->monitor_data, HEALTH_REPORT, "parse_report_err_nsmstate");
+				}
+				TPD_INFO("Failed to get NSM state\n");
+				return retval;
+			}
+			touch_data->water_mode = data;
+			offset += bits;
+			break;
 		case TOUCH_NUM_OF_ACTIVE_OBJECTS:
 			bits = config_data[idx++];
 			retval = syna_get_report_data(tcm_hcd, offset, bits, &data);
@@ -986,7 +999,7 @@ static int syna_set_normal_report_config(struct syna_tcm_hcd *tcm_hcd)
 	unsigned int idx = 0;
 	unsigned int length;
 	struct touch_hcd *touch_hcd = tcm_hcd->touch_hcd;
-
+	struct touchpanel_data *ts = spi_get_drvdata(tcm_hcd->s_client);
 	TPD_INFO("%s:set normal report\n", __func__);
 	length = le2_to_uint(tcm_hcd->app_info.max_touch_report_config_size);
 
@@ -1016,6 +1029,10 @@ static int syna_set_normal_report_config(struct syna_tcm_hcd *tcm_hcd)
 	/*touch_hcd->out.buf[idx++] = 8;*/
 	touch_hcd->out.buf[idx++] = TOUCH_REPORT_PALM_DETECTED;
 	touch_hcd->out.buf[idx++] = 8;
+	if (ts->waterproof_support) {
+	touch_hcd->out.buf[idx++] = TOUCH_GET_WATER_MODE;
+	touch_hcd->out.buf[idx++] = 8;
+	}
 	touch_hcd->out.buf[idx++] = TOUCH_FOREACH_ACTIVE_OBJECT;
 	touch_hcd->out.buf[idx++] = TOUCH_OBJECT_N_INDEX;
 	touch_hcd->out.buf[idx++] = 4;
@@ -4531,6 +4548,61 @@ void syna_freq_hop_trigger(void *chip_data)
 	}
 }
 
+static int syna_tcm_smooth_lv_set(void *chip_data, int level)
+{
+	struct syna_tcm_hcd *tcm_info = (struct syna_tcm_hcd *)chip_data;
+	unsigned short regval = 0;
+	int retval = 0;
+
+	retval = syna_tcm_get_dynamic_config(tcm_info, DC_GAME_MODE_ENABLED, &regval);
+	if (retval < 0) {
+		TPD_INFO("Failed to get smooth config\n");
+		tcm_info->error_state_count++;
+		return 0;
+	}
+	TPD_INFO("syna_tcm_smooth_lv_set 111 regval = %d\n", regval);
+	tcm_info->error_state_count = 0;
+
+	retval = syna_tcm_set_dynamic_config(tcm_info, DC_GAME_MODE_ENABLED, (level << 4) | (regval & 0x01));
+	if (retval < 0) {
+		TPD_INFO("Failed to set smooth config\n");
+		return 0;
+	}
+	TPD_INFO("syna_tcm_smooth_lv_set 222 regval = %d\n", regval);
+
+	retval = syna_tcm_get_dynamic_config(tcm_info, DC_GAME_MODE_ENABLED, &regval);
+	if (retval < 0) {
+		TPD_INFO("Failed to get smooth config\n");
+		return 0;
+	}
+	TPD_INFO("OK synaptics smooth lv to %d, now reg_val:0x%x", level, regval);
+	return 0;
+}
+
+static int syna_tcm_sensitive_lv_set(void *chip_data, int level)
+{
+	struct syna_tcm_hcd *tcm_info = (struct syna_tcm_hcd *)chip_data;
+	unsigned short regval = 0;
+	int retval = 0;
+
+	retval = syna_tcm_set_dynamic_config(tcm_info, DC_GAME_MODE_ENABLED, level);
+	if (retval < 0) {
+		TPD_INFO("Failed to set sensitive config\n");
+		tcm_info->error_state_count++;
+		return 0;
+	}
+	tcm_info->error_state_count = 0;
+
+	retval = syna_tcm_get_dynamic_config(tcm_info, DC_GAME_MODE_ENABLED, &regval);
+	if (retval < 0) {
+		TPD_INFO("Failed to get sensitive config\n");
+		return 0;
+	}
+	TPD_INFO("OK synaptics sensitive lv to %d, now reg_val:%d", level, regval);
+
+	return 0;
+}
+
 static struct debug_info_proc_operations syna_debug_proc_ops = {
 	.delta_read    = syna_delta_read,
 	.baseline_read = syna_baseline_read,
@@ -4634,6 +4706,27 @@ static uint8_t synaptics_get_touch_direction(void *chip_data)
 	return tcm_hcd->touch_direction;
 }
 
+static void syna_force_water_mode(void *chip_data, bool enable)
+{
+	TPD_INFO("%s: %s force_water_mode is not supported .\n", __func__, enable ? "Enter" : "Exit");
+}
+
+static void syna_read_water_flag(void *chip_data)
+{
+	struct syna_tcm_hcd *tcm_hcd = (struct syna_tcm_hcd *)chip_data;
+	struct touchpanel_data *ts = spi_get_drvdata(tcm_hcd->s_client);
+	struct touch_hcd *touch_hcd = tcm_hcd->touch_hcd;
+	struct touch_data *touch_data = &touch_hcd->touch_data;
+
+	TP_INFO(touch_data->water_mode, "%s: water flag.\n", __func__);
+	TPD_INFO("water_mode = %d \n", touch_data->water_mode);
+	if (touch_data->water_mode == 1) {
+		ts->water_mode = 1;
+	} else {
+		ts->water_mode = 0;
+	}
+}
+
 static struct oplus_touchpanel_operations syna_tcm_ops = {
 	.ftm_process       = syna_ftm_process,
 	.get_vendor        = syna_get_vendor,
@@ -4656,7 +4749,11 @@ static struct oplus_touchpanel_operations syna_tcm_ops = {
 	.set_touch_direction    = synaptics_set_touch_direction,
 	.get_touch_direction    = synaptics_get_touch_direction,
 	.rate_white_list_ctrl   = syna_rate_white_list_ctrl,
+	.get_water_mode         = syna_read_water_flag,
+	.force_water_mode       = syna_force_water_mode,
 /*	.freq_hop_trigger = syna_freq_hop_trigger,*/
+	.smooth_lv_set    = syna_tcm_smooth_lv_set,
+	.sensitive_lv_set = syna_tcm_sensitive_lv_set,
 };
 
 /*
@@ -4675,11 +4772,11 @@ void tp_wait_hdl_finished(void)
 
 	do {
 		if (retry_cnt) {
-			msleep(100);
+			msleep(10);
 		}
 		retry_cnt++;
 		TPD_INFO("Wait hdl finished retry %d times...  \n", retry_cnt);
-	} while (!g_tcm_hcd->hdl_finished_flag && retry_cnt < 20);
+	} while (!g_tcm_hcd->hdl_finished_flag && retry_cnt < 200);
 }
 
 /*
@@ -4938,6 +5035,12 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 		return retval;
 	}
 
+	init_completion(&tcm_hcd->config_complete);
+	tcm_hcd->init_okay = false;
+	g_tcm_hcd->hdl_finished_flag = 0;
+	tcm_hcd->init_okay = true;
+	syna_remote_zeroflash_init(tcm_hcd);
+
 	retval = register_common_touch_device(ts);
 
 	tcm_hcd->tcm_firmware_headfile = ts->firmware_in_dts;
@@ -4962,7 +5065,6 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 	}
 
 	synaptics_create_proc(ts, tcm_hcd->syna_ops);
-	init_completion(&tcm_hcd->config_complete);
 
 	device_hcd = syna_remote_device_init(tcm_hcd);
 	if (device_hcd) {
@@ -4972,11 +5074,6 @@ static int syna_tcm_spi_probe(struct spi_device *spi)
 		device_hcd->reset = syna_tcm_reset;
 		device_hcd->report_touch = syna_device_report_touch;
 	}
-	tcm_hcd->init_okay = false;
-	g_tcm_hcd->hdl_finished_flag = 0;
-
-	tcm_hcd->init_okay = true;
-	syna_remote_zeroflash_init(tcm_hcd);
 /*#ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
     if (ts->boot_mode == RECOVERY_BOOT)
 #else

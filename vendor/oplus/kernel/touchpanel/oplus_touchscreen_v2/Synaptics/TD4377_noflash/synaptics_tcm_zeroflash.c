@@ -228,8 +228,9 @@ static int zeroflash_get_fw_image(void)
 {
 	int retval = 0;
 	struct syna_tcm_hcd *tcm_hcd = g_zeroflash_hcd->tcm_hcd;
+	struct touchpanel_data *ts = spi_get_drvdata(tcm_hcd->s_client);
 	struct firmware *request_fw_headfile = NULL;
-
+	tcm_hcd->tcm_firmware_headfile = ts->firmware_in_dts;
 	if(!g_zeroflash_hcd->fw_entry) {
 		TPD_INFO("oplus tp update can't get fw, get fw from headfile\n");
 		request_fw_headfile = kzalloc(sizeof(struct firmware), GFP_KERNEL);

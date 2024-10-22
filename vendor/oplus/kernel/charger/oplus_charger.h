@@ -1394,6 +1394,7 @@ struct oplus_chg_chip {
 	bool support_3p6_standard;
 	bool pdqc_9v_voltage_adaptive;
 	bool suport_pd_9v2a;
+	bool support_nomal_5v3a;
 	struct timespec quick_mode_time;
 	int start_time;
 	int quick_mode_start_time;

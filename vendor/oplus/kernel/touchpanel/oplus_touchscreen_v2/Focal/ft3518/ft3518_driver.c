@@ -1673,6 +1673,7 @@ static u32 fts_u32_trigger_reason(void *chip_data, int gesture_enable,
 			if(ret == 0x01) {
 				SET_BIT(result_event, IRQ_PALM);
 				TPD_INFO("fts_enable_palm_to_sleep enable\n");
+				return result_event;
 			}
 		}
 	}
@@ -1800,7 +1801,8 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 	struct touchpanel_snr *snr = ts_data->ts->snr;
 
 	if (buf[FTS_POINTS_ONE - 1] == 0xFF) {
-		ret = touch_i2c_read_byte(ts_data->client, FTS_REG_POINTS_LB);
+		if (ts_data->ft3518_grip_v2_support == FALSE)
+			ret = touch_i2c_read_byte(ts_data->client, FTS_REG_POINTS_LB);
 	} else {
 		ret = touch_i2c_read_block(ts_data->client, cmd, FTS_POINTS_TWO,
 					   &buf[FTS_POINTS_ONE]);

@@ -30,6 +30,7 @@
 		/* Other HW Resource */
 		irq-gpio = <&tlmm 162 0x2002>;
 		reset-gpio = <&tlmm 161 0x0>;
+		cs-gpio = <&tlmm 51 0x00>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&ts_int_active &ts_reset_active>;
 
@@ -183,7 +184,7 @@
 			config {
 				pins = "gpio48", "gpio49",
 						"gpio50";
-				drive-strength = <6>;
+				drive-strength = <2>;
 				bias-disable;
 			};
 		};
@@ -196,9 +197,8 @@
 
 			config {
 				pins = "gpio51";
-				drive-strength = <6>;
+				drive-strength = <2>;
 				bias-disable;
-				output-low;
 			};
 		};
 	};

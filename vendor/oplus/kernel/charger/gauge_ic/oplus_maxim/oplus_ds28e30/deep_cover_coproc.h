@@ -19,8 +19,12 @@
 #define ECDSA_KEY_S				0x03
 
 /* misc constants */
+#ifndef TRUE
 #define TRUE    1
+#endif
+#ifndef FALSE
 #define FALSE   0
+#endif
 
 #define MESSAGE_MAX_LEN 256
 #define SUCCESS_FINISHED 0

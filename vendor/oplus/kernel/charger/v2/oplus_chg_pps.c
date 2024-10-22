@@ -342,6 +342,7 @@ struct oplus_pps {
 	bool pdsvooc_id_adapter;
 	bool request_vbus_too_low_flag;
 	int delta_vbus[PPS_TEMP_RANGE_NORMAL + 1];
+	bool chg_ctrl_by_sale_mode;
 	bool enable_pps_status;
 };
 
@@ -1141,6 +1142,7 @@ static void oplus_pps_votable_reset(struct oplus_pps *chip)
 	vote(chip->pps_curr_votable, LED_ON_VOTER, false, 0, false);
 	vote(chip->pps_curr_votable, BATT_TEMP_VOTER, false, 0, false);
 	vote(chip->pps_curr_votable, COOL_DOWN_VOTER, false, 0, false);
+	vote(chip->pps_curr_votable, SALE_MODE_VOTER, false, 0, false);
 }
 
 static int oplus_pps_temp_cur_range_init(struct oplus_pps *chip)
@@ -2565,14 +2567,28 @@ static void oplus_pps_set_cool_down_curr(struct oplus_pps *chip, int cool_down)
 {
 	int target_curr;
 
-	if (!chip->support_cp_ibus) {
-		if (cool_down >= ARRAY_SIZE(pps_cool_down_oplus_curve))
-			cool_down = ARRAY_SIZE(pps_cool_down_oplus_curve) - 1;
-		target_curr = pps_cool_down_oplus_curve[cool_down];
+	if (chip->chg_ctrl_by_sale_mode) {
+		if (!chip->support_cp_ibus) {
+			if (ARRAY_SIZE(pps_cool_down_oplus_curve) >= 2)
+				target_curr = pps_cool_down_oplus_curve[SALE_MODE_COOL_DOWN_VAL];
+			else
+				target_curr = pps_cool_down_oplus_curve[0];
+		} else {
+			if (ARRAY_SIZE(pps_cp_cool_down_oplus_curve) >= 2)
+				target_curr = pps_cp_cool_down_oplus_curve[SALE_MODE_COOL_DOWN_VAL];
+			else
+				target_curr = pps_cp_cool_down_oplus_curve[0];
+		}
 	} else {
-		if (cool_down >= ARRAY_SIZE(pps_cp_cool_down_oplus_curve))
-			cool_down = ARRAY_SIZE(pps_cp_cool_down_oplus_curve) - 1;
-		target_curr = pps_cp_cool_down_oplus_curve[cool_down];
+		if (!chip->support_cp_ibus) {
+			if (cool_down >= ARRAY_SIZE(pps_cool_down_oplus_curve))
+				cool_down = ARRAY_SIZE(pps_cool_down_oplus_curve) - 1;
+			target_curr = pps_cool_down_oplus_curve[cool_down];
+		} else {
+			if (cool_down >= ARRAY_SIZE(pps_cp_cool_down_oplus_curve))
+				cool_down = ARRAY_SIZE(pps_cp_cool_down_oplus_curve) - 1;
+			target_curr = pps_cp_cool_down_oplus_curve[cool_down];
+		}
 	}
 
 	if (chip->cp_ratio != 0) {
@@ -2582,7 +2598,8 @@ static void oplus_pps_set_cool_down_curr(struct oplus_pps *chip, int cool_down)
 		return;
 	}
 
-	vote(chip->pps_curr_votable, COOL_DOWN_VOTER, true, target_curr, false);
+	vote(chip->pps_curr_votable, SALE_MODE_VOTER, chip->chg_ctrl_by_sale_mode, target_curr, false);
+	vote(chip->pps_curr_votable, COOL_DOWN_VOTER, !chip->chg_ctrl_by_sale_mode, target_curr, false);
 }
 
 static void oplus_pps_imp_check(struct oplus_pps *chip)
@@ -3194,6 +3211,14 @@ static void oplus_pps_comm_subs_callback(struct mms_subscribe *subs,
 			else
 				vote(chip->pps_curr_votable, LED_ON_VOTER, false, 0, false);
 			break;
+		case COMM_ITEM_SALE_MODE:
+			rc = oplus_mms_get_item_data(chip->comm_topic, id,
+						     &data, false);
+			if (rc < 0)
+				chg_err("can't get sale mode data, rc=%d", rc);
+			else
+				chip->chg_ctrl_by_sale_mode = data.intval;
+			break;
 		default:
 			break;
 		}
@@ -3263,6 +3288,11 @@ static void oplus_pps_subscribe_comm_topic(struct oplus_mms *topic,
 			vote(chip->pps_boot_votable, SHELL_TEMP_VOTER, false, 0, false);
 		}
 	}
+	rc = oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_SALE_MODE, &data, true);
+	if (rc < 0)
+		chg_err("can't get sale mode data, rc=%d", rc);
+	else
+		chip->chg_ctrl_by_sale_mode = data.intval;
 
 	vote(chip->pps_boot_votable, COMM_TOPIC_VOTER, false, 0, false);
 }

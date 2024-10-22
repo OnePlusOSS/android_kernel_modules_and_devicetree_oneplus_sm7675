@@ -27,7 +27,7 @@
 #define FTS_REG_SMOOTH_LEVEL                    0x85
 #define FTS_REG_GAME_MODE_EN                    0xC3
 #define FTS_REG_REPORT_RATE                     0x88/*0x12:180hz, 0x0C:120hz*/
-#define FTS_REG_HIGH_FRAME_EN                   0x8E
+#define FTS_REG_HIGH_FRAME_EN                   0x98
 #define FTS_REG_HIGH_FRAME_TIME                 0x8A
 #define FTS_REG_CHARGER_MODE_EN                 0x8B
 #define FTS_REG_EDGE_LIMIT                      0x8C
@@ -60,10 +60,20 @@
 #define FTS_MAX_ID                              0x0A
 #define FTS_POINTS_ONE                          21  /*2 + 6*3 + 1*/
 #define FTS_POINTS_TWO                          41  /*8*10 - 1*/
-#define FTS_MAX_POINTS_LENGTH          ((FTS_POINTS_ONE) + (FTS_POINTS_TWO))
+#define FTS_POINTS_LENGTH              ((FTS_POINTS_ONE) + (FTS_POINTS_TWO))
+
 #define FTS_REG_POINTS                          0x01
 #define FTS_REG_POINTS_N                        (FTS_POINTS_ONE + 1)
 #define FTS_REG_POINTS_LB                       0x3E
+
+#define FTS_REG_GRIP                            0x3F
+#define FTS_REG_GRIP_N                          0x47
+#define FTS_REG_GRIP_LB                         0x66
+
+#define FTS_GRIP_ONE                            8   /* The first two grip_info: 4*2 */
+#define FTS_GRIP_TWO                            32  /* The last eight grip_info: 4*8 */
+#define FTS_GRIP_LENGTH                ((FTS_GRIP_ONE) + (FTS_GRIP_TWO))
+#define FTS_MAX_POINTS_LENGTH          ((FTS_POINTS_LENGTH) + (FTS_GRIP_LENGTH))
 
 #define FTS_MAX_TOUCH_BUF                       4096
 
@@ -95,6 +105,7 @@
 #define FACTORY_REG_MAX_DIFF                    0x1B
 #define FACTORY_REG_FRAME_NUM                   0x1C
 #define FACTORY_REG_GCB                         0xBD
+#define FT3658U_REG_DIAPHRAGM_EN                0xC0
 
 #define FACTORY_REG_RAWDATA_ADDR_MC_SC          0x36
 #define FACTORY_REG_FIR                         0xFB
@@ -135,15 +146,32 @@
 #define FACTORY_REG_PARAM_UPDATE_STATE_TOUCH    0xB5
 
 #define FTS_MAX_COMMMAND_LENGTH                 16
-
+#define FTS_REG_PALM_TO_SLEEP_STATUS            0x9B
 #define TEST_RETVAL_00                          0x00
 #define TEST_RETVAL_AA                          0xAA
 
 #define FTS_EVENT_FOD                           0x26
 #define FTS_120HZ_REPORT_RATE                   0x00
 #define FTS_180HZ_REPORT_RATE                   0x01
-#define FTS_360HZ_REPORT_RATE                   0x02
-#define FTS_720HZ_REPORT_RATE                   0x03
+#define FTS_240HZ_REPORT_RATE                   0x02
+#define FTS_360HZ_REPORT_RATE                   0x03
+#define FT3658U_REG_REPORT_RATE_2K              0x99
+
+#define FTS_GET_RATE_0                       0
+#define FTS_GET_RATE_180                        180
+#define FTS_GET_RATE_300                        300
+
+#define FTS_WRITE_RATE_120                      120
+#define FTS_WRITE_RATE_180                      180
+#define FTS_WRITE_RATE_240                      240
+
+#define FTS_DIAPHRAGM_MODE_0                      0
+#define FTS_DIAPHRAGM_MODE_1                      1
+#define FTS_DIAPHRAGM_MODE_2                      2
+#define FTS_DIAPHRAGM_MODE_3                      3
+
+#define FTS_REG_EDGE_LIMIT_BIT                  0x04
+#define FTS_REG_CHARGER_MODE_EN_BIT             0x00
 
 #define MAX_PACKET_SIZE                         128
 
@@ -199,6 +227,7 @@ struct chip_data_ft3658u {
 	bool prc_support;
 	bool prc_mode;
 	bool touch_analysis_support;
+	bool switch_game_rate_support;
 	u32 touch_size;
 	u8 *touch_buf;
 	int ta_flag;
@@ -253,7 +282,16 @@ struct chip_data_ft3658u {
 	bool i2c_spi_compatible_support;
 	unsigned int spi_speed;
 	int gesture_state;
+	bool ft3658u_grip_v2_support;
 	bool black_gesture_indep;
+	bool water_mode;
+};
+
+enum diaphragm_mode {
+	DIAPHRAGM_DEFAULT_MODE = 0,
+	DIAPHRAGM_FILM_MODE = 1,
+	DIAPHRAGM_WATERPROO_MODE = 2,
+	DIAPHRAGM_FILM_WATERPROO_MODE = 3,
 };
 
 extern struct chip_data_ft3658u *g_fts_data;

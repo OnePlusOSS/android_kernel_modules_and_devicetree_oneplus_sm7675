@@ -72,6 +72,7 @@
 #define PROT_WP			0x02  /* Write Protection  */
 #define PROT_EM			0x04  /* EPROM Emulation Mode  */
 #define PROT_DC			0x08  /* Decrement Counter mode (only page 4) */
+#define PROT_PRI		0x10  /* Private key Read authentication result value */
 #define PROT_AUTH		0x20  /* AUTH mode for authority public key X&Y */
 #define PROT_ECH		0x40  /* Encrypted read and write using shared key from ECDH */
 #define PROT_ECW		0x80  /* Authentication Write Protection ECDSA (not applicable to KEY_PAGES) */
@@ -104,8 +105,8 @@
 #define OP_CID		0x061
 
 #define BATT_SN_NUM_LEN		12
-#define MAX_SN_NUM_NUMBER	2
-#define MAX_SN_NUM_SIZE		24
+#define MAX_SN_NUM_NUMBER	3
+#define MAX_SN_NUM_SIZE		36
 struct maxim_sn_num_info {
 	unsigned char sn_num[MAX_SN_NUM_NUMBER][BATT_SN_NUM_LEN];
 	int sn_num_number;
@@ -148,5 +149,12 @@ int sw_compute_ecdsa_signature(u8 *message, int msg_len,  u8 *sig_r, u8 *sig_s);
 
 int ow_read_rom(void);
 int ow_skip_rom(void);
+
+#define DATA_PACKET_NO_ACTION		0 /* no correction action for other function commands */
+#define DATA_PACKET_BITS_CORRECT	1 /* all bits are correct */
+#define DATA_PACKET_2_BITS_ERROR	2 /* try to correct 2 bits */
+#define DATA_PACKET_3_BITS_ERROR	3 /* try to correct 3 bits */
+#define DATA_PACKET_4_BITS_ERROR	4 /* try to correct 4 bits */
+void check_romid_bit(long r_diff_ns, unsigned int vamm, unsigned char cnt);
 
 #endif /* _DS28E30_H */

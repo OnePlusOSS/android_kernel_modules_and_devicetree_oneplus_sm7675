@@ -1,6 +1,6 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (C) 2020 Oplus. All rights reserved.
+ * Copyright (C) 2020-2024 Oplus. All rights reserved.
  */
 
 #ifndef _FRAME_GROUP_H
@@ -152,6 +152,10 @@ bool default_group_update_cpufreq(int grp_id);
 void inputmethod_set_boost_start(int grp_id);
 void inputmethod_update_cpufreq(int grp_id, struct task_struct *tsk);
 int get_frame_group_ui(int grp_id);
+static inline int check_group_condition(int fbg_cur_group, int grp_id)
+{
+	return fbg_cur_group && fbg_cur_group != grp_id;
+}
 
 void fbg_set_group_policy_util(int grp_id, int min_util);
 bool fbg_freq_policy_util(unsigned int policy_flags, const struct cpumask *query_cpus,

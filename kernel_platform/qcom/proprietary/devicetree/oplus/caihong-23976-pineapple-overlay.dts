@@ -16,7 +16,7 @@
     model = "Qualcomm Technologies, Inc. Pineapple MTP,caihong";
 
     oplus,project-id = <23976 23978>;
-    oplus,hw-id = <OPLUS_EVT1 OPLUS_EVT2 OPLUS_DVT1 OPLUS_DVT2 OPLUS_PVT1>;
+    oplus,hw-id = <OPLUS_EVT1 OPLUS_EVT2 OPLUS_DVT1 OPLUS_DVT2 OPLUS_PVT1 OPLUS_MP1 OPLUS_MP2 OPLUS_MP3>;
 };
 
 &pmk8550_vadc {
