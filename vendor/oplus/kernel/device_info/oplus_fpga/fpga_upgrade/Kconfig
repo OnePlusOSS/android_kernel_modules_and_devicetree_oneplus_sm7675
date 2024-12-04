@@ -1,0 +1,7 @@
+config OPLUS_FPGA_UPGRADE
+    tristate "oplus fpga update"
+    help
+        Say Y here if want to add fw update driver for the built-in oplus fpga update.
+        If unsure, say N.
+        To compile this driver as a module, choose M here: the
+        module will be called oplus_fpga_update.

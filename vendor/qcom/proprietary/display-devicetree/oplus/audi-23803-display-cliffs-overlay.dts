@@ -1,0 +1,12 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/oplus/hw-id.h>
+#include "../display/cliffs-sde-display-mtp-overlay.dts"
+#include "cliffs-display-overlay-common.dtsi"
+#include "audi-23803-display-cliffs-overlay.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Cliffs MTP,audi";
+
+	oplus,project-id = <23803 23865 24211 24212 24801>;
+};

@@ -1,0 +1,205 @@
+&qupv3_se4_spi{
+	/delete-property/ pinctrl-0;
+	/delete-property/ pinctrl-1;
+	pinctrl-0 = <&qupv3_se4_spi_mosi_active>, <&qupv3_se4_spi_miso_active>,
+				<&qupv3_se4_spi_clk_active>, <&qupv3_se4_spi_cs_active>;
+	pinctrl-1 = <&qupv3_se4_spi_sleep>, <&qupv3_se4_spi_cs_sleep>;
+};
+
+&qupv3_se4_spi {
+	status = "ok";
+
+	goodix-berlin@0 {
+		status = "disabled";
+	};
+
+	nt36532@0 {
+		status = "okay";
+		compatible = "novatek,nf_nt36532";
+		reg = <0x0>;
+		chip-num = <1>;
+		chip-name = "NT36532";
+		project_id = <23926>;
+		firmware_name = "0X21N2NI9N19";
+		spi-max-frequency = <12000000>; //4800000,9600000,15000000,19200000
+
+		/* Interrupt && Irq-gpio */
+		interrupt-parent = <&tlmm>;
+		interrupts = <162 0x2002>;
+
+		/* Other HW Resource */
+		irq-gpio = <&tlmm 162 0x2002>;
+		reset-gpio = <&tlmm 161 0x0>;
+		cs-gpio = <&tlmm 51 0x00>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ts_int_active &ts_reset_active>;
+
+		touchpanel,irq_need_dev_resume_time = <500>;
+		touchpanel,max-num-support = <10>;
+		touchpanel,tx-rx-num = <60 40>;
+		touchpanel,panel-coords = <21200 30000>;
+		touchpanel,display-coords = <2120 3000>;
+		touchpanel,touchmajor-limit = <0 60>;
+
+		touchpanel,pen-tx-rx-num = <12 8>;
+		touchpanel,doze-tx-num = <12>;
+		touchpanel,pen-panel-coords = <21200 30000>;
+		touchpanel,pen-max-pressure = <16384>;
+		touchpanel,pen-max-tilt = <60 60>;
+		touchpanel,msecs-to-jiffies-time = <100>;
+		touchpanel,smooth-level = <0 1 2 6 8 10>;
+		touchpanel,smooth-level-charging = <2 3 7 8 9 10>;
+		touchpanel,sensitive-level = <0 88 80 40 25 12>;
+		tp_type = <15>;//HUAXING
+		panel_type = <15>;
+
+		platform_support_project = <23926 23927 23976 23978>;
+		platform_support_project_dir = <23926 23926 23926 23926>;
+		platform_support_project_commandline = "mdss_dsi_panel_csot_nt36532_2120_3000_dual_dsc_144hz_vid";
+		platform_support_project_external_name = "FA261";
+		vid_len = <7>;
+
+		incell_screen;
+		//iovcc_shutdown_support;
+		fw_edge_limit_support;
+		black_gesture_support;
+		charger_pump_support;
+		esd_handle_support;
+		black_gesture_test_support;
+		game_switch_support;
+		noflash_support;
+		lcd_trigger_load_tp_fw_support;
+		smart_gesture_support;
+		pressure_report_support;
+		pen_support;
+		waterproof_support;
+		irq_need_dev_resume_ok;
+		fw_update_app_support;
+		health_monitor_support;
+		fw_update_in_probe_with_headfile;
+		black_gesture_indep_support;
+		report_rate_limit;
+		touchpanel,button-type = <4>;
+	};
+};
+
+&tlmm {
+	gpio_wakeup: gpio_wakeup {
+		compatible = "gpio_wakeup";
+		gpio_table = <8 11 15 20 23 56 57 59 63 65 66 77 81 84 153 155 171 172 177 188 195>;
+	};
+
+	pmx_ts_int_active {
+		ts_int_active: ts_int_active {
+			mux {
+				pins = "gpio162";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio162";
+				drive-strength = <8>;
+				bias-disable;
+				input-enable;
+			};
+		};
+	};
+
+	pmx_ts_reset_active {
+		ts_reset_active: ts_reset_active {
+			mux {
+				pins = "gpio161";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio161";
+				drive-strength = <8>;
+				output-low;
+				bias-disable;
+			};
+		};
+	};
+
+	qupv3_se4_spi_pins: qupv3_se4_spi_pins {
+		qupv3_se4_spi_miso_active: qupv3_se4_spi_miso_active {
+			mux {
+				pins = "gpio48";
+				function = "qup1_se4_l0";
+			};
+
+			config {
+				pins = "gpio48";
+				drive-strength = <6>;
+				bias-disable;
+			};
+		};
+
+		qupv3_se4_spi_mosi_active: qupv3_se4_spi_mosi_active {
+			mux {
+				pins = "gpio49";
+				function = "qup1_se4_l1";
+			};
+
+			config {
+				pins = "gpio49";
+				drive-strength = <6>;
+				bias-disable;
+			};
+		};
+
+		qupv3_se4_spi_clk_active: qupv3_se4_spi_clk_active {
+			mux {
+				pins = "gpio50";
+				function = "qup1_se4_l2";
+			};
+
+			config {
+				pins = "gpio50";
+				drive-strength = <6>;
+				bias-disable;
+			};
+		};
+
+		qupv3_se4_spi_cs_active: qupv3_se4_spi_cs_active {
+			mux {
+				pins = "gpio51";
+				function = "qup1_se4_l3";
+			};
+
+			config {
+				pins = "gpio51";
+				drive-strength = <6>;
+				bias-disable;
+			};
+		};
+
+		qupv3_se4_spi_sleep: qupv3_se4_spi_sleep {
+			mux {
+				pins = "gpio48", "gpio49",
+						"gpio50";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio48", "gpio49",
+						"gpio50";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+
+		qupv3_se4_spi_cs_sleep: qupv3_se4_spi_cs_sleep {
+			mux {
+				pins = "gpio51";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio51";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+};

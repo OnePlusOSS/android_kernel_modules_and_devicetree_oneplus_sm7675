@@ -1,0 +1,41 @@
+&regulator_ocp_notifier {
+	periph-ac1-supply = <0>;
+	periph-ac2-supply = <0>;
+	periph-ac3-supply = <0>;
+	periph-ac4-supply = <0>;
+	periph-ac5-supply = <0>;
+	periph-ac6-supply = <0>;
+	periph-ac7-supply = <0>;
+	periph-c40-supply = <0>;
+	periph-c41-supply = <0>;
+	periph-c42-supply = <0>;
+	periph-c43-supply = <0>;
+	periph-c44-supply = <0>;
+	periph-c45-supply = <0>;
+	periph-c46-supply = <0>;
+	periph-d40-supply = <0>;
+	periph-d41-supply = <0>;
+	periph-d42-supply = <0>;
+	periph-d43-supply = <0>;
+	periph-d44-supply = <0>;
+	periph-d45-supply = <0>;
+	periph-d46-supply = <0>;
+};
+
+&pm8550b_eusb2_repeater {
+	qcom,param-override-seq = <0x0d 0x51 0x06 0x53 0x06 0x54 0x03 0x57>;
+	qcom,param-override-seq-host = <0x0d 0x51 0x06 0x53 0x04 0x54 0x03 0x57>;
+};
+
+&wcd_usbss {
+	qcom,wcd_usbss_equalizer1 = /bits/ 8 <0xa>;
+};
+
+&usb0 {
+	qcom,wcd_usbss = <&wcd_usbss>;
+	dwc3@a600000 {
+		maximum-speed = "super-speed";
+		snps,usb2-lpm-disable;
+		snps,usb2-gadget-lpm-disable;
+	};
+};

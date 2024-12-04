@@ -1,0 +1,7 @@
+config OPLUS_FPGA_MONITOR
+    tristate "oplus fpga monitor"
+    help
+        Say Y here if want to add fw monitor driver for the built-in oplus fpga monitor.
+        If unsure, say N.
+        To compile this driver as a module, choose M here: the
+        module will be called oplus_fpga_monitor.

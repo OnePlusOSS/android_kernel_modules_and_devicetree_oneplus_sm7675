@@ -1,0 +1,71 @@
+&pm8550b_haptics {
+	qcom,vmax-mv = <2400>;
+	qcom,cl-vmax-mv = <2400>;
+	qcom,lra-period-us = <7692>;
+	qcom,fifo-vmax-mv = <7490>;
+	qcom,old-steady-vmax-mv = <7490>;
+	qcom,brake-mode = <BRAKE_OPEN_LOOP>;
+	qcom,cal-data-restore;
+	qcom,fifo-empty-threshold = <480>;
+	qcom,vibrator-type = <9999>;//luxun
+	qcom,vbat-low-soc = <5>;
+	qcom,vbat-low-fifo-vmax-mv = <6700>;
+};
+
+&soc {
+	feedback_fb: feedback_fb {
+		compatible = "oplus,haptic-feedback";
+	};
+};
+
+&pm8550b_eusb2_repeater {
+	qcom,param-override-seq = <0x0f 0x51 0x07 0x53 0x02 0x54 0x03 0x55 0x07 0x57>;
+	qcom,param-override-seq-host = <0x08 0x51 0x07 0x53 0x06 0x54  0x01 0x55 0x03 0x57>;
+};
+
+&soc {
+	usb_nop_phy: usb_nop_phy {
+		compatible = "usb-nop-xceiv";
+	};
+};
+
+&usb0 {
+/delete-property/ extcon;
+	dwc3@a600000 {
+		usb-phy = <&eusb2_phy0>, <&usb_nop_phy>;
+		maximum-speed = "high-speed";
+		dr_mode = "otg";
+		snps,usb2-lpm-disable;
+		snps,usb2-gadget-lpm-disable;
+	};
+};
+
+&usb_qmp_dp_phy {
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb3phy_portselect_default>;
+	status = "disabled";
+};
+
+&battery_charger {
+	qcom,otg_boost_src = <0>; /* 0:plat_pmic 1:external */
+};
+
+&regulator_ocp_notifier {
+	periph-d40-supply = <0>;
+	periph-d41-supply = <0>;
+	periph-d42-supply = <0>;
+	periph-d43-supply = <0>;
+	periph-d44-supply = <0>;
+	periph-d45-supply = <0>;
+	periph-d46-supply = <0>;
+};
+
+&pm8550b_bcl {
+	compatible = "qcom,bcl-v5";
+	bcl,support_track;
+};
+
+&pm8550_bcl {
+	compatible = "qcom,bcl-v5";
+	bcl,support_track;
+};

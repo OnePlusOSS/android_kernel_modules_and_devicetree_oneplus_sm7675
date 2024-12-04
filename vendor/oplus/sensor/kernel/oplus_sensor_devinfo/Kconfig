@@ -1,0 +1,15 @@
+config OPLUS_SENSOR_MTK68XX
+	bool "for MediaTek 68xx"
+	default n
+	help
+	  It support 68xx.
+config OPLUS_SENSOR_FB_MTK
+	tristate "sensor feedback config for qcom"
+	help
+	  To compile this driver as a module, set M in kernel build config
+	  module will be called sensor_feedback.
+config OPLUS_SENSOR_DEVINFO_V2
+  tristate "support oplus sensor device information for new kernel"
+  default n
+  help
+    define this config to support oplus sensor devinfo

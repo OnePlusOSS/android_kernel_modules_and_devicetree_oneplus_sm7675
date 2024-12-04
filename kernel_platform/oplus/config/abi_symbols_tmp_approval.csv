@@ -1,0 +1,28 @@
+android_vh_pcpu_rwsem_handler,80261225
+__tracepoint_android_vh_binder_buffer_release,80048997
+__tracepoint_android_vh_rwsem_direct_rsteal,80233409
+__tracepoint_android_vh_rwsem_optimistic_rspin,80233409
+osq_lock,80233409
+osq_unlock,80233409
+__tracepoint_android_vh_binder_find_desc,80322712
+__tracepoint_android_vh_binder_set_desc_bit,80322712
+__tracepoint_android_vh_binder_desc_init,80322712
+qdisc_hash_add, 80393944
+gnet_stats_add_queue, 80393944
+pfifo_qdisc_ops, 80393944
+psched_ratecfg_precompute, 80393944
+noop_qdisc, 80393944
+qdisc_watchdog_cancel, 80393944
+__netif_schedule, 80393944
+qdisc_reset, 80393944
+qdisc_watchdog_schedule_range_ns, 80393944
+gnet_stats_copy_basic, 80393944
+qdisc_create_dflt, 80393944
+__qdisc_calculate_pkt_len, 80393944
+qdisc_tree_reduce_backlog, 80393944
+qdisc_put, 80393944
+gnet_stats_copy_queue, 80393944
+tcf_block_get, 80393944
+tcf_block_put, 80393944
+tcf_classify, 80393944
+qdisc_watchdog_init, 80393944

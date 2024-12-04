@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+config OPLUS_FEATURE_SLC
+  tristate "oplus slc driver"
+    default n
+    help
+      arrange slc policy.

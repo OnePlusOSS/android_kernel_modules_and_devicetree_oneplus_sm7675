@@ -1,0 +1,97 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/oplus/hw-id.h>
+#include "../qcom/pineapple-mtp-overlay.dts"
+#include "pineapple_overlay_common.dtsi"
+#include "giulia_overlay_common.dtsi"
+#include "oplus_chg/oplus-chg-23851-T0.dtsi"
+#include "oplus_fp/oplus_fp_23851_23867_23868_23869.dtsi"
+#include "oplus_misc/oplus-misc-23851.dtsi"
+#include "tp/giulia-oplus-tp-23851.dtsi"
+#include "oplus_nfc/giulia_nfc.dtsi"
+#include "sensor/giulia-sensor-23851.dtsi"
+
+/ {
+    model = "Qualcomm Technologies, Inc. Pineapple MTP,giulia-T0";
+
+    oplus,project-id = <23851>;
+    oplus,hw-id = <OPLUS_EVB1 OPLUS_T0>;
+};
+
+&tlmm {
+	//#ifdef OPLUS_FEATURE_RF_CABLE_DETECT
+	rf_cable0_active: rf_cable0_active {
+		mux {
+			pins = "gpio98";
+			function = "gpio";
+		};
+		config {
+			pins = "gpio98";
+			drive-strength = <2>;
+			input-enable;
+			bias-pull-up;
+		};
+	};
+	//#endif /* OPLUS_FEATURE_RF_CABLE_DETECT */
+};
+
+&soc {
+
+	//#ifdef OPLUS_FEATURE_RF_CABLE_DETECT
+	oplus_rf_cable {
+		compatible = "oplus,rf_cable";
+		interrupt-parent = <&tlmm>;
+		rf_cable_support_num = <1>;
+		rf,cable0-gpio = <&tlmm 98 0>;
+		rf,cable-support-timer = <0>;
+		pinctrl-names = "rf_cable_active";
+		pinctrl-0 = <&rf_cable0_active>;
+	};
+	//#endif /* OPLUS_FEATURE_RF_CABLE_DETECT */
+
+  //#ifdef OPLUS_FEATURE_ESIM
+  oplus-gpio {
+    compatible = "oplus,oplus-gpio";
+    pinctrl-names = "oplus_esim";
+    pinctrl-0 = <&esim_gpio &esim_det_gpio &esim_en_gpio>;
+    oplus,oplus-gpio-esim = <&pm8550_gpios 9 GPIO_ACTIVE_LOW>;
+    oplus,oplus-esim-det = <&pm8550_gpios 11 GPIO_ACTIVE_LOW>;
+    oplus,oplus-esim-en = <&pm8550vs_g_gpios 6 GPIO_ACTIVE_LOW>;
+    oplus,uim-reset-pin = "modem_solution";
+  };
+  oplus_sim_detect {
+    compatible = "oplus, sim_detect";
+    Hw,sim_det = "modem_det";
+  };
+  //#endif /*OPLUS_FEATURE_ESIM*/
+};
+
+&pm8550_gpios {
+  esim_gpio: esim_gpio {
+      pins = "gpio9";
+      function = "normal";
+      bias-disable; /* NO pull */
+      qcom,drive-strength = <2>; /* 2 MA */
+      power-source = <1>; /* 1.2V */
+      output-high;
+  };
+  esim_det_gpio: esim_det_gpio {
+      pins = "gpio11";
+      function = "normal";
+      bias-disable; /* NO pull */
+      qcom,drive-strength = <2>; /* 2 MA */
+      power-source = <2>; /* 1.2V */
+      output-high;
+  };
+};
+
+&pm8550vs_g_gpios {
+  esim_en_gpio: esim_en_gpio  {
+      pins = "gpio6";
+      function = "normal";
+      bias-disable; /* NO pull */
+      qcom,drive-strength = <2>; /* 2 MA */
+      power-source = <2>; /* 1.2V */
+      output-high;
+  };
+};

@@ -1,0 +1,50 @@
+&qupv3_se7_i2c {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    status = "ok";
+    aw37004@28{
+        compatible = "qualcomm,aw37004";
+        reg = <0x28>;
+        status = "okay";
+
+		aw37004_dvdd1:on,aw37004@0{
+			offset = /bits/ 16 <0x0000>;
+			regulator-name ="aw37004-dvdd1";
+			regulator-min-microvolt = <600000>;
+			regulator-max-microvolt = <1800000>;
+			min-dropout-voltage = <100000>;
+			init-voltage = <1050000>;
+			iout_ua = <650000>;
+		};
+
+		aw37004_dvdd2:on,aw37004@1{
+			offset = /bits/ 16 <0x0001>;
+			regulator-name ="aw37004-dvdd2";
+			regulator-min-microvolt = <600000>;
+			regulator-max-microvolt = <1800000>;
+			min-dropout-voltage = <100000>;
+			init-voltage = <1200000>;
+			iout_ua = <650000>;
+		};
+
+		aw37004_avdd1:on,aw37004@2{
+			offset = /bits/ 16 <0x0002>;
+			regulator-name ="aw37004-avdd1";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <4300000>;
+			min-dropout-voltage = <200000>;
+			init-voltage = <2800000>;
+			iout_ua = <650000>;
+		};
+
+		aw37004_avdd2:on,aw37004@3{
+			offset = /bits/ 16 <0x0003>;
+			regulator-name ="aw37004-avdd2";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <4300000>;
+			min-dropout-voltage = <200000>;
+			init-voltage = <2800000>;
+			iout_ua = <650000>;
+		};
+    };
+};

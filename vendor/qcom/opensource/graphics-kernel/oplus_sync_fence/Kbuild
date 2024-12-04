@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+obj-y += oplus_sync_fence.o
+oplus_sync_fence-y := src/oplus_sync_file.o

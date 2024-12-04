@@ -1,0 +1,139 @@
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interconnect/qcom,pineapple.h>
+
+
+&tlmm {
+	qupv3_se7_2uart_tx_active: qupv3_se7_2uart_tx_active {
+		mux {
+			pins = "gpio62";
+			function = "qup1_se7_l2";
+		};
+
+		config {
+			pins = "gpio62";
+			drive-strength = <8>;
+			bias-disable;
+		};
+	};
+};
+
+&qupv3_1 {
+	qupv3_se7_2uart: qcom,qup_uart@a9c000 {
+		compatible = "qcom,msm-geni-serial-hs";
+		reg = <0xa9c000 0x4000>;
+		reg-names = "se_phys";
+		interrupts-extended = <&intc GIC_SPI 579 IRQ_TYPE_LEVEL_HIGH>,
+			 <&tlmm 63 IRQ_TYPE_NONE>;
+		clock-names = "se-clk";
+		clocks = <&gcc GCC_QUPV3_WRAP1_S7_CLK>;
+		interconnect-names = "qup-core", "qup-config", "qup-memory";
+		interconnects =
+		<&clk_virt MASTER_QUP_CORE_1 &clk_virt SLAVE_QUP_CORE_1>,
+		<&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_QUP_1>,
+		<&aggre1_noc MASTER_QUP_1 &mc_virt  SLAVE_EBI1>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&qupv3_se7_2uart_tx_active>;
+		pinctrl-1 = <&qupv3_se7_2uart_tx_active>;
+		qcom,wakeup-byte = <0xFD>;
+		qcom,auto-suspend-disable;
+		status = "ok";
+	};
+};
+
+&tlmm {
+	uart_rx_set: uart_rx_set {
+		mux {
+			pins = "gpio63";
+			function = "qup1_se7_l3";
+		};
+
+		config {
+			pins = "gpio63";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+	uart_rx_clear: uart_rx_clear {
+		mux {
+			pins = "gpio63";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio63";
+			drive-strength = <2>;
+			input-enable;
+			bias-disable;
+		};
+	};
+
+    uart_wake_gpio: uart_wake_gpio {
+		mux {
+			pins = "gpio137";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio137";
+			drive-strength = <2>;
+			bias-pull-up;
+			input-enable;
+		};
+    };
+
+    pogo_power_enable: pogo_power_enable {
+        mux {
+			pins = "gpio100";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio100";
+			output-high;
+		};
+    };
+
+    pogo_power_disable: pogo_power_disable {
+        mux {
+			pins = "gpio100";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio100";
+			output-low;
+		};
+    };
+};
+
+&soc {
+    pogo_keyboard {
+        compatible = "tinno,pogo_keyboard";
+        status = "ok";
+
+        uart-tx-en-gpio = <&tlmm 14 0x00>;
+        uart-wake-gpio = <&tlmm 137 0x00>;
+
+        pinctrl-names = "default", "sleep", "uart_rx_set", "uart_rx_clear", "uart_wake_gpio", "pogo_power_enable", "pogo_power_disable";
+        pinctrl-0 = <&uart_rx_set>;
+        pinctrl-1 = <&uart_rx_set>;
+        pinctrl-2 = <&uart_rx_set>;
+        pinctrl-3 = <&uart_rx_clear>;
+        pinctrl-4 = <&uart_wake_gpio>;
+        pinctrl-5 = <&pogo_power_enable>;
+        pinctrl-6 = <&pogo_power_disable>;
+
+        tty-name-string = "ttyHS5";
+        pogopin-battery-support;
+        keyboard-name-strings =
+            "OPPO Pad 3 Pro Keyboard(Pogo Pin)",
+            "OnePlus Pad Pro Keyboard(Pogo Pin)",
+            "OnePlus Pad Smart Keyboard(Pogo Pin)";
+        keyboard-ble-name-strings =
+            "OPPO Pad 3 Pro Keyboard",
+            "OnePlus Pad Pro Keyboard",
+            "OnePlus Pad Smart Keyboard";
+        touchpad-xy-max = <2764 1630>;
+    };
+};

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2018-2022 Oplus. All rights reserved.
+
+source "$(KCONFIG_EXT_PREFIX)kernel/oplus_cpu/cpufreq_health/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)kernel/oplus_cpu/cpufreq_bouncing/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)kernel/oplus_cpu/sched/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)kernel/oplus_cpu/uad/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)kernel/oplus_cpu/oplus_slc/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)kernel/oplus_cpu/oplus_omrg/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)kernel/oplus_cpu/oplus_overload/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)kernel/oplus_cpu/waker_identify/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)kernel/oplus_cpu/oplus_game/Kconfig"
