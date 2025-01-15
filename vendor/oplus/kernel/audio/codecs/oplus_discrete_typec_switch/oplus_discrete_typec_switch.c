@@ -20,11 +20,27 @@
 #include <soc/oplus/system/oplus_mm_kevent_fb.h>
 #endif
 
-extern int typec_sw_eint_handler(void);
-int __attribute__((weak)) typec_sw_eint_handler(void)
+//#ifdef OPLUS_ARCH_EXTENDS
+/* 2024/1/8, add for supporting type-c headphone detect bypass */
+int (*ptypec_ext_eint_handler)(void) = NULL;
+
+int typec_discrete_ext_eint_handler(void)
 {
-	return 0;
+    if (ptypec_ext_eint_handler) {pr_info("ext_eint_handler register");
+        ptypec_ext_eint_handler();
+        return 0;
+    } else {
+        pr_info("ext_eint_handler not register");
+        return -1;
+    }
 }
+
+void register_discrete_ext_eint_handler(int (*phandler)(void))
+{
+    ptypec_ext_eint_handler = phandler;
+}
+EXPORT_SYMBOL(register_discrete_ext_eint_handler);
+//#endif
 
 
 static struct typec_switch_priv *g_typec_switch_priv = NULL;
@@ -141,7 +157,7 @@ static int oplus_discrete_typec_switch_usbc_analog_setup_switches(struct typec_s
 				pr_info("%s: swap mic gnd 2nd pin.\n", __func__);
 				gpio_direction_output(switch_priv->mic_gnd_swh_2nd_pin, !switch_priv->mic_gnd_swh_2nd_level);
 			}
-			typec_sw_eint_handler();
+			typec_discrete_ext_eint_handler();
 		} else {
 			if (gpio_is_valid(switch_priv->hs_det_pin)) {
 				dev_info(dev, "%s, %d: set hs_det_pin %d to enable.\n", __func__, __LINE__, switch_priv->hs_det_pin);
@@ -155,7 +171,7 @@ static int oplus_discrete_typec_switch_usbc_analog_setup_switches(struct typec_s
 		}
 	} else {
 		if (switch_priv->hs_det_bypass) {
-			typec_sw_eint_handler();
+			typec_discrete_ext_eint_handler();
 		} else {
 			if (gpio_is_valid(switch_priv->hs_det_pin)) {
 				dev_info(dev, "%s: set hs_det_pin to disable.\n", __func__);

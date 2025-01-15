@@ -47,8 +47,8 @@
 #define MAX_UXMEM_POOL_ALLOC_RETRIES (5)
 
 static const unsigned int orders[] = {0, 1};
-/* 64M for order 0, 8M  for order1 by default */
-static const unsigned int page_pool_nr_pages[] = {(SZ_64M >> PAGE_SHIFT), (SZ_8M >> PAGE_SHIFT)};
+/* 96M for order 0, 8M  for order1 by default */
+static const unsigned int page_pool_nr_pages[] = {((SZ_64M + SZ_32M) >> PAGE_SHIFT), (SZ_8M >> PAGE_SHIFT)};
 #define NUM_ORDERS ARRAY_SIZE(orders)
 static struct page_pool *pools[NUM_ORDERS];
 static struct task_struct *ux_page_pool_tsk = NULL;
@@ -677,7 +677,7 @@ static void meminfo_adjust(void *data, unsigned long *totalram, unsigned long *f
 		for (i = 0; i < NUM_ORDERS; i++) {
 			pool = pools[i];
 			for (j = 0; j < POOL_MIGRATETYPE_TYPES_SIZE; j++) {
-				pool_pages += pool->count[j] >> orders[i];
+				pool_pages += pool->count[j] << orders[i];
 			}
 		}
 		*freeram += pool_pages;

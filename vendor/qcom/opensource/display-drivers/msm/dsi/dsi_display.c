@@ -38,6 +38,7 @@
 #include "../oplus/oplus_display_panel_common.h"
 #include "../oplus/oplus_display_panel.h"
 #include "../oplus/oplus_display_interface.h"
+#include "../oplus/oplus_bl.h"
 #include <soc/oplus/system/oplus_project.h>
 #endif /* OPLUS_FEATURE_DISPLAY */
 
@@ -9400,6 +9401,8 @@ int dsi_display_enable(struct dsi_display *display)
 		oplus_display_update_current_display();
 		__oplus_set_power_status(OPLUS_DISPLAY_POWER_ON);
 		display->panel->power_mode = SDE_MODE_DPMS_ON;
+		/* Force update of demurra2 offset from UEFI stage to Kernel stage*/
+		oplus_panel_need_to_set_demura2_offset(display->panel);
 #endif /* OPLUS_FEATURE_DISPLAY */
 		return 0;
 	}
@@ -9424,6 +9427,8 @@ int dsi_display_enable(struct dsi_display *display)
 		}
 #ifdef OPLUS_FEATURE_DISPLAY
 		oplus_display_update_current_display();
+		/* Force update of demurra2 offset when panel power on*/
+		oplus_panel_need_to_set_demura2_offset(display->panel);
 		oplus_panel_switch_vid_mode(display, mode);
 #endif /* OPLUS_FEATURE_DISPLAY */
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR

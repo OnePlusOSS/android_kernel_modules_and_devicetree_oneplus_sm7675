@@ -82,6 +82,9 @@ static inline int get_task_cls_for_scene(struct task_struct *task)
 	if (sched_assist_scene(SA_LAUNCH) && test_sched_assist_ux_type(task, SA_TYPE_HEAVY | SA_TYPE_ANIMATOR))
 		return test_sched_assist_ux_type(task, SA_TYPE_ANIMATOR) ? cls_mid : cls_max;
 
+	if (global_lowend_plat_opt && test_sched_assist_ux_type(task, SA_TYPE_HEAVY) && is_heavy_load_top_task(task))
+		return cls_mid;
+
 	if (sched_assist_scene(SA_ANIM) && test_sched_assist_ux_type(task, SA_TYPE_ANIMATOR))
 		return is_task_util_over(task, BOOST_THRESHOLD_UNIT) ? cls_mid : 0;
 
@@ -200,10 +203,38 @@ static inline unsigned long uclamp_task_util(struct task_struct *p)
 }
 #endif
 
-int task_fits_capacity(struct task_struct *p, long capacity)
+static inline bool task_fits_capacity(struct task_struct *p, long capacity)
 {
 	return fits_capacity(uclamp_task_util(p), capacity);
 }
+
+static inline bool task_fits_max(struct task_struct *p, int dst_cpu)
+{
+	unsigned long capacity = 0;
+
+#ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
+	capacity = capacity_orig_of(dst_cpu);
+#else
+	struct rq *rq = cpu_rq(dst_cpu);
+	capacity = rq->cpu_capacity;
+#endif
+
+	return task_fits_capacity(p, capacity);
+}
+
+/* Todo:  @bug:7901603 This function needs to be put into is_ux_task_prefer_cpu_for_scene */
+#ifdef CONFIG_ARCH_MEDIATEK
+static inline bool ux_eas_skip_little_cluster(struct task_struct *p, int dst_cpu)
+{
+	int cls_id = topology_cluster_id(dst_cpu);
+	int prefer_cls_id = get_task_cls_for_scene(p);
+
+	if (cls_id == 0 && prefer_cls_id == 0)
+		return task_fits_max(p, dst_cpu);
+
+	return true;
+}
+#endif
 
 int get_topology_cluster_id(int cpu)
 {
@@ -234,7 +265,6 @@ bool set_ux_task_to_prefer_cpu(struct task_struct *task, int *orig_target_cpu)
 	bool invalid_target = false;
 	int orig_cls_id = 0;
 	cpumask_t search_cpus = CPU_MASK_NONE;
-	unsigned long cpu_capacity = 0;
 
 	if (unlikely(!global_sched_assist_enabled))
 		return false;
@@ -257,14 +287,23 @@ bool set_ux_task_to_prefer_cpu(struct task_struct *task, int *orig_target_cpu)
 		orig_cls_id = get_topology_cluster_id(*orig_target_cpu);
 	}
 
+#ifdef CONFIG_ARCH_MEDIATEK
+	if (!invalid_target && !test_task_ux(orig_rq->curr)
+		&& !orq_has_ux_tasks(orig_orq) && !orig_rq->rt.rt_nr_running
+		&& is_ux_task_prefer_cpu_for_scene(task, *orig_target_cpu)
+		&& ux_eas_skip_little_cluster(task, *orig_target_cpu))
+#else
 	if (!invalid_target && !test_task_ux(orig_rq->curr)
 		&& !orq_has_ux_tasks(orig_orq) && !orig_rq->rt.rt_nr_running
 		&& is_ux_task_prefer_cpu_for_scene(task, *orig_target_cpu))
+#endif
 		return false;
 
 	start_cls = cls_nr = get_task_cls_for_scene(task);
-	/* Avoiding ux core selection can easily lead to small cores for tasks
-	 * that would otherwise be on large cores */
+	/*
+	 * Avoiding ux core selection can easily lead to small cores for tasks
+	 * that would otherwise be on large cores
+	 */
 	if (start_cls < orig_cls_id) {
 		start_cls = orig_cls_id;
 		cls_nr = orig_cls_id;
@@ -285,12 +324,7 @@ retry:
 		rq = cpu_rq(cpu);
 		orq = (struct oplus_rq *)rq->android_oem_data1;
 
-#ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
-		cpu_capacity = capacity_orig_of(cpu);
-#else
-		cpu_capacity = rq->cpu_capacity;
-#endif
-		if ((cls_nr == 0) && (!task_fits_capacity(task, cpu_capacity)))
+		if (cls_nr == 0 && !task_fits_max(task, cpu))
 			break;
 
 		/*

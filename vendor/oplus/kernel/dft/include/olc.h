@@ -36,6 +36,7 @@ extern "C" {
 #define LOG_QCOM_MINIDUMP    (0x1 << 27)
 #define LOG_STORAGE          (0x1L << 41)
 #define LOG_CHARGER          (0x1L << 42)
+#define LOG_DISPLAYUNDERRUN  (0x1L << 48)
 
 #define EXP_LEVEL_CRITICAL  1
 #define EXP_LEVEL_IMPORTANT 2

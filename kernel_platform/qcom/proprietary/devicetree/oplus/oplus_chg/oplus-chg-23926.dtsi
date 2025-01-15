@@ -91,6 +91,7 @@
 	oplus_chg_core {
 		oplus,chg_framework_v2;
 		oplus,smart_charging_screenoff;
+		oplus,common-charge-icl-support;
 
 		oplus-charger {
 			plat_pm8550_groups: oplus,plat_pm8550-groups {

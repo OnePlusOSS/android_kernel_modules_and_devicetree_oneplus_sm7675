@@ -1854,21 +1854,6 @@ static void vh_alloc_pages_slowpath(void *data, gfp_t gfp_flags,
 		wake_all_swapd();
 }
 
-static void vh_shrink_slab_bypass(void *data, gfp_t gfp_mask, int nid,
-			   struct mem_cgroup *memcg, int priority,
-			   bool *bypass)
-{
-	/*
-	 * 1. hybridswapd do not shirink slab.
-	 * 2. if task prio is low, bypass shrink slab to prevent priority
-	 * inversion.
-	 * 3. thread who is doing force shrink, bypass shrink slab
-	 */
-	if (current_is_hybrid_swapd() || current->prio > 120 ||
-		(current->flags & PF_IN_FORCE_SHRINK_CONTEXT))
-		*bypass = true;
-}
-
 static int create_swapd_thread(struct zram *zram)
 {
 	int nid;
@@ -2163,5 +2148,4 @@ void hybridswapd_ops_init(struct hybridswapd_operations *ops)
 
 	ops->vh_alloc_pages_slowpath = vh_alloc_pages_slowpath;
 	ops->vh_tune_scan_type = vh_tune_scan_type;
-	ops->vh_shrink_slab_bypass = vh_shrink_slab_bypass;
 }

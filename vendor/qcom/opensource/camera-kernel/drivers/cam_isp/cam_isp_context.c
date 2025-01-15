@@ -2380,9 +2380,15 @@ static int __cam_isp_ctx_handle_buf_done_for_request_verify_addr(
 				ctx_isp->isp_device_type,
 				req_isp->fence_map_out[j].resource_handle);
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			CAM_DBG(CAM_ISP,
+				"Duplicate BUF_DONE for req %lld : i=%d, j=%d, res=%s, ctx %u, link[0x%x]",
+				req->request_id, i, j, handle_type, ctx->ctx_id, ctx->link_hdl);
+#else
 			CAM_WARN(CAM_ISP,
 				"Duplicate BUF_DONE for req %lld : i=%d, j=%d, res=%s, ctx %u, link[0x%x]",
 				req->request_id, i, j, handle_type, ctx->ctx_id, ctx->link_hdl);
+#endif
 
 			trace_cam_log_event("Duplicate BufDone",
 				handle_type, req->request_id, ctx->ctx_id);

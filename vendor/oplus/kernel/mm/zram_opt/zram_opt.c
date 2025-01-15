@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/types.h>
 #include <trace/hooks/vmscan.h>
+#include <trace/hooks/mm.h>
 #include <linux/swap.h>
 #include <linux/proc_fs.h>
 #include <linux/mm.h>
@@ -28,6 +29,10 @@ static struct proc_dir_entry *dynamic_swappiness_entry;
 
 #define check_swappiness(val) (((val) > 200) || ((val) < 0))
 #define check_vm_threshold(val) ((val) < 0)
+#endif
+
+#ifdef CONFIG_OPLUS_EXTRA_FREE_KBYTES
+static int oplus_extra_free_kbytes = 0;
 #endif
 
 #define PARA_BUF_LEN 128
@@ -119,6 +124,61 @@ static void balance_reclaim(void *unused, bool *balance_anon_file_reclaim)
 }
 #endif /* CONFIG_OPLUS_BALANCE_ANON_FILE_RECLAIM */
 
+#ifdef CONFIG_OPLUS_EXTRA_FREE_KBYTES
+struct pglist_data *first_online_pgdat(void)
+{
+	return NODE_DATA(first_online_node);
+}
+
+struct pglist_data *next_online_pgdat(struct pglist_data *pgdat)
+{
+	int nid = next_online_node(pgdat->node_id);
+
+	if (nid == MAX_NUMNODES)
+		return NULL;
+	return NODE_DATA(nid);
+}
+
+struct zone *next_zone(struct zone *zone)
+{
+	pg_data_t *pgdat = zone->zone_pgdat;
+
+	if (zone < pgdat->node_zones + MAX_NR_ZONES - 1)
+		zone++;
+	else {
+		pgdat = next_online_pgdat(pgdat);
+		if (pgdat)
+			zone = pgdat->node_zones;
+		else
+			zone = NULL;
+	}
+	return zone;
+}
+static void adjust_zone_wmark(void *unused, struct zone *zone, u64 interval)
+{
+	unsigned long delta;
+	unsigned long lowmem_pages = 0;
+	struct zone *z;
+
+	if (!oplus_extra_free_kbytes)
+		return;
+
+	for_each_zone(z) {
+		if (!is_highmem(z))
+			lowmem_pages += zone_managed_pages(z);
+	}
+
+	if (is_highmem(zone))
+		return;
+
+	delta = oplus_extra_free_kbytes >> (PAGE_SHIFT - 10);
+	delta *= zone_managed_pages(zone);
+	do_div(delta, lowmem_pages);
+	zone->_watermark[WMARK_LOW] += delta;
+	zone->_watermark[WMARK_HIGH] += delta;
+}
+#endif
+
 static int register_zram_opt_vendor_hooks(void)
 {
 	int ret = 0;
@@ -147,12 +207,24 @@ static int register_zram_opt_vendor_hooks(void)
 	}
 #endif /* CONFIG_OPLUS_BALANCE_ANON_FILE_RECLAIM */
 
+#ifdef CONFIG_OPLUS_EXTRA_FREE_KBYTES
+	ret = register_trace_android_vh_init_adjust_zone_wmark(adjust_zone_wmark,
+								       NULL);
+	if (ret) {
+		pr_err("Failed to register adjust_zone_wmark hooks\n");
+		return ret;
+	}
+#endif
+
 out:
 	return ret;
 }
 
 static void unregister_zram_opt_vendor_hooks(void)
 {
+#ifdef CONFIG_OPLUS_EXTRA_FREE_KBYTES
+	unregister_trace_android_vh_init_adjust_zone_wmark(adjust_zone_wmark, NULL);
+#endif
 	unregister_trace_android_vh_tune_swappiness(zo_set_swappiness, NULL);
 
 	return;
@@ -435,5 +507,8 @@ module_param_named(vm_swappiness_threshold1, threshold1_vm_swappiness, int, S_IR
 module_param_named(vm_swappiness_threshold2, threshold2_vm_swappiness, int, S_IRUGO | S_IWUSR);
 module_param_named(swappiness_threshold1_size, threshold1_swappiness_size, int, S_IRUGO | S_IWUSR);
 module_param_named(swappiness_threshold2_size, threshold2_swappiness_size, int, S_IRUGO | S_IWUSR);
+#endif
+#ifdef CONFIG_OPLUS_EXTRA_FREE_KBYTES
+module_param_named(oplus_extra_free_kbytes, oplus_extra_free_kbytes, int, S_IRUGO | S_IWUSR);
 #endif
 MODULE_LICENSE("GPL v2");

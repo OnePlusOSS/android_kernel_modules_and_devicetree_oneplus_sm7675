@@ -91,6 +91,11 @@ typedef struct fp_tp_ai_film_info {
     uint8_t reserved[4];
 } fp_tp_ai_film_info_t;
 
+typedef struct fp_tp_under_water_info {
+    bool is_underwater;
+    uint8_t reserved[4];
+} fp_tp_under_water_info_t;
+
 typedef struct netlink_msg_info {
     uint8_t netlink_cmd;
     fp_underscreen_info_t tp_info;

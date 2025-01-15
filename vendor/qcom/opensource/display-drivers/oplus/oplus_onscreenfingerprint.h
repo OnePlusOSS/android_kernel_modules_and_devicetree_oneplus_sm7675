@@ -229,6 +229,7 @@ int oplus_ofp_aod_off_hbm_on_delay_check(void *sde_encoder_phys);
 int oplus_ofp_aod_off_cmdq_delay_check(void *dsi_panel);
 int oplus_ofp_aod_off_backlight_recovery(void *sde_encoder_virt);
 int oplus_ofp_ultra_low_power_aod_update(void *sde_encoder_virt);
+bool oplus_ofp_get_aod_state(void);
 
 /* -------------------- node -------------------- */
 /* fp_type */

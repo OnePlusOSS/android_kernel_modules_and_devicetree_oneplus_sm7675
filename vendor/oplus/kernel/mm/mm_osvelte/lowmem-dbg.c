@@ -25,7 +25,7 @@
 #include <linux/vmstat.h>
 #include <linux/vmalloc.h>
 #include <linux/errno.h>
-#include <trace/hooks/vmscan.h>
+#include <trace/events/vmscan.h>
 
 #ifdef CONFIG_ANDROID_DEBUG_SYMBOLS
 #include <linux/android_debug_symbols.h>
@@ -556,7 +556,7 @@ static void lowmem_dbg_dump(struct work_struct *work)
 	} while (0)
 #endif
 
-void shrink_slab_vh(void *data, struct shrinker *shrinker, long *freeable)
+void direct_reclaim_vh(void *data, int order, gfp_t gfp_flags)
 {
 	struct lowmem_dbg_cfg *cfg = &g_cfg;
 	static atomic_t atomic_lmk = ATOMIC_INIT(0);
@@ -599,8 +599,7 @@ int osvelte_lowmem_dbg_init(struct proc_dir_entry *root)
 	struct lowmem_dbg_cfg *cfg = &g_cfg;
 	unsigned long total_ram = sys_totalram();
 
-	/* TODO slowpath vendor hook not included in android list, so use shrink_slab for now */
-	if (register_trace_android_vh_do_shrink_slab(shrink_slab_vh, NULL)) {
+	if (register_trace_mm_vmscan_direct_reclaim_begin(direct_reclaim_vh, NULL)) {
 		pr_err("register lowmem-dbg vendor hook failed\n");
 		return -EINVAL;
 	}
@@ -638,6 +637,6 @@ int osvelte_lowmem_dbg_init(struct proc_dir_entry *root)
 
 int osvelte_lowmem_dbg_exit(void)
 {
-	unregister_trace_android_vh_do_shrink_slab(shrink_slab_vh, NULL);
+	unregister_trace_mm_vmscan_direct_reclaim_begin(direct_reclaim_vh, NULL);
 	return 0;
 }

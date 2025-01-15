@@ -8,6 +8,8 @@
 
 #define EVENT_ACTION_FOR_FINGPRINT 0x01
 #define EVENT_ACTION_FOR_FILM      0x02
+#define EVENT_ACTION_FOR_FP_GIRP   0x03
+#define EVENT_ACTION_UNDER_WATER   0x04
 
 struct touchpanel_event {
 	int touchpanel_id;

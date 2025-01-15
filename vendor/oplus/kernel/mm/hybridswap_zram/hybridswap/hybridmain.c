@@ -407,12 +407,6 @@ static int register_all_hooks(void)
 
 	/* tune_scan_type_hook */
 	REGISTER_HOOK(tune_scan_type);
-
-	rc = register_trace_android_vh_shrink_slab_bypass(hybridswapd_ops->vh_shrink_slab_bypass, NULL);
-	if (rc) {
-		log_err("register shrink_slab_bypass failed\n");
-		goto err_out_shrink_slab_bypass;
-	}
 #endif
 #ifdef CONFIG_HYBRIDSWAP_CORE
 	/* mem_cgroup_id_remove_hook */
@@ -428,8 +422,6 @@ ERROR_OUT(shrink_node_memcgs):
 ERROR_OUT(mem_cgroup_id_remove):
 #endif
 #ifdef CONFIG_HYBRIDSWAP_SWAPD
-	unregister_trace_android_vh_shrink_slab_bypass(hybridswapd_ops->vh_shrink_slab_bypass, NULL);
-err_out_shrink_slab_bypass:
 	UNREGISTER_HOOK(tune_scan_type);
 ERROR_OUT(tune_scan_type):
 	/* UNREGISTER_HOOK(rmqueue);

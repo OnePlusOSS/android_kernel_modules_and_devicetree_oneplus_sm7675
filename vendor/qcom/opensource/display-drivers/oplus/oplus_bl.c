@@ -495,13 +495,13 @@ int oplus_display_panel_set_demura2_offset(void)
 
 	display = get_main_display();
 	if (!display) {
-		DSI_ERR("[%s] failed to set demura2 offset, Invalid params\n", panel->name);
+		DSI_ERR("failed to set demura2 offset, Invalid params\n");
 		return -EINVAL;
 	}
 
 	panel = display->panel;
 	if (!panel) {
-		DSI_ERR("[%s] failed to set demura2 offset, Invalid params\n", panel->name);
+		DSI_ERR("failed to set demura2 offset, Invalid params\n");
 		return -EINVAL;
 	}
 

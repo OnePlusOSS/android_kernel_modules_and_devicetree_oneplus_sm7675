@@ -2424,8 +2424,8 @@ static int fts_mode_switch(void *chip_data, work_mode mode, int flag)
 	/*        break;*/
 
 	case MODE_GLOVE:
-		TPD_INFO("MODE_GLOVE, Melo, ts->glove_enable = %d \n",
-		         ts_data->ts->glove_enable);
+		TPD_INFO("MODE_GLOVE, Melo, ts->glove_enable = %d ts->pocket_prevent_mode = %d flag = %d\n",
+		         ts_data->ts->glove_enable, ts_data->ts->pocket_prevent_mode, flag);
 
 		fts_force_glove_mode(flag);
 

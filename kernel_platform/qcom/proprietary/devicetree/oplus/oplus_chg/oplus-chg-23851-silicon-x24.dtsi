@@ -280,11 +280,6 @@
 		oplus_spec,wired-ffc-fcc-cutoff-ma = <1300 1300 1850
 						      900  1200 1850>;
 
-		oplus_spec,wired-aging-ffc-version = <AGING_FFC_V1>;
-		oplus_spec,wired-aging-ffc-offset-mv = <10 15
-							10 15>;
-		oplus_spec,wired-aging-ffc-cycle-thr = <500 1000>;
-
 		oplus_spec,vbat_uv_thr_mv = <3000>;
 		oplus_spec,vbat_charging_uv_thr_mv = <2900>;
 
@@ -1300,6 +1295,7 @@
 		oplus,use_vooc_phy;
 		oplus,use_ufcs_phy;
 		oplus,vac_support;
+		oplus,always_otg_en;
 
 		oplus_spec,irq_gpio = <&tlmm 8 0x00>;
 

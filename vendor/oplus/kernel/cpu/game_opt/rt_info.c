@@ -37,6 +37,13 @@ static inline bool same_rt_thread_group(struct task_struct *waker,
 	return (waker->tgid == game_tgid) && (wakee->tgid == game_tgid);
 }
 
+static inline bool specified_rt_thread_group(struct task_struct *waker,
+        struct task_struct *wakee)
+{
+	return (wakee->tgid == game_tgid) && !strcmp(waker->comm, "app") &&
+			(waker->parent != NULL) && !strcmp(waker->parent->comm, "surfaceflinger");
+}
+
 static struct render_related_thread *find_related_thread(struct task_struct *task)
 {
 	int i;
@@ -82,7 +89,7 @@ static void try_to_wake_up_success_hook(void *unused, struct task_struct *task)
 	 * ignore wakeup event if waker or wakee
 	 * not belong to a same game thread group.
 	 */
-	if (!same_rt_thread_group(current, task))
+	if (!(same_rt_thread_group(current, task) || specified_rt_thread_group(current, task)))
 		return;
 
 	/*
@@ -90,6 +97,22 @@ static void try_to_wake_up_success_hook(void *unused, struct task_struct *task)
 	 * if not available, skip.
 	 */
 	if (write_trylock(&rt_info_rwlock)) {
+		if(specified_rt_thread_group(current, task)) {
+			wakee = find_related_thread(task);
+			if (!wakee) {
+				if (total_num >= MAX_TID_COUNT)
+					goto unlock;
+				wakee = &related_threads[total_num];
+				wakee->pid = task->pid;
+				wakee->task = task;
+				wakee->wake_count = 1;
+				total_num++;
+			} else {
+				wakee++;
+			}
+			goto unlock;
+		}
+
 		if (!same_rt_thread_group(current, task))
 			goto unlock;
 

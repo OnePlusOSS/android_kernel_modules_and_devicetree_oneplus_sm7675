@@ -3929,6 +3929,67 @@ static ssize_t proc_force_water_mode_read(struct file *file, char __user *buffer
 DECLARE_PROC_OPS(proc_force_water_mode_fops, simple_open,
 		   proc_force_water_mode_read, proc_force_water_mode_write, NULL);
 
+static ssize_t proc_pocket_prevent_mode_write(struct file *file, const char __user *buffer,
+				  size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	int value = 0;
+	char buf[4] = {0};
+	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+	if (!ts) {
+		TPD_INFO("%s: ts is NULL\n", __func__);
+		return count;
+	}
+
+	if (!ts->ts_ops->mode_switch) {
+		TS_TP_INFO("not support ts_ops->mode_switch callback\n");
+		return count;
+	}
+
+	tp_copy_from_user(buf, sizeof(buf), buffer, count, 4);
+
+	if (kstrtoint(buf, 10, &value)) {
+		TP_INFO(ts->tp_index, "%s: kstrtoint error\n", __func__);
+		return count;
+	}
+
+	ts->pocket_prevent_mode = !!value;
+
+	TP_INFO(ts->tp_index, "%s: pocket_prevent_mode value=%d\n", __func__, value);
+
+	mutex_lock(&ts->mutex);
+	ret = ts->ts_ops->mode_switch(ts->chip_data, MODE_GLOVE, (ts->glove_enable)&&(!ts->pocket_prevent_mode));
+	if (ret < 0) {
+		TS_TP_INFO("%s, Touchpanel operate mode switch failed\n", __func__);
+	}
+	mutex_unlock(&ts->mutex);
+
+	return count;
+}
+
+static ssize_t proc_pocket_prevent_mode_read(struct file *file, char __user *buffer,
+				  size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	char page[PAGESIZE] = {0};
+	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+	if (!ts) {
+		snprintf(page, PAGESIZE - 1, "%d\n", -1); /*no support*/
+		TPD_INFO("ts is null.\n");
+		ret = simple_read_from_buffer(buffer, count, ppos, page, strlen(page));
+		return ret;
+	} else {
+		/*support*/
+		snprintf(page, PAGESIZE - 1, "%d\n", ts->pocket_prevent_mode);
+		ret = simple_read_from_buffer(buffer, count, ppos, page, strlen(page));
+		return ret;
+	}
+}
+
+DECLARE_PROC_OPS(proc_pocket_prevent_mode, simple_open,
+		  proc_pocket_prevent_mode_read, proc_pocket_prevent_mode_write, NULL);
 
 /*proc/touchpanel/glove_mode_enable*/
 static ssize_t proc_glove_mode_write(struct file *file, const char __user *buffer,
@@ -3961,7 +4022,7 @@ static ssize_t proc_glove_mode_write(struct file *file, const char __user *buffe
 	TP_INFO(ts->tp_index, "%s: glove_enable value=%d\n", __func__, value);
 
 	mutex_lock(&ts->mutex);
-	ret = ts->ts_ops->mode_switch(ts->chip_data, MODE_GLOVE, ts->glove_enable);
+	ret = ts->ts_ops->mode_switch(ts->chip_data, MODE_GLOVE, (ts->glove_enable) && (!ts->pocket_prevent_mode));
 	if (ret < 0) {
 		TS_TP_INFO("%s, Touchpanel operate mode switch failed\n", __func__);
 	}
@@ -3984,10 +4045,6 @@ static ssize_t proc_glove_mode_read(struct file *file, char __user *buffer,
 		return ret;
 	} else {
 		/*support*/
-		if (!ts->ts_ops->get_glove_mode) {
-			TS_TP_INFO("not support ts_ops->get_glove_mode\n");
-			return ret;
-		}
 		snprintf(page, PAGESIZE - 1, "%d:%lld\n", ts->glove_enable, ts->monitor_data.glove_enter_count);
 		ret = simple_read_from_buffer(buffer, count, ppos, page, strlen(page));
 		return ret;
@@ -4378,6 +4435,9 @@ int init_touchpanel_proc_part3(struct touchpanel_data *ts, struct proc_dir_entry
 			ts->glove_mode_v2_support
 		},
 		{
+			"pocket_prevent_mode", 0666, NULL, &proc_pocket_prevent_mode, ts, false, true
+		},
+		{
 			"leather_cover_enable", 0666, NULL, &leather_cover_enable, ts, false,
 			ts->glove_mode_support
 		},
@@ -4386,6 +4446,7 @@ int init_touchpanel_proc_part3(struct touchpanel_data *ts, struct proc_dir_entry
 			ts->leather_cover_mode_support
 		},
 	};
+
 
 	for (i = 0; i < ARRAY_SIZE(tp_proc_node_part3); i++) {
 		if (tp_proc_node_part3[i].is_support) {

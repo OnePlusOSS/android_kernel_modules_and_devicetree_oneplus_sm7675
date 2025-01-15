@@ -20,6 +20,7 @@ typedef enum netlink_cmd {
     NETLINK_EVENT_EXIT         = 8,
     NETLINK_EVENT_INVALID      = 9,
     NETLINK_EVENT_AIFILM_INFO  = 10,
+    NETLINK_EVENT_UNDERWATER_INFO = 11,
     NETLINK_EVENT_MAX
 } netlink_cmd_t;
 
@@ -35,6 +36,9 @@ enum fingerprint_event {
     E_FP_EVENT_STOP_INTERRUPT = 8,
     E_FP_EVENT_INVALID        = 9,
     E_FP_EVENT_AIFILM_INFO    = 10,
+    E_FP_EVENT_MISTOUCH_UNCLASP   = 11,
+    E_FP_EVENT_MISTOUCH_CLASP     = 12,
+    E_FP_EVENT_UNDERWATER_INFO    = 13,
     E_FP_EVENT_MAX,
 };
 

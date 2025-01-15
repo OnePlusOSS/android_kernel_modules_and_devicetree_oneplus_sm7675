@@ -54,6 +54,9 @@ struct cam_sensor_settings {
 	struct cam_sensor_i2c_reg_setting_array ov02b_setting;
 	struct cam_sensor_i2c_reg_setting_array imx896_setting;
 	struct cam_sensor_i2c_reg_setting_array gc32e2_setting;
+	struct cam_sensor_i2c_reg_setting_array gc02m1_setting;
+	struct cam_sensor_i2c_reg_setting_array ov50d_setting;
+	struct cam_sensor_i2c_reg_setting_array sc201cs_setting;
 };
 
 int cam_ftm_power_down(struct cam_sensor_ctrl_t *s_ctrl);

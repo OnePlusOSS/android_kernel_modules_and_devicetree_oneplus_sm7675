@@ -382,27 +382,11 @@ static void __maybe_unused sih688x_vbat_comp(sih_haptic_t *sih_haptic)
 static void sih688x_set_play_mode(sih_haptic_t *sih_haptic,
 	uint8_t play_mode)
 {
-	uint8_t reg_val = 0;
-
 	hp_info("%s:enter!play mode = %d\n", __func__, play_mode);
 
 	switch (play_mode) {
 	case SIH_IDLE_MODE:
 		sih_haptic->chip_ipara.play_mode = SIH_IDLE_MODE;
-		haptic_regmap_update_bits(sih_haptic->regmapp.regmapping,
-			SIH688X_REG_SYSINTM, SIH_SYSINT_BIT_UVP_FLAG_INT_MASK,
-			SIH_SYSINT_BIT_UVP_FLAG_INT_OFF);
-		haptic_regmap_update_bits(sih_haptic->regmapp.regmapping,
-			SIH688X_REG_SYSCTRL1, SIH_SYSCTRL1_BIT_STOP_MODE_MASK,
-			SIH_SYSCTRL1_BIT_STOP_RIGHT_NOW);
-		reg_val = SIH_GO_BIT_RAM_GO_DISABLE | SIH_GO_BIT_RTP_GO_DISABLE |
-			SIH_GO_BIT_F0_SEQ_GO_DISABLE | SIH_GO_BIT_STOP_TRIG_EN;
-		haptic_regmap_write(sih_haptic->regmapp.regmapping,
-			SIH688X_REG_GO, SIH_I2C_OPERA_BYTE_ONE, &reg_val);
-		usleep_range(2000, 2500);
-		haptic_regmap_update_bits(sih_haptic->regmapp.regmapping,
-			SIH688X_REG_SYSCTRL1, SIH_SYSCTRL1_BIT_STOP_MODE_MASK,
-			SIH_SYSCTRL1_BIT_STOP_CUR_OVER);
 		sih688x_set_boost_mode(sih_haptic, true);
 		hp_info("%s:now chip is stanby\n", __func__);
 		break;

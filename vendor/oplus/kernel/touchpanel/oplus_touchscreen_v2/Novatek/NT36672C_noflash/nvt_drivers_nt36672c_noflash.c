@@ -3371,6 +3371,7 @@ static fw_update_state nvt_fw_update_sub(void *chip_data,
 		const struct firmware *fw, bool force)
 {
 	int ret = 0;
+	int ret_fw_state = FW_UPDATE_SUCCESS;
 	uint8_t point_data[POINT_DATA_LEN + 2] = {0};
 	struct chip_data_nt36672c *chip_info = (struct chip_data_nt36672c *)chip_data;
 	struct touchpanel_data *ts = spi_get_drvdata(chip_info->s_client);
@@ -3392,19 +3393,19 @@ static fw_update_state nvt_fw_update_sub(void *chip_data,
 			request_fw_headfile->size = chip_info->g_fw_len;
 			request_fw_headfile->data = chip_info->g_fw_buf;
 			fw = request_fw_headfile;
+			ret_fw_state = FW_UPDATE_ERROR;
 
 		} else {
 			tp_healthinfo_report(monitor_data, HEALTH_FW_UPDATE,
 					     "Request fw from headfile");
-			TPD_INFO("request firmware failed, get from headfile\n");
 
+			ret_fw_state = FW_UPDATE_ERROR;
 			if (ts->firmware_in_dts && ts->firmware_in_dts->data) {
 				request_fw_headfile->size = ts->firmware_in_dts->size;
 				request_fw_headfile->data = ts->firmware_in_dts->data;
 				fw = request_fw_headfile;
 
 			} else {
-				TPD_INFO("firmware_data is NULL! exit firmware update!\n");
 				goto out_fail;
 			}
 		}
@@ -3503,7 +3504,7 @@ static fw_update_state nvt_fw_update_sub(void *chip_data,
 	}
 
 	tp_healthinfo_report(monitor_data, HEALTH_FW_UPDATE, "FW update Success");
-	return FW_UPDATE_SUCCESS;
+	return ret_fw_state;
 
 out_fail:
 	tp_devm_kfree(&chip_info->s_client->dev, (void **)&chip_info->bin_map,

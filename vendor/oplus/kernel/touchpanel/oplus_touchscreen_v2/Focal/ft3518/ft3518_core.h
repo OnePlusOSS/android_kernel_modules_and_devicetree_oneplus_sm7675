@@ -67,6 +67,8 @@
 #define FTS_REG_HEALTH_1                        0xFD
 #define FTS_REG_HEALTH_2                        0xFE
 #define FTS_REG_DIAPHRAGM_EN                    0xC3
+#define FTS_REG_GLOVE_MODE_SWITCH               0xC0
+#define FTS_REG_GLOVE_MODE_STATE                0x01
 #define FTS_REG_TEMPERATURE                     0x97
 
 #define FTS_MAX_POINTS_SUPPORT                  10
@@ -260,6 +262,7 @@ struct chip_data_ft3518 {
 	struct monitor_data *monitor_data;
 	struct resolution_info *chip_resolution_info;
 	int gesture_state;
+	int glove_mode_flag;
 	bool black_gesture_indep;
 	bool high_resolution_support;
 	bool high_resolution_support_x8;

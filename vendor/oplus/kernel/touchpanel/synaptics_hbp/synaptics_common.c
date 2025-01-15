@@ -122,7 +122,7 @@ int syna_trx_short_test(struct seq_file *s, void *chip_data,
 			      syna_testdata->pos, "0x%02x, ", u_data8);
 
 		for (j = 0; j < 8; j++) {
-			if (1 == (u_data8 & (1 << j))) {
+			if (u_data8 & (1 << j)) {
 				TPD_INFO("trx short test failed at %d bits.\n", checked_bits + 1);
 
 				if (!error_count) {
@@ -852,6 +852,7 @@ int syna_hybrid_absnoise_test(struct seq_file *s, void *chip_data,
 	struct auto_test_item_header *item_header = NULL;
 	int32_t *p_selfdata_p = NULL, *p_selfdata_n = NULL;
 	unsigned char *buf = NULL;
+	uint8_t data_buf[64];
 	struct tcm_buffer test_data;
 
 	syna_tcm_buf_init(&test_data);
@@ -929,6 +930,13 @@ int syna_hybrid_absnoise_test(struct seq_file *s, void *chip_data,
 	}
 
 	syna_tcm_buf_unlock(&test_data);
+	store_to_file(syna_testdata->fp, syna_testdata->length,
+		      syna_testdata->pos, "\n");
+
+	snprintf(data_buf, 32, "fwversion: 0x%s\n", tcm->tcm_dev->app_info.customer_config_id);
+	tp_test_write(syna_testdata->fp, syna_testdata->length, data_buf, strlen(data_buf),
+			      syna_testdata->pos);
+
 	store_to_file(syna_testdata->fp, syna_testdata->length,
 		      syna_testdata->pos, "\n");
 

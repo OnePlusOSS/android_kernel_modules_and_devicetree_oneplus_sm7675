@@ -14,6 +14,9 @@
 #include <linux/cpufreq.h>
 #include <linux/freezer.h>
 #include <linux/wait.h>
+#include <linux/memcontrol.h>
+#include <linux/mutex.h>
+#include <linux/kprobes.h>
 
 #define SHRINK_SLABD_NAME "kshrink_slabd"
 extern unsigned long shrink_slab(gfp_t gfp_mask, int nid,
@@ -29,14 +32,35 @@ wait_queue_head_t shrink_slabd_wait;
 struct async_slabd_parameter {
 	struct mem_cgroup *shrink_slabd_memcg;
 	gfp_t shrink_slabd_gfp_mask;
-	atomic_t shrink_slabd_runnable;
+	int shrink_slabd_runnable;
 	int shrink_slabd_nid;
 	int priority;
+	struct reclaim_state *reclaim_state;
 } asp;
 
 static struct reclaim_state async_reclaim_state = {
 		.reclaimed_slab = 0,
 };
+
+typedef unsigned long (*shrink_slab_t)(gfp_t gfp_mask, int nid,
+										struct mem_cgroup *memcg,
+										int priority);
+static shrink_slab_t shrink_slab_dup = NULL;
+
+/* copy from mm/vmscan.c */
+static void set_task_reclaim_state(struct task_struct *task,
+				   struct reclaim_state *rs)
+{
+	/* Check for an overwrite */
+	WARN_ON_ONCE(rs && task->reclaim_state);
+
+	/* Check for the nulling of an already-nulled member */
+	WARN_ON_ONCE(!rs && !task->reclaim_state);
+
+	task->reclaim_state = rs;
+}
+
+static DEFINE_MUTEX(async_shrink_slab_mutex);
 
 static bool is_shrink_slabd_task(struct task_struct *tsk)
 {
@@ -50,15 +74,22 @@ bool wakeup_shrink_slabd(gfp_t gfp_mask, int nid,
 	if (unlikely(!async_shrink_slabd_setup))
 		return false;
 
-	if (atomic_read(&(asp.shrink_slabd_runnable)) == 1)
+	if (!mutex_trylock(&async_shrink_slab_mutex))
 		return true;
 
-	current->reclaim_state = &async_reclaim_state;
+	if (asp.shrink_slabd_runnable == 1) {
+		mutex_unlock(&async_shrink_slab_mutex);
+		return true;
+	}
+	async_reclaim_state.reclaimed_slab = 0;
+	asp.reclaim_state = &async_reclaim_state;
 	asp.shrink_slabd_gfp_mask = gfp_mask;
 	asp.shrink_slabd_nid = nid;
 	asp.shrink_slabd_memcg = memcg;
 	asp.priority = priority;
-	atomic_set(&(asp.shrink_slabd_runnable), 1);
+	asp.shrink_slabd_runnable = 1;
+	css_get(&memcg->css);
+	mutex_unlock(&async_shrink_slab_mutex);
 
 	wake_up_interruptible(&shrink_slabd_wait);
 
@@ -100,7 +131,7 @@ void set_async_slabd_cpus(void)
 	}
 }
 
-static int kshrink_slabd_func(void *p)
+static int __nocfi kshrink_slabd_func(void *p)
 {
 	struct mem_cgroup *memcg;
 	gfp_t gfp_mask;
@@ -117,39 +148,41 @@ static int kshrink_slabd_func(void *p)
 	 * us from recursively trying to free more memory as we're
 	 * trying to free the first piece of memory in the first place).
 	 */
-	current->flags |= PF_MEMALLOC | PF_SWAPWRITE | PF_KSWAPD;
+	current->flags |= PF_MEMALLOC | PF_KSWAPD;
 	set_freezable();
 
-	current->reclaim_state = &async_reclaim_state;
+	asp.reclaim_state = NULL;
 	asp.shrink_slabd_gfp_mask = 0;
 	asp.shrink_slabd_nid = 0;
 	asp.shrink_slabd_memcg = NULL;
-	atomic_set(&(asp.shrink_slabd_runnable), 0);
+	asp.shrink_slabd_runnable = 0;
 	asp.priority = 0;
 
 	while (!kthread_should_stop()) {
-		wait_event_freezable(shrink_slabd_wait,
-					(atomic_read(&(asp.shrink_slabd_runnable)) == 1));
+		wait_event_freezable(shrink_slabd_wait, asp.shrink_slabd_runnable == 1);
 
 		set_async_slabd_cpus();
 
+		mutex_lock(&async_shrink_slab_mutex);
+		set_task_reclaim_state(current, asp.reclaim_state);
 		nid = asp.shrink_slabd_nid;
 		gfp_mask = asp.shrink_slabd_gfp_mask;
 		priority = asp.priority;
 		memcg = asp.shrink_slabd_memcg;
+		asp.shrink_slabd_runnable = 0;
+		mutex_unlock(&async_shrink_slab_mutex);
 
-		shrink_slab(gfp_mask, nid, memcg, priority);
-
-		atomic_set(&(asp.shrink_slabd_runnable), 0);
+		shrink_slab_dup(gfp_mask, nid, memcg, priority);
+		css_put(&memcg->css);
+		set_task_reclaim_state(current, NULL);
 	}
-	current->flags &= ~(PF_MEMALLOC | PF_SWAPWRITE | PF_KSWAPD);
+	current->flags &= ~(PF_MEMALLOC | PF_KSWAPD);
 	current->reclaim_state = NULL;
 
 	return 0;
 }
 
-
-static void should_shrink_async(void *data, gfp_t gfp_mask, int nid,
+void should_shrink_async(void *data, gfp_t gfp_mask, int nid,
 			struct mem_cgroup *memcg, int priority, bool *bypass)
 {
 	if (unlikely(!async_shrink_slabd_setup)) {
@@ -160,10 +193,10 @@ static void should_shrink_async(void *data, gfp_t gfp_mask, int nid,
 	if (is_shrink_slabd_task(current)) {
 		*bypass = false;
 	} else {
-		*bypass = true;
-		wakeup_shrink_slabd(gfp_mask, nid, memcg, priority);
+		*bypass = wakeup_shrink_slabd(gfp_mask, nid, memcg, priority);
 	}
 }
+EXPORT_SYMBOL_GPL(should_shrink_async);
 
 static int register_shrink_async_vendor_hooks(void)
 {
@@ -188,6 +221,19 @@ static void unregister_shrink_async_vendor_hooks(void)
 static int __init shrink_async_init(void)
 {
 	int ret = 0;
+	struct kprobe shrink_slab_kp = {
+		.symbol_name = "shrink_slab"
+	};
+
+	/* get some symbols address using kprobe */
+	ret = register_kprobe(&shrink_slab_kp);
+	if (ret) {
+		pr_err("get shrink_slab addr from kprobe failed! ret=%d\n", ret);
+		return ret;
+	}
+	shrink_slab_dup = (shrink_slab_t)shrink_slab_kp.addr;
+	pr_info("successfully get shrink_slab addr: 0x%px\n", shrink_slab_kp.addr);
+	unregister_kprobe(&shrink_slab_kp);
 
 	ret = register_shrink_async_vendor_hooks();
 	if (ret != 0)

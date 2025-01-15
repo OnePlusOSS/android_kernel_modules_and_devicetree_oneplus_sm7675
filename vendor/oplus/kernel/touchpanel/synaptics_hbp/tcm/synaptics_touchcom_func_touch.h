@@ -85,6 +85,8 @@ enum gesture_classification {
 #define TOUCH_HOLD_DOWN 0x80
 #define TOUCH_HOLD_UP   0x81
 #define FINGERPRINT_ERR_REPORT   0x84
+#define UNDER_WATER     0x85
+#define ON_WATER        0x86
 
 
 #define UNKOWN_GESTURE		0

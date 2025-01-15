@@ -47,3 +47,8 @@ AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_tfa98xx_v6.ko
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_sipa.ko
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_sipa_tuning.ko
 endif
+
+ifeq ($(call is-board-platform-in-list,parrot), true)
+AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_aw87xxx.ko
+AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/oplus_audio_pa_manager.ko
+endif

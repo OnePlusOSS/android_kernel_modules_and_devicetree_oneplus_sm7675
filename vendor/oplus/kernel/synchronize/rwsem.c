@@ -65,10 +65,15 @@ static void rwsem_set_inherit_ux(struct rw_semaphore *sem)
 	bool is_ux = test_set_inherit_ux(current);
 	bool is_rt = rt_prio(current->prio);
 	int inherit_type;
-	struct task_struct *owner = rwsem_owner(sem);
+	unsigned long flags = 0;
+	struct task_struct *owner = NULL;
+
+	if (is_rwsem_reader_owned(sem))
+		return;
+	owner = rwsem_owner_flags(sem, &flags);
 
 	/* set writer as ux task */
-	if ((is_ux || is_rt) && !is_rwsem_reader_owned(sem) && !test_inherit_ux(owner, INHERIT_UX_RWSEM)) {
+	if ((is_ux || is_rt) && !test_inherit_ux(owner, INHERIT_UX_RWSEM)) {
 		int type = get_ux_state_type(owner);
 
 		if ((type == UX_STATE_NONE) || (type == UX_STATE_INHERIT)) {

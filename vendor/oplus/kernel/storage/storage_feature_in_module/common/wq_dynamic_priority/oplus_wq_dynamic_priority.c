@@ -18,7 +18,7 @@ struct config_wq_flags {
 };
 
 static struct config_wq_flags oplus_wq_config[] = {
-    { "loop", WQ_UNBOUND | WQ_FREEZABLE | WQ_HIGHPRI },
+    { "loop", WQ_UNBOUND | WQ_FREEZABLE | WQ_HIGHPRI | WQ_UX },
     { "kverityd", WQ_MEM_RECLAIM | WQ_HIGHPRI | WQ_UX | WQ_UNBOUND },
     // Add more strings and flags as needed.
     { NULL, 0 } // Terminate array with NULL
@@ -118,6 +118,32 @@ static struct kprobe oplus_worker_attach_to_pool_kp = {
 };
 
 
+/* ---------kblockd_schedule_work--------- */
+static struct workqueue_struct *oplus_kblockd_workqueue;
+static int handler_kblockd_schedule_work_pre(struct kprobe *p, struct pt_regs *regs) {
+    //printk(KERN_INFO "kblockd_schedule_work:use oplus kblockd workqueue\n");
+    regs->regs[1] = (u64)oplus_kblockd_workqueue;
+    return 0;
+}
+
+static int handler_kblockd_mod_delayed_work_on_pre(struct kprobe *p, struct pt_regs *regs) {
+    //printk(KERN_INFO "kblockd_mod_delayed_work_on:use oplus kblockd workqueue\n");
+    regs->regs[1] = (u64)oplus_kblockd_workqueue;
+    return 0;
+}
+
+static struct kprobe oplus_kblockd_schedule_work_kp = {
+    .symbol_name = "kblockd_schedule_work",
+    .offset = 0x1c,
+    .pre_handler = handler_kblockd_schedule_work_pre,
+};
+
+static struct kprobe oplus_kblockd_mod_delayed_work_on_kp = {
+    .symbol_name = "kblockd_mod_delayed_work_on",
+    .offset = 0x1c,
+    .pre_handler = handler_kblockd_mod_delayed_work_on_pre,
+};
+
 static bool kprobe_init_successful=false;
 static int __init oplus_wq_kprobe_init(void)
 {
@@ -147,9 +173,33 @@ static int __init oplus_wq_kprobe_init(void)
         goto kp_worker_attach_to_pool_fail;
     }
 
+    oplus_kblockd_workqueue = alloc_workqueue("opluskblockd",WQ_MEM_RECLAIM | WQ_HIGHPRI | WQ_UX | WQ_UNBOUND, 0);
+
+    if (!oplus_kblockd_workqueue) {
+        printk(KERN_ERR "alloc  oplus_kblockd_workqueue fail!\n");
+        goto kp_kblockd_schedule_work_kp_fail;
+    }
+
+    ret = register_kprobe(&oplus_kblockd_schedule_work_kp);
+    if (ret < 0) {
+        printk(KERN_ERR "register_kprobe oplus_kblockd_schedule_work_kp failed, returned %d\n", ret);
+        goto kp_kblockd_schedule_work_kp_fail;
+    }
+
+    ret = register_kprobe(&oplus_kblockd_mod_delayed_work_on_kp);
+    if (ret < 0) {
+        printk(KERN_ERR "register_kprobe oplus_kblockd_mod_delayed_work_on_kp failed, returned %d\n", ret);
+        goto kp_kblockd_mod_delayed_work_on_kp_fail;
+    }
+
+    printk(KERN_ERR "%s successful!\n", __func__);
     kprobe_init_successful = true;
     return 0;
 
+kp_kblockd_mod_delayed_work_on_kp_fail:
+    unregister_kprobe(&oplus_kblockd_schedule_work_kp);
+kp_kblockd_schedule_work_kp_fail:
+    unregister_kprobe(&oplus_worker_attach_to_pool_kp);
 kp_worker_attach_to_pool_fail:
     unregister_kretprobe(&oplus_apply_wqattrs_krp);
 kp_apply_wqattrs_fail:
@@ -164,11 +214,14 @@ kp_alloc_workqueue_fail:
 
 static void __exit oplus_wq_kprobe_exit(void)
 {
+	//工作队列未销毁
     if(kprobe_init_successful) {
         unregister_kprobe(&oplus_alloc_workqueue_kp);
         unregister_kprobe(&oplus_alloc_unbound_pwq_kp);
         unregister_kretprobe(&oplus_apply_wqattrs_krp);
         unregister_kprobe(&oplus_worker_attach_to_pool_kp);
+        unregister_kprobe(&oplus_kblockd_schedule_work_kp);
+        unregister_kprobe(&oplus_kblockd_mod_delayed_work_on_kp);
         printk(KERN_INFO "kprobe unregistered\n");
     } else {
         printk(KERN_INFO "kprobe needn't unregistered\n");

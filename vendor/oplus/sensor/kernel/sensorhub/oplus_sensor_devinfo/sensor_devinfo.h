@@ -88,6 +88,7 @@ enum panel_id{
 	ILI7807S,
 	DH_SOFT_LIGHT,
 	NT36532W,
+	HX,
 	PANEL_NUM
 };
 

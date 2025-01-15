@@ -429,14 +429,14 @@ void hans_check_uid_proc_status_detail(struct binder_proc *proc, enum message_ty
 				spin_lock(&btrans->lock);
 				get_uid_pid(&from_pid, &from_uid, &to_pid, &to_uid, btrans);
 				need_reply = (int)(!(btrans->flags & TF_ONE_WAY));
-				if (btrans->to_thread != NULL && btrans->to_thread == thread && (!(btrans->flags & TF_ONE_WAY))) {
+				if (btrans->to_thread != NULL && (!(btrans->flags & TF_ONE_WAY))) {
 					spin_unlock(&btrans->lock);
 					if (from_uid != to_uid) {
 						binder_inner_proc_unlock(proc);
 						hans_report(type, from_pid, from_uid, to_pid, to_uid, "FROZEN_TRANS_PROC1", need_reply);
 						return;
 					} else {
-						printk(KERN_ERR "HANS binder: internal uid %d:%d->%d\n", to_uid, from_pid, to_pid);
+						printk(KERN_ERR "HANS binder: internal uid %d:%d->%d in proc_todo list\n", to_uid, from_pid, to_pid);
 					}
 				} else if (!(btrans->flags & TF_ONE_WAY)) {
 					/*binder thread is full, anyway, there is a sync binder, should unfreeze it*/
@@ -472,7 +472,7 @@ void hans_check_uid_proc_status_detail(struct binder_proc *proc, enum message_ty
 				spin_lock(&btrans->lock);
 				get_uid_pid(&from_pid, &from_uid, &to_pid, &to_uid, btrans);
 				need_reply = (int)(!(btrans->flags & TF_ONE_WAY));
-				if (btrans->to_thread != NULL && btrans->to_thread == thread && (!(btrans->flags & TF_ONE_WAY))) {
+				if (btrans->to_thread != NULL && (!(btrans->flags & TF_ONE_WAY))) {
 					spin_unlock(&btrans->lock);
 					if (from_uid != to_uid) {
 						binder_inner_proc_unlock(proc);

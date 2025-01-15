@@ -5710,6 +5710,17 @@ int oplus_sync_panel_brightness_v2(struct drm_encoder *drm_enc)
 		return -EFAULT;
 	}
 
+	if (display->panel->panel_mode == DSI_OP_VIDEO_MODE) {
+		sync_backlight = c_conn->bl_need_sync;
+		display->panel->oplus_priv.need_sync = sync_backlight;
+		c_conn->bl_need_sync = false;
+		if (sync_backlight) {
+			brightness = sde_connector_get_property(c_conn->base.state, CONNECTOR_PROP_SYNC_BACKLIGHT_LEVEL);
+			rc = oplus_set_brightness(c_conn->bl_device, brightness);
+		}
+		return rc;
+	}
+
 	//delay when timing switch for RSC.
 	oplus_apollo_delay_for_ts_rsc(drm_enc);
 

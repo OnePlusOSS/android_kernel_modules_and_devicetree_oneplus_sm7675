@@ -306,7 +306,7 @@ void operate_mode_switch(struct touchpanel_data *ts)
 		}
 
 		if (ts->glove_mode_v2_support) {
-			mode_switch_health(ts, MODE_GLOVE, ts->glove_enable);
+			mode_switch_health(ts, MODE_GLOVE, ts->glove_enable && (!ts->pocket_prevent_mode));
 		}
 
 		if (ts->glove_mode_support || ts->leather_cover_mode_support) {
@@ -3908,6 +3908,10 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	    ts->boot_mode = get_boot_mode();
 #endif
 
+#if IS_ENABLED(CONFIG_TOUCHPANEL_NOTIFY)
+	tp_gesture_enable_notifier = tp_gesture_enable_flag;
+	tp_cs_gpio_notifier = tp_control_cs_gpio;
+#endif
 	if (strcmp(ts->touch_environment, "tvm") != 0) {
 		/*step10 : FTM process*/
 		if (is_ftm_boot_mode(ts)) {
@@ -4249,10 +4253,6 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	mutex_lock(&tp_core_lock);
 	g_tp[ts->tp_index] = ts;
 	mutex_unlock(&tp_core_lock);
-#if IS_ENABLED(CONFIG_TOUCHPANEL_NOTIFY)
-	tp_gesture_enable_notifier = tp_gesture_enable_flag;
-	tp_cs_gpio_notifier = tp_control_cs_gpio;
-#endif
 	TP_BOOT_INFO(ts->tp_index, "Touch panel probe : normal end\n");
 	return 0;
 

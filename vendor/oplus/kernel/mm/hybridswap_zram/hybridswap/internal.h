@@ -36,7 +36,7 @@
 #endif
 #define PF_SHRINK_ANON		PF__HOLE__02000000
 
-/* use a reserved bit of task->flags to mark if need to bypass shrink_slab */
+/* use a reserved bit of task->flags to mark if in force shrink context */
 #ifndef PF__HOLE__20000000
 #define PF__HOLE__20000000 0x20000000
 #endif
@@ -594,9 +594,6 @@ struct hybridswapd_operations {
 	void (*vh_alloc_pages_slowpath)(void *data, gfp_t gfp_flags,
 				unsigned int order, unsigned long delta);
 	void (*vh_tune_scan_type)(void *data, enum scan_balance *s_balance);
-	void (*vh_shrink_slab_bypass)(void *data, gfp_t gfp_mask, int nid,
-				      struct mem_cgroup *memcg, int priority,
-				      bool *bypass);
 };
 extern struct hybridswapd_operations *hybridswapd_ops;
 

@@ -1270,12 +1270,12 @@ static void syna_tcm_dispatch_report(struct syna_tcm_hcd *tcm_hcd)
 				touch_data->palm_status = PALM_TO_DEFAULT;
 			}
 			if (touch_data->glove_status == GLOVE_TO_TRIGGER && touch_data->glove_flag == 0) {
-				TPD_INFO("Enter glove mode\n");
+				TPD_INFO("Enter glove_mode\n");
 				touch_data->glove_flag = 1;
 			}
 
 			if (touch_data->glove_status == GLOVE_TO_HAND && touch_data->glove_flag == 1) {
-				TPD_INFO("Quit glove mode\n");
+				TPD_INFO("Quit glove_mode\n");
 				touch_data->glove_flag = 0;
 			}
 		}
@@ -2957,10 +2957,55 @@ static int syna_get_touch_points(void *chip_data, struct point_info *points, int
 	return obj_attention;
 }
 
+static int syna_tcm_before_switch_to_gesture_mode(struct syna_tcm_hcd *tcm_hcd, bool enable)
+{
+	int ret = 0;
+	struct touchpanel_data *ts = spi_get_drvdata(tcm_hcd->s_client);
+	const struct firmware *fw = NULL;
+	char *fw_name_lpwg = NULL;
+	char *p_node = NULL;
+	char *postfix = "_LPWG.img";
+	uint8_t copy_len = 0;
+
+	TPD_INFO("%s  is called\n", __func__);
+
+	if (enable) {
+		fw_name_lpwg = kzalloc(MAX_FW_NAME_LENGTH, GFP_KERNEL);
+			if (fw_name_lpwg == NULL) {
+				TPD_INFO("fw_name_lpwg kzalloc error!\n");
+				return -ENOMEM;
+			}
+		p_node = strstr(ts->panel_data.fw_name, ".");
+		copy_len = p_node - ts->panel_data.fw_name;
+		memcpy(fw_name_lpwg, ts->panel_data.fw_name, copy_len);
+		strlcat(fw_name_lpwg, postfix, MAX_FW_NAME_LENGTH);
+
+		ret = request_firmware(&fw, fw_name_lpwg, ts->dev);
+		if (!ret) {
+			ts->loading_fw = true;
+				if (ts->ts_ops && ts->ts_ops->fw_update)
+					ret = ts->ts_ops->fw_update(ts->chip_data, fw, 1);
+				ts->loading_fw = false;
+		} else {
+			TPD_INFO("request_firmware(%s) fail and no need to download test fw !\n", fw_name_lpwg);
+		}
+
+		if (fw) {
+			release_firmware(fw);
+			fw = NULL;
+		}
+
+		kfree(fw_name_lpwg);
+	}
+
+	return 0;
+}
+
 static int syna_tcm_set_gesture_mode(struct syna_tcm_hcd *tcm_hcd, bool enable)
 {
 	int retval = 0;
 	unsigned short config;
+	syna_tcm_before_switch_to_gesture_mode(tcm_hcd, enable);
 
 	/*this command may take too much time, if needed can add flag to skip this */
 	retval = syna_tcm_get_dynamic_config(tcm_hcd, DC_IN_WAKEUP_GESTURE_MODE, &config);
@@ -3221,7 +3266,7 @@ static int syna_mode_switch(void *chip_data, work_mode mode, int flag)
 		}
 		break;
 	case MODE_GLOVE:
-		TPD_INFO("%s: %s force glove mode.\n", __func__, flag ? "Enter" : "Exit");
+		TPD_INFO("%s: %s force glove_mode.\n", __func__, flag ? "1" : "0");
 		ret = syna_tcm_set_glove_mode(tcm_hcd, flag);
 		if (ret < 0) {
 			TPD_INFO("%s:Failed to set glove mode\n", __func__);

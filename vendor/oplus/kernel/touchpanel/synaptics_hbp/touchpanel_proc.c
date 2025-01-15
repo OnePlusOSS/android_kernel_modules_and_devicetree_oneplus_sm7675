@@ -592,6 +592,56 @@ EXIT:
 
 DECLARE_PROC_OPS(proc_film_info_fops, simple_open, NULL, proc_film_info_write, NULL);
 
+static ssize_t proc_under_water_trigger_write(struct file *file,
+					const char __user *buffer, size_t count, loff_t *ppos)
+{
+	struct syna_tcm *tcm = PDE_DATA(file_inode(file));
+	int value = 0;
+	char buf[64] = {0};
+
+	if (!tcm) {
+		TPD_INFO("tcm not exist!\n");
+		return count;
+	}
+
+	if (count > 64) {
+		TPD_INFO("%s:count > 64\n", __func__);
+		return count;
+	}
+
+	mutex_lock(&tcm->mutex);
+	if (copy_from_user(buf, buffer, count)) {
+		TPD_INFO("%s: read proc input error.\n", __func__);
+		goto EXIT;
+	}
+
+	if (sscanf(buf, "%d", &value)) {
+		tcm->under_water = !!value;
+		TPD_INFO("under_water: %d, value: %s\n", tcm->under_water, buf);
+		if (tcm->under_water) {
+			input_report_key(tcm->input_dev, KEY_UNDER_WATER, 1);
+			input_sync(tcm->input_dev);
+			input_report_key(tcm->input_dev, KEY_UNDER_WATER, 0);
+			input_sync(tcm->input_dev);
+		} else {
+			input_report_key(tcm->input_dev, KEY_ON_WATER, 1);
+			input_sync(tcm->input_dev);
+			input_report_key(tcm->input_dev, KEY_ON_WATER, 0);
+			input_sync(tcm->input_dev);
+		}
+		touchpanel_event_call_notifier(EVENT_ACTION_UNDER_WATER, (void *)&tcm->under_water);
+	} else {
+		buf[63] = '\0';
+		TPD_INFO("invalid content: '%s', length = %zd\n", buf, count);
+	}
+
+EXIT:
+	mutex_unlock(&tcm->mutex);
+	return count;
+}
+
+DECLARE_PROC_OPS(proc_under_water_trigger_fops, simple_open, NULL, proc_under_water_trigger_write, NULL);
+
 static ssize_t proc_daemon_state_write(struct file *file,
 					const char __user *buffer, size_t count, loff_t *ppos)
 {
@@ -852,6 +902,7 @@ static ssize_t proc_fingerprint_active_write(struct file *file,
 		return count;
 	}
 
+	mutex_lock(&tcm->mutex);
 	tcm->fp_active = !!tmp;
 	TPD_INFO("%s: fp_active = %d.\n", __func__, tcm->fp_active);
 
@@ -872,13 +923,13 @@ static ssize_t proc_fingerprint_active_write(struct file *file,
 				retval = syna_tcm_sleep(tcm->tcm_dev, false);
 				if (retval < 0) {
 					TPD_INFO("Fail to exit deep sleep\n");
-					return count;
+					goto exit;
 				}
 			}
 			retval = syna_dev_enable_lowpwr_gesture(tcm, true);
 			if (retval < 0) {
 				TPD_INFO("Fail to enable low power gesture mode\n");
-				return count;
+				goto exit;
 			}
 			TPD_INFO("low power gesture mode enabled\n");
 		} else {
@@ -886,7 +937,7 @@ static ssize_t proc_fingerprint_active_write(struct file *file,
 			retval = syna_tcm_sleep(tcm->tcm_dev, true);
 			if (retval < 0) {
 				TPD_INFO("Fail to enter deep sleep\n");
-				return count;
+				goto exit;
 			}
 			/* once lpwg is enabled, irq should be alive.
 			* otherwise, disable irq in suspend.
@@ -897,6 +948,8 @@ static ssize_t proc_fingerprint_active_write(struct file *file,
 			TPD_INFO("sleep mode enabled\n");
 		}
 	}
+exit:
+	mutex_unlock(&tcm->mutex);
 
 	return count;
 }
@@ -1391,6 +1444,9 @@ int init_touchpanel_proc(struct syna_tcm *tcm,
 		},
 		{
 			"film_info", 0666, NULL, &proc_film_info_fops, tcm, false, true
+		},
+		{
+			"under_water_trigger", 0666, NULL, &proc_under_water_trigger_fops, tcm, false, true
 		},
 		{
 			"daemon_state", 0666, NULL, &proc_daemon_state_fops, tcm, false, true

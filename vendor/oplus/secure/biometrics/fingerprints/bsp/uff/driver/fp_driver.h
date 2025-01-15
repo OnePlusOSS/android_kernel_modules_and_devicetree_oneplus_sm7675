@@ -198,10 +198,18 @@ struct fp_key {
 #define EVENT_ACTION_FOR_FILM 0x02
 #endif
 
+#ifndef EVENT_ACTION_UNDER_WATER
+#define EVENT_ACTION_UNDER_WATER 0x04
+#endif
+
 struct fp_touch_film_info {
     bool filmed;
     int level;
     bool trusty;
+};
+
+struct fp_touch_under_water_info {
+    bool is_underwater;
 };
 
 struct fp_dev {

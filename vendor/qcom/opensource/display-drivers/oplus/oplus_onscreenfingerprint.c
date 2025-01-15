@@ -566,7 +566,7 @@ static int oplus_ofp_set_hbm_state(bool hbm_state)
 	return 0;
 }
 
-static bool oplus_ofp_get_aod_state(void)
+bool oplus_ofp_get_aod_state(void)
 {
 	struct oplus_ofp_params *p_oplus_ofp_params = oplus_ofp_get_params(oplus_ofp_display_id);
 

@@ -5198,6 +5198,7 @@ static int oplus_adfr_high_precision_fps_check(void *dsi_panel, unsigned int hig
 	unsigned int h_skew = STANDARD_ADFR;
 	struct dsi_panel *panel = dsi_panel;
 	struct oplus_adfr_params *p_oplus_adfr_params = NULL;
+	struct dsi_display_mode_priv_info *priv_info = NULL;
 
 	ADFR_DEBUG("start\n");
 
@@ -5229,22 +5230,30 @@ static int oplus_adfr_high_precision_fps_check(void *dsi_panel, unsigned int hig
 		return -EINVAL;
 	}
 
+	priv_info = panel->cur_mode->priv_info;
+	if (!priv_info->oplus_adfr_high_precision_fps_mapping_table) {
+		ADFR_ERR("invalid mapping table params");
+		return -EINVAL;
+	}
+
 	OPLUS_ADFR_TRACE_BEGIN("oplus_adfr_high_precision_fps_check");
 
 	refresh_rate = panel->cur_mode->timing.refresh_rate;
 	h_skew = panel->cur_mode->timing.h_skew;
-	high_precision_fps_mapping_table_count = panel->cur_mode->priv_info->oplus_adfr_high_precision_fps_mapping_table_count;
+	high_precision_fps_mapping_table_count = priv_info->oplus_adfr_high_precision_fps_mapping_table_count;
+	ADFR_INFO("high_precision_fps_mapping_table_count:%u\n", high_precision_fps_mapping_table_count);
 	ADFR_DEBUG("refresh_rate:%u,h_skew:%u,high_precision_fps_mapping_table_count:%u\n",
 					refresh_rate, h_skew, high_precision_fps_mapping_table_count);
 
 	if (!high_precision_fps_mapping_table_count || !high_precision_fps) {
 		/* fixed max high precision fps */
 		high_precision_fps = refresh_rate;
-	} else if ((high_precision_fps > panel->cur_mode->priv_info->oplus_adfr_high_precision_fps_mapping_table[0])
-					|| (high_precision_fps < panel->cur_mode->priv_info->oplus_adfr_high_precision_fps_mapping_table[high_precision_fps_mapping_table_count - 1])) {
+	} else if ((high_precision_fps > priv_info->oplus_adfr_high_precision_fps_mapping_table[0])
+			|| (high_precision_fps < priv_info->oplus_adfr_high_precision_fps_mapping_table[high_precision_fps_mapping_table_count - 1])) {
 		/* the highest frame rate is the most stable */
-		high_precision_fps = panel->cur_mode->priv_info->oplus_adfr_high_precision_fps_mapping_table[0];
+		high_precision_fps = priv_info->oplus_adfr_high_precision_fps_mapping_table[0];
 	}
+
 
 	ADFR_DEBUG("high precision fps is %u after check\n", high_precision_fps);
 

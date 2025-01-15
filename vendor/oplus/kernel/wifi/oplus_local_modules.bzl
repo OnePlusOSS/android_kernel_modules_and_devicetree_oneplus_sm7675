@@ -27,6 +27,7 @@ def define_oplus_local_modules():
         srcs = native.glob([
             "oplus_wifi_wsa/oplus_wifismartantenna.c"
         ]),
+        local_defines = ["OPLUS_FEATURE_WIFI_SMARTANTENNA"],
         includes = ["."],
     )
 

@@ -5876,16 +5876,6 @@ int dsi_panel_switch(struct dsi_panel *panel)
 	}
 #endif /* OPLUS_FEATURE_DISPLAY */
 
-#if defined(CONFIG_PXLW_IRIS)
-	if (iris_is_chip_supported())
-		iris_pre_switch(panel, &panel->cur_mode->timing);
-	if (iris_is_chip_supported() && iris_is_pt_mode(panel)) {
-		rc = iris_switch(panel,
-				&panel->cur_mode->priv_info->cmd_sets[TIMING_SWITCH_TYPE_ID],
-				&panel->cur_mode->timing);
-	} else
-#endif
-
 #ifdef OPLUS_FEATURE_DISPLAY
 	if (panel->pwm_params.oplus_pulse_mutual_fps_flag > 0) {
 		oplus_sde_early_wakeup(panel);
@@ -5897,10 +5887,24 @@ int dsi_panel_switch(struct dsi_panel *panel)
 	}
 #endif /* OPLUS_FEATURE_DISPLAY */
 
+#if defined(CONFIG_PXLW_IRIS)
+	if (iris_is_chip_supported())
+		iris_pre_switch(panel, &panel->cur_mode->timing);
+	if (iris_is_chip_supported() && iris_is_pt_mode(panel)) {
+		rc = iris_switch(panel,
+				&panel->cur_mode->priv_info->cmd_sets[TIMING_SWITCH_TYPE_ID],
+				&panel->cur_mode->timing);
+	} else
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_TIMING_SWITCH);
+	if (rc)
+		DSI_ERR("[%s] failed to send DSI_CMD_SET_TIMING_SWITCH cmds, rc=%d\n",
+				panel->name, rc);
+#else /* CONFIG_PXLW_IRIS */
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_TIMING_SWITCH);
 	if (rc)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_TIMING_SWITCH cmds, rc=%d\n",
 		       panel->name, rc);
+#endif /* CONFIG_PXLW_IRIS */
 
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
 	oplus_adfr_status_reset(panel);
@@ -6072,8 +6076,6 @@ int dsi_panel_post_enable(struct dsi_panel *panel)
 #ifdef OPLUS_FEATURE_DISPLAY
 	/* initialize panel status */
 	oplus_panel_init(panel);
-	/* Force update of demurra2 offset from UEFI stage to Kernel stage or panel power on*/
-	oplus_panel_need_to_set_demura2_offset(panel);
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 	mutex_lock(&panel->panel_lock);

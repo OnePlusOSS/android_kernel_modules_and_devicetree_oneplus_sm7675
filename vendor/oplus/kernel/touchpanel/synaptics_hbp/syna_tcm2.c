@@ -86,6 +86,13 @@
 #include <linux/mtk_panel_ext.h>
 #include <linux/mtk_disp_notify.h>
 #endif
+#ifndef CONFIG_REMOVE_OPLUS_FUNCTION
+#ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
+#include<mt-plat/mtk_boot_common.h>
+#else
+#include <soc/oplus/system/boot_mode.h>
+#endif
+#endif
 
 #include <linux/wait.h>
 static DECLARE_WAIT_QUEUE_HEAD(state_waiter);
@@ -211,6 +218,25 @@ void film_call_notifier_fp(struct syna_tcm *tcm, struct touch_film_info *film_in
 		   (void *)film_info);
 }
 
+
+bool inline is_ftm_boot_mode(struct syna_tcm *tcm)
+{
+#ifndef CONFIG_REMOVE_OPLUS_FUNCTION
+#ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
+
+	if ((tcm->boot_mode == META_BOOT || tcm->boot_mode == FACTORY_BOOT))
+#else
+	if ((tcm->boot_mode == MSM_BOOT_MODE__FACTORY
+	     || tcm->boot_mode == MSM_BOOT_MODE__RF || tcm->boot_mode == MSM_BOOT_MODE__WLAN))
+#endif
+	{
+		return true;
+	}
+
+#endif
+	return false;
+}
+
 /**
  * syna_dev_update_lpwg_status()
  *
@@ -224,7 +250,7 @@ void film_call_notifier_fp(struct syna_tcm *tcm, struct touch_film_info *film_in
  */
 void syna_dev_update_lpwg_status(struct syna_tcm *tcm)
 {
-	tcm->lpwg_enabled = (tcm->gesture_type || tcm->touch_and_hold || tcm->fp_active) ? true : false;
+	tcm->lpwg_enabled = (tcm->gesture_type || tcm->touch_and_hold || tcm->fp_active || tcm->under_water_detect) ? true : false;
 	return;
 }
 
@@ -775,6 +801,25 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 					LOGI("unknown fingerprint error type: 0x%x\n", touch_data->extra_gesture_info[0]);
 					break;
 				}
+			} else if (touch_data->gesture_id == UNDER_WATER) {
+				if(!tcm->under_water){
+					tcm->under_water = TRUE;
+					input_report_key(input_dev, KEY_UNDER_WATER, 1);
+					input_sync(input_dev);
+					input_report_key(input_dev, KEY_UNDER_WATER, 0);
+					input_sync(input_dev);
+					touchpanel_event_call_notifier(EVENT_ACTION_UNDER_WATER, (void *)&tcm->under_water);
+					syna_send_signal(tcm, SIG_UNDER_WATER);
+				}
+			} else if (touch_data->gesture_id == ON_WATER) {
+				if(tcm->under_water){
+					tcm->under_water = FALSE;
+					input_report_key(input_dev, KEY_ON_WATER, 1);
+					input_sync(input_dev);
+					input_report_key(input_dev, KEY_ON_WATER, 0);
+					input_sync(input_dev);
+					touchpanel_event_call_notifier(EVENT_ACTION_UNDER_WATER, (void *)&tcm->under_water);
+				}
 			} else {
 				input_report_key(input_dev, KEY_F4, 1);
 				input_sync(input_dev);
@@ -942,6 +987,10 @@ static int syna_dev_create_input_device(struct syna_tcm *tcm)
 #ifdef ENABLE_WAKEUP_GESTURE
 	set_bit(KEY_F4, input_dev->keybit);
 	input_set_capability(input_dev, EV_KEY, KEY_F4);
+	set_bit(KEY_UNDER_WATER, input_dev->keybit);
+	input_set_capability(input_dev, EV_KEY, KEY_UNDER_WATER);
+	set_bit(KEY_ON_WATER, input_dev->keybit);
+	input_set_capability(input_dev, EV_KEY, KEY_ON_WATER);
 #endif
 
 	input_set_abs_params(input_dev,
@@ -1257,6 +1306,13 @@ static irqreturn_t syna_dev_isr(int irq, void *data)
 		goto exit;
 
 	tcm->isr_pid = current->pid;
+#if defined(CONFIG_HMBIRD_SCHED) || defined(CONFIG_HMBIRD_SCHED_GKI)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
+	hmbird_set_sched_prop(current, SCHED_PROP_DEADLINE_LEVEL2);
+#else
+	sched_set_sched_prop(current, SCHED_PROP_DEADLINE_LEVEL2);
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)) */
+#endif
 #ifdef HAS_SYSFS_INTERFACE
 	if (tcm->is_attn_redirecting) {
 		syna_cdev_redirect_attn(tcm);
@@ -2108,6 +2164,7 @@ static void syna_speedup_resume(struct work_struct *work)
 	}
 #endif
 	tcm->pwr_state = PWR_ON;
+	tcm->under_water = false;
 
 	LOGI("Prepare to set up application firmware\n");
 
@@ -2167,11 +2224,11 @@ static int syna_dev_suspend(struct device *dev)
 		}
 	}
 
-	mutex_lock(&tcm->mutex);
+	/*mutex_lock(&tcm->mutex);*/
 
 	if (IS_REMOVE == tcm->driver_current_state) {
 		LOGE("%s:driver is remove!!\n", __func__);
-		mutex_unlock(&tcm->mutex);
+		/*mutex_unlock(&tcm->mutex);*/
 		return -EINVAL;
 	};
 
@@ -2196,7 +2253,7 @@ static int syna_dev_suspend(struct device *dev)
 	if (retval < 0) {
 		tcm->pwr_state = PWR_UNKNOWN;
 		LOGE("Fail to enter suspended power mode, tcm->pwr_state: %d.\n", tcm->pwr_state);
-		mutex_unlock(&tcm->mutex);
+		/*mutex_unlock(&tcm->mutex);*/
 		return retval;
 	}
 	tcm->pwr_state = LOW_PWR;
@@ -2226,7 +2283,7 @@ static int syna_dev_suspend(struct device *dev)
 	syna_cdev_update_power_state_report_queue(tcm, true);
 
 	tcm->sub_pwr_state = SUB_PWR_SUSPEND_DONE;
-	mutex_unlock(&tcm->mutex);
+	/*mutex_unlock(&tcm->mutex);*/
 
 	if (tcm->health_monitor_support) {
 		tp_healthinfo_report(&tcm->monitor_data, HEALTH_SUSPEND, &start_time);
@@ -2310,12 +2367,12 @@ static int syna_dev_early_suspend(struct device *dev)
 
 	tcm->slept_in_early_suspend = true;
 
-	mutex_unlock(&tcm->mutex);
+	/*if (tcm->fp_active) {*/
+	syna_dev_suspend(dev);
+	tcm->fb_ready = 0;
+	/*}*/
 
-	if (tcm->fp_active) {
-		syna_dev_suspend(dev);
-		tcm->fb_ready = 0;
-	}
+	mutex_unlock(&tcm->mutex);
 
 	return 0;
 }
@@ -2394,10 +2451,10 @@ static void ts_panel_notifier_callback(enum panel_event_notifier_tag tag,
 				flush_workqueue(tcm->speedup_resume_wq);        /*wait speedup_resume_wq done*/
 			}
 			syna_dev_early_suspend(&tcm->pdev->dev);
-		} else if (!tcm->fp_active) {
+		}/* else if (!tcm->fp_active) {
 			syna_dev_suspend(&tcm->pdev->dev);
 			tcm->fb_ready = 0;
-		}
+		}*/
 		break;
 	case DRM_PANEL_EVENT_BLANK_LP:
 		LOGI("received lp event\n");
@@ -2406,10 +2463,10 @@ static void ts_panel_notifier_callback(enum panel_event_notifier_tag tag,
 				flush_workqueue(tcm->speedup_resume_wq);        /*wait speedup_resume_wq done*/
 			}
 			syna_dev_early_suspend(&tcm->pdev->dev);
-			if (!tcm->fp_active) {
+			/*if (!tcm->fp_active) {
 				syna_dev_suspend(&tcm->pdev->dev);
 				tcm->fb_ready = 0;
-			}
+			}*/
 		}
 		break;
 	case DRM_PANEL_EVENT_FPS_CHANGE:
@@ -2477,10 +2534,10 @@ static int ts_mtk_drm_notifier_callback(struct notifier_block *nb,
 			syna_dev_resume(&tcm->pdev->dev);
 			tcm->fb_ready++;
 #endif
-		} else if (*blank == MTK_DISP_BLANK_POWERDOWN && !tcm->fp_active) {
+		}/* else if (*blank == MTK_DISP_BLANK_POWERDOWN && !tcm->fp_active) {
 			syna_dev_suspend(&tcm->pdev->dev);
 			tcm->fb_ready = 0;
-		}
+		}*/
 	break;
 	default:
 		LOGE("nuknown event :%lu\n", event);
@@ -2548,12 +2605,12 @@ static int fb_notifier_callback(struct notifier_block *self, unsigned long event
 				syna_dev_early_suspend(&tcm->pdev->dev);
 #if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
 
-			} else if (event == MSM_DRM_EVENT_BLANK) {   /*event*/
+			/*} else if (event == MSM_DRM_EVENT_BLANK) {*/   /*event*/
 #else
-			} else if (event == FB_EVENT_BLANK && !tcm->fp_active) {   /*event*/
+			/*} else if (event == FB_EVENT_BLANK && !tcm->fp_active) {*/   /*event*/
 #endif
-				syna_dev_suspend(&tcm->pdev->dev);
-				tcm->fb_ready = 0;
+				/*syna_dev_suspend(&tcm->pdev->dev);
+				tcm->fb_ready = 0;*/
 			}
 
 #if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
@@ -3396,7 +3453,7 @@ static int syna_dev_probe(struct platform_device *pdev)
 	tcm->dev_disconnect = syna_dev_disconnect;
 	tcm->dev_set_up_app_fw = syna_dev_set_up_app_fw;
 	tcm->dev_resume = syna_dev_resume;
-	tcm->dev_suspend = syna_dev_suspend;
+	tcm->dev_suspend = syna_dev_early_suspend;
 
 	tcm->engineer_ops = &syna_tcm_engineer_test_ops;
 	tcm->com_test_data.chip_test_ops = &syna_tcm_test_ops;
@@ -3446,6 +3503,25 @@ static int syna_dev_probe(struct platform_device *pdev)
 		goto err_connect;
 	}
 #endif
+
+#ifndef CONFIG_REMOVE_OPLUS_FUNCTION
+	/*step10 : FTM process*/
+	tcm->boot_mode = get_boot_mode();
+#endif
+	if (is_ftm_boot_mode(tcm)) {
+		retval = syna_tcm_sleep(tcm->tcm_dev, true);
+		if (retval < 0) {
+			LOGE("Fail to enter deep sleep\n");
+		}
+		syna_dev_release_irq(tcm);
+
+		if (tcm->health_monitor_support) {
+			tp_healthinfo_report(&tcm->monitor_data, HEALTH_PROBE, &time_counter);
+		}
+
+		LOGI("%s: not in normal mode, return.\n", __func__);
+		return 0;
+	}
 
 #ifdef HAS_SYSFS_INTERFACE
 	/* create the device file and register to char device classes */

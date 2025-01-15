@@ -368,15 +368,13 @@ int oplus_ext_amp_recv_l_enable(int enable)
 		return 1;
 	}
 
-	if (!contrl_status->amp_force_mute_status) {
-		list_for_each(p, &oplus_speaker_list) {
-			entry = list_entry(p, struct oplus_spk_dev_node,list);
+	list_for_each(p, &oplus_speaker_list) {
+		entry = list_entry(p, struct oplus_spk_dev_node,list);
 
-			if (entry->device
-				&& entry->device->speaker_enable_set
-				&& (entry->device->type == L_SPK)) {
-				entry->device->speaker_enable_set(enable, RECV_MODE);
-			}
+		if (entry->device
+			&& entry->device->speaker_enable_set
+			&& (entry->device->type == L_SPK)) {
+			entry->device->speaker_enable_set(enable, RECV_MODE);
 		}
 	}
 

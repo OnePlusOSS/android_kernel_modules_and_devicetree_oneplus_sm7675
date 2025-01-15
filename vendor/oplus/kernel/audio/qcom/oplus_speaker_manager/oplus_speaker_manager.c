@@ -82,7 +82,7 @@ int ext_amp_chipset_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value
 {
 	ucontrol->value.integer.value[0] = contrl_status->chipset;
 
-	pr_debug("%s, %d, ucontrol->value.integer.value[0] = %#x\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
+	pr_debug("%s, %d, ucontrol->value.integer.value[0] = %#lx\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
 
 	return 0;
 }
@@ -113,7 +113,7 @@ int speaker_l_mfr_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *
 		ucontrol->value.integer.value[0] = MFR_NONE;
 	}
 
-	pr_err("%s, %d, ucontrol->value.integer.value[0] = %d\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
+	pr_err("%s, %d, ucontrol->value.integer.value[0] = %ld\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
 
 	return 0;
 }
@@ -130,7 +130,7 @@ int speaker_r_mfr_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *
 		ucontrol->value.integer.value[0] = MFR_NONE;
 	}
 
-	pr_err("%s, %d, ucontrol->value.integer.value[0] = %d\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
+	pr_err("%s, %d, ucontrol->value.integer.value[0] = %ld\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
 
 	return 0;
 }
@@ -211,7 +211,7 @@ int speaker_l_amp_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *
 
 	ucontrol->value.integer.value[0] = (value >= 0) ? value : 0;
 
-	pr_debug("%s, %d, status = %d\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
+	pr_debug("%s, %d, status = %ld\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
 
 	return 0;
 }
@@ -237,7 +237,7 @@ int speaker_r_amp_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *
 
 	ucontrol->value.integer.value[0] = (value >= 0) ? value : 0;
 
-	pr_debug("%s, %d, status = %d\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
+	pr_debug("%s, %d, status = %ld\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
 
 	return 0;
 }
@@ -273,7 +273,7 @@ int rcv_amp_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontr
 		ucontrol->value.integer.value[0] = contrl_status->rcv_enable;
 	}
 
-	pr_debug("%s, %d, status = %d\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
+	pr_debug("%s, %d, status = %ld\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
 
 	return 0;
 }
@@ -344,7 +344,7 @@ int ext_amp_mode_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *u
 		ucontrol->value.integer.value[0] = contrl_status->amp_mode_setting;
 	}
 
-	pr_debug("%s, %d, ucontrol->value.integer.value[0] = %d\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
+	pr_debug("%s, %d, ucontrol->value.integer.value[0] = %ld\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
 
 
 	return 0;
@@ -385,7 +385,7 @@ int ext_amp_boost_volume_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_
 		ucontrol->value.integer.value[0] = contrl_status->amp_boost_volume;
 	}
 
-	pr_debug("%s, %d, ucontrol->value.integer.value[0] = %d\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
+	pr_debug("%s, %d, ucontrol->value.integer.value[0] = %ld\n", __func__, __LINE__, ucontrol->value.integer.value[0]);
 
 	return 0;
 }
@@ -431,7 +431,7 @@ int ext_amp_force_mute_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_va
 		ucontrol->value.integer.value[0] = contrl_status->amp_force_mute_status;
 	}
 
-	pr_debug("%s(), ucontrol->value.integer.value[0] = %d\n", __func__, ucontrol->value.integer.value[0]);
+	pr_debug("%s(), ucontrol->value.integer.value[0] = %ld\n", __func__, ucontrol->value.integer.value[0]);
 
 	return 0;
 }
@@ -493,7 +493,7 @@ int ext_amp_check_feedback_get(struct snd_kcontrol *kcontrol, struct snd_ctl_ele
 		ucontrol->value.integer.value[0] = contrl_status->check_feeback_enable;
 	}
 
-	pr_debug("%s(), ucontrol->value.integer.value[0] = %d\n", __func__, ucontrol->value.integer.value[0]);
+	pr_debug("%s(), ucontrol->value.integer.value[0] = %ld\n", __func__, ucontrol->value.integer.value[0]);
 
 	return 0;
 }
@@ -620,7 +620,7 @@ static int __init oplus_pa_manager_init(void)
 		pr_info("%s(),control status init \n", __func__);
 	}
 
-	pr_err("%s, %d, sizeof(oplus_speaker_device) = %d\n", __func__, __LINE__, sizeof(struct oplus_speaker_device));
+	pr_err("%s, %d, sizeof(oplus_speaker_device) = %ld\n", __func__, __LINE__, sizeof(struct oplus_speaker_device));
 
 	return 0;
 }

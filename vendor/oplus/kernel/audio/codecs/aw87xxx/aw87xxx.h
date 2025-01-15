@@ -61,6 +61,10 @@
 #define AW_KERNEL_VER_OVER_6_1_0
 #endif
 
+#if KERNEL_VERSION(6, 6, 0) <= LINUX_VERSION_CODE
+#define AW_KERNEL_VER_OVER_6_6_0
+#endif
+
 #ifdef AW_KERNEL_VER_OVER_4_19_1
 typedef struct snd_soc_component aw_snd_soc_codec_t;
 #else

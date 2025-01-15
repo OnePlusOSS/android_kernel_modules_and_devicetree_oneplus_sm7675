@@ -3492,8 +3492,9 @@
 	/*  reg = <0x0 0x9df00000 0x0 0x4080000>;  */
 	adsp_slpi_mem: adspslpi_region@9df00000 {
 		no-map;
-		reg = <0x0 0x9df00000 0x0 0x4C80000>;
+		reg = <0x0 0x9df00000 0x0 0x5280000>;
 	};
+	// #endif OPLUS_SENSOR_FEATURE
 
 	/* uefi region can be reused by apps */
 

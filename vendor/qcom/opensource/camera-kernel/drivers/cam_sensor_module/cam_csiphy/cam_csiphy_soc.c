@@ -26,6 +26,7 @@
 #include "include/cam_csiphy_2_2_1_hwreg_enhance_bale_a.h"
 #include "include/cam_csiphy_2_2_1_hwreg_enhance_bale_c.h"
 #include "include/cam_csiphy_2_2_0_hwreg_enhance_giulia.h"
+#include "include/cam_csiphy_2_2_1_hwreg_enhance_piaget.h"
 #endif
 
 /* Clock divide factor for CPHY spec v1.0 */
@@ -444,6 +445,11 @@ int32_t cam_csiphy_parse_dt_info(struct platform_device *pdev,
 	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.1-enhance-bale-c")) {
 		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_1_enhance_bale_c;
 		csiphy_dev->hw_version = CSIPHY_VERSION_V221_ENHANCE_BALE_C;
+		csiphy_dev->is_divisor_32_comp = true;
+		csiphy_dev->clk_lane = 0;
+	} else if (of_device_is_compatible(soc_info->dev->of_node, "qcom,csiphy-v2.2.1-enhance-piaget")) {
+		csiphy_dev->ctrl_reg = &ctrl_reg_2_2_1_enhance_piaget;
+		csiphy_dev->hw_version = CSIPHY_VERSION_V221_ENHANCE_PIAGET;
 		csiphy_dev->is_divisor_32_comp = true;
 		csiphy_dev->clk_lane = 0;
 #endif

@@ -2287,6 +2287,47 @@ static void nvt_get_pen_points(void *chip_data, struct pen_info *points)
 	return;
 }
 
+static int8_t nvt_extend_cmd2_store(struct chip_data_nt36523 *chip_info,
+			uint8_t u8Cmd, uint8_t u8SubCmd, uint8_t u8SubCmd1)
+{
+	int i, retry = 5;
+	uint8_t buf[4] = {0};
+
+	/*---set xdata index to EVENT BUF ADDR---(set page)*/
+	nvt_set_page(chip_info, chip_info->trim_id_table.mmap->EVENT_BUF_ADDR);
+
+	for (i = 0; i < retry; i++) {
+		if (buf[1] != u8Cmd) {
+		/*---set cmd status---*/
+			buf[0] = EVENT_MAP_HOST_CMD;
+			buf[1] = u8Cmd;
+			buf[2] = u8SubCmd;
+			buf[3] = u8SubCmd1;
+			CTP_SPI_WRITE(chip_info->s_client, buf, 4);
+		}
+		msleep(20);
+
+		/*---read cmd status---*/
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0xFF;
+		CTP_SPI_READ(chip_info->s_client, buf, 2);
+		if (buf[1] == 0x00) {
+			break;
+		} else {
+			TPD_INFO("cmd2 read buf1[%d] \n", buf[1]);
+		}
+	}
+	if (unlikely(i == retry)) {
+		TPD_INFO("send Cmd 0x%02X 0x%02X 0x%02X failed, buf[1]=0x%02X\n",
+				u8Cmd, u8SubCmd, u8SubCmd1, buf[1]);
+		return -1;
+	} else {
+		TPD_INFO("send Cmd 0x%02X 0x%02X 0x%02X success, tried %d times\n",
+				u8Cmd, u8SubCmd, u8SubCmd1, i);
+	}
+	return 0;
+}
+
 static int8_t nvt_extend_cmd_store(struct chip_data_nt36523 *chip_info,
 				   uint8_t u8Cmd, uint8_t u8SubCmd)
 {
@@ -2942,6 +2983,28 @@ static int nvt_enable_headset_mode(struct chip_data_nt36523 *chip_info,
 		ret = nvt_cmd_store(chip_info, EVENTBUFFER_HS_PLUG_OUT);
 	}
 
+	return ret;
+}
+
+static int nvt_sensitive_lv_set(void *chip_data, int level)
+{
+	int8_t ret = -1;
+	struct chip_data_nt36523 *chip_info = (struct chip_data_nt36523 *)chip_data;
+
+	TPD_INFO("%s: sensitive value = %d, chip_info->is_sleep_writed = %d\n", __func__, level, chip_info->is_sleep_writed);
+
+	ret = nvt_extend_cmd2_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_JITTER_LEVEL, level);
+	return ret;
+}
+
+static int nvt_smooth_lv_set(void *chip_data, int level)
+{
+	int8_t ret = -1;
+	struct chip_data_nt36523 *chip_info = (struct chip_data_nt36523 *)chip_data;
+
+	TPD_INFO("%s: smooth value = %d, chip_info->is_sleep_writed = %d\n", __func__, level, chip_info->is_sleep_writed);
+
+	ret = nvt_extend_cmd2_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_SMOOTH_LEVEL, level);
 	return ret;
 }
 
@@ -5333,6 +5396,8 @@ static struct oplus_touchpanel_operations nvt_ops = {
 	.get_vendor				 = nvt_get_vendor,
 	.esd_handle				 = nvt_esd_handle,
 	.reset_gpio_control		 = nvt_reset_gpio_control,
+	.smooth_lv_set              = nvt_smooth_lv_set,
+	.sensitive_lv_set           = nvt_sensitive_lv_set,
 	.set_gesture_state		  = nvt_set_gesture_state,
 	.notify_pencil_type         = nvt_notify_pencil_type,
 	.ftm_process_extra		  = NULL,

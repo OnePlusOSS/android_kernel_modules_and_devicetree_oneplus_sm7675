@@ -72,6 +72,7 @@
 #ifdef OPLUS_FEATURE_DISPLAY
 #include "../oplus/oplus_display_private_api.h"
 #include "../oplus/oplus_display_interface.h"
+#include "../oplus/oplus_onscreenfingerprint.h"
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 #ifdef OPLUS_FEATURE_DISPLAY_ADFR
@@ -4267,8 +4268,17 @@ retry:
 			}
 
 			if (lp != SDE_MODE_DPMS_LP1 ||
-				sde_encoder_check_curr_mode(conn->encoder, MSM_DISPLAY_VIDEO_MODE))
+				sde_encoder_check_curr_mode(conn->encoder, MSM_DISPLAY_VIDEO_MODE)) {
+#ifdef OPLUS_FEATURE_DISPLAY
+				if (oplus_ofp_video_mode_aod_fod_is_enabled() && oplus_ofp_get_aod_state()) {
+					DRM_INFO("video aod state is true, no need to set active to false\n");
+				} else {
+					crtc_state->active = false;
+				}
+#else
 				crtc_state->active = false;
+#endif /* OPLUS_FEATURE_DISPLAY */
+			}
 			++num_crtcs;
 		}
 	}

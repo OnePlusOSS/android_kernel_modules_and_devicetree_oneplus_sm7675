@@ -65,6 +65,7 @@
 #define SIG_DISPLAY_ON  44
 #define SIG_DISPLAY_OFF 45
 #define SIG_FINGER_DOWN 46
+#define SIG_UNDER_WATER 47
 
 /*#define TP_NAME_SIZE_MAX 25*/
 /*
@@ -103,6 +104,9 @@
 #define MAX_HEALTH_REPORT_LEN 50
 #define TP_PAGE_SIZE 256
 
+#define KEY_UNDER_WATER  0x2f8
+#define KEY_ON_WATER     0x2f9
+#define UNDER_WATER_BIT  2
 /**
  * @section: Driver Configurations
  *
@@ -699,13 +703,14 @@ struct syna_tcm {
 	bool rst_on_resume_enabled;
 	bool hbp_enabled; /* report data to report_to_queue[] */
 	int daemon_state;
+	int boot_mode;                                      /*boot up mode */
 	int primary_timestamp_enabled;
 	int driver_current_state;
 	bool differ_read_every_frame;
 	bool tp_data_record_support;
 	bool data_record;
 	bool enter_force_doze;
-	int boot_mode;                                      /*boot up mode */
+	bool under_water;
 
 	unsigned int waiting_frame;
 	unsigned int wait_for_ioctl_operation;
@@ -718,6 +723,7 @@ struct syna_tcm {
 	int irq_need_dev_resume_time;                       /*control setting of wait resume time*/
 	unsigned short gesture_type;
 	unsigned short touch_and_hold;
+	unsigned short under_water_detect;
 	bool is_fp_down;
 	struct fp_underscreen_info fp_info;	/*tp info used for underscreen fingerprint*/
 	bool fp_active;	/*prepare for screen off fingerprint earlier*/

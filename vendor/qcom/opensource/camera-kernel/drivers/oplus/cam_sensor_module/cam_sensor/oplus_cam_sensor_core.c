@@ -49,7 +49,10 @@ int cam_ftm_power_down(struct cam_sensor_ctrl_t *s_ctrl)
 		s_ctrl->sensordata->slave_info.sensor_id == 0x002B ||
 		s_ctrl->sensordata->slave_info.sensor_id == 0x38E5 ||
 		s_ctrl->sensordata->slave_info.sensor_id == 0x0896 ||
-		s_ctrl->sensordata->slave_info.sensor_id == 0x32e2 )
+		s_ctrl->sensordata->slave_info.sensor_id == 0x32e2 ||
+		s_ctrl->sensordata->slave_info.sensor_id == 0xe0 ||
+		s_ctrl->sensordata->slave_info.sensor_id == 0x5044 ||
+		s_ctrl->sensordata->slave_info.sensor_id == 0xeb52)
 	{
 		sensor_setting.reg_setting = sensor_init_settings.streamoff.reg_setting;
 		sensor_setting.addr_type = sensor_init_settings.streamoff.addr_type;
@@ -356,6 +359,39 @@ int cam_ftm_power_up(struct cam_sensor_ctrl_t *s_ctrl)
 		sensor_setting.data_type = sensor_init_settings.gc32e2_setting.data_type;
 		sensor_setting.size = sensor_init_settings.gc32e2_setting.size;
 		sensor_setting.delay = sensor_init_settings.gc32e2_setting.delay;
+		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
+	}
+	else if (s_ctrl->sensordata->slave_info.sensor_id == 0xe0)
+	{
+		oplus_shift_sensor_mode(s_ctrl);
+		CAM_ERR(CAM_SENSOR, "FTM sensor setting 0x%x",s_ctrl->sensordata->slave_info.sensor_id);
+		sensor_setting.reg_setting = sensor_init_settings.gc02m1_setting.reg_setting;
+		sensor_setting.addr_type = sensor_init_settings.gc02m1_setting.addr_type;
+		sensor_setting.data_type = sensor_init_settings.gc02m1_setting.data_type;
+		sensor_setting.size = sensor_init_settings.gc02m1_setting.size;
+		sensor_setting.delay = sensor_init_settings.gc02m1_setting.delay;
+		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
+	}
+	else if (s_ctrl->sensordata->slave_info.sensor_id == 0x5044)
+	{
+		oplus_shift_sensor_mode(s_ctrl);
+		CAM_ERR(CAM_SENSOR, "FTM sensor setting 0x%x",s_ctrl->sensordata->slave_info.sensor_id);
+		sensor_setting.reg_setting = sensor_init_settings.ov50d_setting.reg_setting;
+		sensor_setting.addr_type = sensor_init_settings.ov50d_setting.addr_type;
+		sensor_setting.data_type = sensor_init_settings.ov50d_setting.data_type;
+		sensor_setting.size = sensor_init_settings.ov50d_setting.size;
+		sensor_setting.delay = sensor_init_settings.ov50d_setting.delay;
+		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
+	}
+	else if (s_ctrl->sensordata->slave_info.sensor_id == 0xeb52)
+	{
+		oplus_shift_sensor_mode(s_ctrl);
+		CAM_ERR(CAM_SENSOR, "FTM sensor setting 0x%x",s_ctrl->sensordata->slave_info.sensor_id);
+		sensor_setting.reg_setting = sensor_init_settings.sc201cs_setting.reg_setting;
+		sensor_setting.addr_type = sensor_init_settings.sc201cs_setting.addr_type;
+		sensor_setting.data_type = sensor_init_settings.sc201cs_setting.data_type;
+		sensor_setting.size = sensor_init_settings.sc201cs_setting.size;
+		sensor_setting.delay = sensor_init_settings.sc201cs_setting.delay;
 		rc = camera_io_dev_write(&(s_ctrl->io_master_info), &sensor_setting);
 	}
 	else

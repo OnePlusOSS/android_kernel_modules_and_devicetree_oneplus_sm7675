@@ -6,7 +6,7 @@
 #include <trace/hooks/signal.h>
 #include <trace/hooks/binder.h>
 #include <trace/hooks/sched.h>
-#include <trace/hooks/vmscan.h>
+#include <trace/events/vmscan.h>
 #include <drivers/android/binder_alloc.h>
 #include <drivers/android/binder_internal.h>
 
@@ -118,8 +118,12 @@ static int __init helper_init(void)
 	}
 	create_frk_netlink(33);
 
-	/* register trace_android_vh_do_shrink_slab */
-	REGISTER_TRACE_VH(do_shrink_slab, lowmem_report);
+	/* register trace_mm_vmscan_direct_reclaim_begin */
+	ret = register_trace_mm_vmscan_direct_reclaim_begin(lowmem_report, NULL);
+	if (ret) {
+		pr_err("failed to register_trace_mm_vmscan_direct_reclaim_begin, ret=%d\n", ret);
+		return ret;
+	}
 	init_mem_confg();
 #endif
 	return 0;
@@ -140,8 +144,8 @@ static void __exit helper_exit(void)
 	}
 	destroy_frk_netlink();
 
-	/* unregister trace_android_vh_do_shrink_slab */
-	UNREGISTER_TRACE_VH(do_shrink_slab, lowmem_report);
+	/* unregister trace_mm_vmscan_direct_reclaim_begin */
+	unregister_trace_mm_vmscan_direct_reclaim_begin(lowmem_report, NULL);
 #endif
 }
 

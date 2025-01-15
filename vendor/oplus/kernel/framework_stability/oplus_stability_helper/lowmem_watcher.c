@@ -228,7 +228,7 @@ static void lowmem_report_func(struct work_struct *work)
 	do_lowmem_report(&g_mem_config);
 }
 
-void lowmem_report(void *ignore, struct shrinker *shrinker, long *freeable)
+void lowmem_report(void *ignore, int order, gfp_t gfp_flags)
 {
 	struct mem_config *confg = &g_mem_config;
 	static atomic_t atomic_lmk = ATOMIC_INIT(0);

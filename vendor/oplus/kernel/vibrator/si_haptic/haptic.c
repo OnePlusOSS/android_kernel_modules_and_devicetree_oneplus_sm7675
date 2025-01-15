@@ -625,7 +625,7 @@ static void sih_rtp_play_func(sih_haptic_t *sih_haptic, uint8_t mode)
 			mode == SIH_RTP_NORMAL_PLAY) {
 			break;
 		}
-		if ((sih_haptic->rtp.rtp_cnt == cont_len) &&
+		if ((sih_haptic->rtp.rtp_cnt == cont_len) ||
 			sih_haptic->hp_func->if_chip_is_mode(sih_haptic, SIH_IDLE_MODE)) {
 			if (sih_haptic->rtp.rtp_cnt != cont_len)
 				hp_err("%s:rtp suspend!\n", __func__);
@@ -1477,7 +1477,7 @@ static ssize_t rtp_store(struct device *dev,
 	if (((val >=  RINGTONES_START_INDEX && val <= RINGTONES_END_INDEX)
 		|| (val >=  NEW_RING_START && val <= NEW_RING_END)
 		|| (val >=  OS12_NEW_RING_START && val <= OS12_NEW_RING_END)
-		|| (val >=  OPLUS_RING_START && val <= OPLUS_RING_END)
+		|| (val >=  OPLUS_RING_START && val < OPLUS_RING_END)
 		|| (val >=  OS14_NEW_RING_START && val <= OS14_NEW_RING_END)
 		|| (val >=  ALCLOUDSCAPE_START && val <= ALCLOUDSCAPE_END)
 		|| (val >=  RINGTONE_NOTIF_ALARM_START && val <= RINGTONE_NOTIF_ALARM_END)
@@ -1512,7 +1512,6 @@ static ssize_t rtp_store(struct device *dev,
 	sih_haptic->rtp.rtp_file_num = val;
 	sih_haptic->hp_func->stop(sih_haptic);
 	sih_haptic->hp_func->set_rtp_aei(sih_haptic, false);
-	sih_haptic->hp_func->clear_interrupt_state(sih_haptic);
 
 	mutex_unlock(&sih_haptic->lock);
 
@@ -4396,9 +4395,6 @@ static void rtp_work_func(struct work_struct *work)
 
 	sih_haptic->rtp.rtp_init = true;
 	sih_haptic->chip_ipara.state = SIH_ACTIVE_MODE;
-	sih_haptic->hp_func->stop(sih_haptic);
-	sih_haptic->hp_func->check_detect_state(sih_haptic, SIH_RTP_MODE);
-	sih_haptic->hp_func->set_rtp_aei(sih_haptic, false);
 	sih_haptic->hp_func->set_play_mode(sih_haptic, SIH_RTP_MODE);
 	sih_haptic->hp_func->play_go(sih_haptic, true);
 	usleep_range(2000, 2500);

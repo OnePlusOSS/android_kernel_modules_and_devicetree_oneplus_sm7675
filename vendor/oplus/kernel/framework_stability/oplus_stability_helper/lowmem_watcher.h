@@ -5,9 +5,8 @@
 
 #ifndef _LOWMEM_HELPER_H
 #define _LOWMEM_HELPER_H
-#include <linux/shrinker.h>
 
-void lowmem_report(void *ignore, struct shrinker *shrinker, long *freeable);
+void lowmem_report(void *ignore, int order, gfp_t gfp_flags);
 void init_mem_confg(void);
 
 #endif /* _LOWMEM_HELPER_H */

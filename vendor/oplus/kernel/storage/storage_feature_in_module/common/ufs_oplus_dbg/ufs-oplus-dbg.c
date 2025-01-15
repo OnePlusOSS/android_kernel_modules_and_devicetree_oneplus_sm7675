@@ -748,8 +748,10 @@ int ufs_ioctl_monitor(struct scsi_device *dev, void __user *buf_user)
 	req = blk_mq_rq_to_pdu(rq);
 
 	cmdlen = COMMAND_SIZE(opcode);
-	if ((VENDOR_SPECIFIC_CDB == opcode) &&(0 == strncmp(dev->vendor, "SAMSUNG ", 8)))
+	if (((VENDOR_SPECIFIC_CDB == opcode) && (0 == strncmp(dev->vendor, "SAMSUNG ", 8)))
+	         || ((READ_BUFFER == opcode) && (0 == strncmp(dev->vendor, "XBSTOR ", 7)))) {
 		cmdlen = 16;
+	}
 
 	/*
 	 * get command and data to send to device, if any
@@ -1139,6 +1141,9 @@ static void ufs_oplus_ioctl_init(struct scsi_device *sdev) {
 }
 
 void ufs_oplus_init_sdev(struct scsi_device *sdev) {
+	if ((0 == strncmp(sdev->vendor, "XBSTOR ", 7) && scsi_is_wlun(sdev->lun)))
+            return;
+
 	if (atomic_inc_return(&ufs_init_done) == 1) {
         	ufs_update_sdev(sdev);
 		ufs_oplus_ioctl_init(sdev);

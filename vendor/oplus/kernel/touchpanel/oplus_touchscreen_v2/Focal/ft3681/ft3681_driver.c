@@ -3342,6 +3342,16 @@ static void fts_fod_fingerprint_health_info(void *chip_data)
 	TPD_INFO("%s:%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x \n",
 		__func__, buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8], buf[9], buf[10]);
 
+	if (ts_data->monitor_data == NULL) {
+		TPD_INFO("%s : ts_data->monitor_data is NULL\n", __func__);
+		return;
+	}
+
+	if (ts_data->monitor_data->p_finger_health_info == NULL) {
+		TPD_INFO("%s : ts_data->monitor_data->p_finger_health_info is NULL\n", __func__);
+		return;
+	}
+
 	switch (buf[6]) {
 	case FOD_ENABLE:
 			ts_data->monitor_data->p_finger_health_info->fp_enble_count++;

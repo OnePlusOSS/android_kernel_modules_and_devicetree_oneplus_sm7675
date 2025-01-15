@@ -156,6 +156,18 @@ bool is_webview(struct task_struct *p)
 }
 #endif
 
+bool is_heavy_load_top_task(struct task_struct *p)
+{
+	if (!is_top(p))
+		return false;
+
+	/* is UI main thread or RenderThread of TOP APP */
+	if ((p->pid == p->tgid) || (!strncmp(p->comm, "RenderThread", 12)))
+		return true;
+
+	return false;
+}
+
 struct ux_sched_cputopo ux_sched_cputopo;
 
 static inline void sched_init_ux_cputopo(void)
@@ -791,6 +803,11 @@ unsigned int ux_task_exec_limit(struct task_struct *p)
 	int ux_state = oplus_get_ux_state(p);
 	unsigned int exec_limit = UX_EXEC_SLICE;
 
+	if (global_lowend_plat_opt && (ux_state & SA_TYPE_HEAVY) && is_heavy_load_top_task(p)) {
+		exec_limit *= 40;
+		return exec_limit;
+	}
+
 	if (sched_assist_scene(SA_LAUNCH) && !(ux_state & SA_TYPE_INHERIT)) {
 		exec_limit *= 30;
 		return exec_limit;
@@ -1031,9 +1048,9 @@ static void dequeue_ux_thread(struct rq *rq, struct task_struct *p)
 	if (!oplus_rbnode_empty(&ots->ux_entry)) {
 		update_ux_timeline_task_removal(orq, ots);
 
-		/* inherit ux can only keep it's ux state in MAX_INHERIT_GRAN(64 ms) */
+		/* inherit ux can only keep it's ux state in MAX_INHERIT_GRAN */
 		if (get_ux_state_type(p) == UX_STATE_INHERIT &&
-			(p->se.sum_exec_runtime - ots->inherit_ux_start > MAX_INHERIT_GRAN)) {
+			(p->se.sum_exec_runtime - ots->inherit_ux_start > get_max_inherit_gran(p))) {
 			atomic64_set(&ots->inherit_ux, 0);
 			ots->ux_depth = 0;
 			ots->ux_state = 0;
@@ -1223,6 +1240,14 @@ void clear_all_inherit_type(struct task_struct *p)
 	atomic64_set(&ots->inherit_ux, 0);
 	ots->ux_depth = 0;
 	oplus_set_ux_state_lock(p, 0, -1, true);
+}
+
+int get_max_inherit_gran(struct task_struct *p)
+{
+	if (global_lowend_plat_opt && test_inherit_ux(p, INHERIT_UX_BINDER))
+		return MAX_INHERIT_GRAN * 2;
+
+	return MAX_INHERIT_GRAN;
 }
 
 #ifndef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM

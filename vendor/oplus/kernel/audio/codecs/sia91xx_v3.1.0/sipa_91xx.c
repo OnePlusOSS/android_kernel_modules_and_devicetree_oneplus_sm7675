@@ -533,7 +533,7 @@ int sia91xx_mute(
 			si_pa->sipa_on = true;
 #ifdef OPLUS_FEATURE_SPEAKER_MUTE
 // Add for spk mute ctrl
-			if (speaker_mute_control) {
+			if (speaker_mute_control && (si_pa->scene != AUDIO_SCENE_RECEIVER || si_pa->channel_num != 0)) {
 				pr_info("[debug][%s] %s: pa is mute on, direct return!\n", LOG_FLAG, __func__);
 				return 0;
 			}

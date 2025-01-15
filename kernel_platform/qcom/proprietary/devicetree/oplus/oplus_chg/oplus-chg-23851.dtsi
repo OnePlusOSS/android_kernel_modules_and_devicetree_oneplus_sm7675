@@ -92,6 +92,7 @@
 		oplus,battery_type_by_smem;
 		oplus,chg_spec_version = <OPLUS_CHG_SPEC_VER_V3P7>;
 		oplus,eco_region_list = /bits/ 8 <0x44>;
+		oplus,common-charge-icl-support;
 
 		oplus-charger {
 			plat_pm8550_groups: oplus,plat_pm8550-groups {
@@ -380,11 +381,6 @@
 					       1400 1750 1800>;
 		oplus_spec,wired-ffc-fcc-cutoff-ma = <1300 1650 1700
 						      1300 1650 1700>;
-
-		oplus_spec,wired-aging-ffc-version = <AGING_FFC_V1>;
-		oplus_spec,wired-aging-ffc-offset-mv = <10 15
-							10 15>;
-		oplus_spec,wired-aging-ffc-cycle-thr = <500 1000>;
 
 		oplus_spec,vbat_uv_thr_mv = <3300>;
 		oplus_spec,vbat_charging_uv_thr_mv = <3200>;
@@ -1843,6 +1839,7 @@
 		oplus,use_vooc_phy;
 		oplus,use_ufcs_phy;
 		oplus,vac_support;
+		oplus,always_otg_en;
 
 		oplus_spec,irq_gpio = <&tlmm 8 0x00>;
 

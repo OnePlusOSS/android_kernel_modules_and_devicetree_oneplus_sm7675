@@ -1801,12 +1801,6 @@ static int syna_cdev_ioctl_send_message(struct syna_tcm *tcm,
 	unsigned int payload_length = 0;
 	unsigned int delay_ms_resp = RESP_IN_POLLING;
 	struct tcm_buffer resp_data_buf;
-	unsigned short config = 0;
-	unsigned char *ubuf_krn_ptr = NULL;
-	int set_gesture_en = 0;
-	int retry_cnt = 5;
-	int cpy_len = 0;
-	int ret = 0;
 
 	if (!tcm->is_connected) {
 		LOGE("Not connected\n");
@@ -1857,25 +1851,11 @@ retry:
 		}
 	}
 
-	ubuf_krn_ptr = (unsigned char *)kzalloc(buf_size, GFP_KERNEL);
-	if (!ubuf_krn_ptr) {
-		LOGE("Fail to kzalloc mem\n");
-		retval = -ENOMEM;
-		return retval;
-	}
-	cpy_len = *msg_size;
-	retval = copy_from_user(ubuf_krn_ptr, ubuf_ptr, cpy_len);
-	if (retval) {
-		LOGE("Fail to copy data from user space, size:%d\n", *msg_size);
-		retval = -EBADE;
-		goto cpyu_err;
-	}
-
-send_cmd_again:
 	mutex_lock(&tcm->mutex);
 
 	/* init a buffer for the response data */
 	syna_tcm_buf_init(&resp_data_buf);
+
 	syna_tcm_buf_lock(&g_cdev_cbuf);
 
 	retval = syna_tcm_buf_alloc(&g_cdev_cbuf, buf_size);
@@ -1887,7 +1867,12 @@ send_cmd_again:
 
 	data = g_cdev_cbuf.buf;
 
-	memcpy((void *)data, (void *)ubuf_krn_ptr, cpy_len);
+	retval = copy_from_user(data, ubuf_ptr, *msg_size);
+	if (retval) {
+		LOGE("Fail to copy data from user space, size:%d\n", *msg_size);
+		retval = -EBADE;
+		goto exit;
+	}
 
 	payload_length = syna_pal_le2_to_uint(&data[1]);
 	LOGE("Command = 0x%02x, payload length = %d data:%*ph\n",
@@ -1903,7 +1888,6 @@ send_cmd_again:
 			tcm->gesture_type = (unsigned short)syna_pal_le2_to_uint(&data[4]);
 			syna_dev_update_lpwg_status(tcm);
 			syna_sysfs_set_fingerprint_prepare(tcm);
-			set_gesture_en = 1;
 			LOGE("HBP set gesture_type(0x%04x)\n", tcm->gesture_type);
 		} else if (data[3] == DC_TOUCH_AND_HOLD) {
 			tcm->touch_and_hold = (unsigned short)syna_pal_le2_to_uint(&data[4]);
@@ -1913,6 +1897,12 @@ send_cmd_again:
 			if (tcm->touch_and_hold) {
 				tcm->is_fp_down = false;
 			}
+		} else if (data[3] == DC_UNDER_WATER_DETECT) {
+			tcm->under_water_detect = (unsigned short)syna_pal_le2_to_uint(&data[4]);
+			syna_dev_update_lpwg_status(tcm);
+			syna_sysfs_set_fingerprint_prepare(tcm);
+			LOGE("HBP set under_water_detect(0x%04x)\n", tcm->under_water_detect);
+			tcm->under_water_detect = (tcm->under_water_detect >> UNDER_WATER_BIT) & 0x1;
 		}
 	}
 
@@ -1932,7 +1922,7 @@ send_cmd_again:
 	}
 
 	if ((data[0] == CMD_SET_DYNAMIC_CONFIG) && (payload_length == 3)) {
-		if ((data[3] == DC_GESTURE_TYPE_ENABLE) || (data[3] == DC_TOUCH_AND_HOLD)) {
+		if ((data[3] == DC_GESTURE_TYPE_ENABLE) || (data[3] == DC_TOUCH_AND_HOLD) || (data[3] == DC_UNDER_WATER_DETECT)) {
 			if (!tcm->fp_active) {
 				syna_pal_sleep_ms(50);
 				syna_sysfs_set_fingerprint_post(tcm);
@@ -2010,23 +2000,6 @@ exit:
 
 	syna_tcm_buf_release(&resp_data_buf);
 
-	//syna_pal_sleep_ms(50);
-	if ((tcm->gesture_type > 0) && (retry_cnt > 0) && (set_gesture_en == 1)) {
-		retry_cnt--;
-		ret = syna_tcm_get_dynamic_config(tcm->tcm_dev, DC_GESTURE_TYPE_ENABLE, &config, 0);
-		if (ret < 0) {
-			LOGI("gesture_type : error, retry again, ret = %d.\n", ret);
-			goto send_cmd_again;
-		} else {
-			LOGI("gesture_type : %d\n", config);
-			if (config != tcm->gesture_type) {
-				goto send_cmd_again;
-			}
-		}
-	}
-cpyu_err:
-	if (ubuf_krn_ptr)
-		kfree(ubuf_krn_ptr);
 	return retval;
 }
 
