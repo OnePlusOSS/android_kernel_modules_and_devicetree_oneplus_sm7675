@@ -147,5 +147,6 @@ struct aw87xxx {
 
 int aw87xxx_update_profile(struct aw87xxx *aw87xxx, char *profile);
 int aw87xxx_update_profile_esd(struct aw87xxx *aw87xxx, char *profile);
+int aw87xxx_add_codec_controls(void *codec);
 
 #endif

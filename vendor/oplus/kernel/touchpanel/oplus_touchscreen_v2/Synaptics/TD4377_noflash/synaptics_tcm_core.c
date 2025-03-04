@@ -1270,13 +1270,15 @@ static void syna_tcm_dispatch_report(struct syna_tcm_hcd *tcm_hcd)
 				touch_data->palm_status = PALM_TO_DEFAULT;
 			}
 			if (touch_data->glove_status == GLOVE_TO_TRIGGER && touch_data->glove_flag == 0) {
-				TPD_INFO("Enter glove_mode\n");
+				TPD_INFO("glove_mode = 1\n");
 				touch_data->glove_flag = 1;
+				tp_healthinfo_report(&tcm_hcd->monitor_data, HEALTH_GLOVE, &touch_data->glove_flag);
 			}
 
 			if (touch_data->glove_status == GLOVE_TO_HAND && touch_data->glove_flag == 1) {
-				TPD_INFO("Quit glove_mode\n");
+				TPD_INFO("glove_mode = 0\n");
 				touch_data->glove_flag = 0;
+				tp_healthinfo_report(&tcm_hcd->monitor_data, HEALTH_GLOVE, &touch_data->glove_flag);
 			}
 		}
 	} else if (tcm_hcd->report.id == REPORT_IDENTIFY) {
@@ -2957,45 +2959,47 @@ static int syna_get_touch_points(void *chip_data, struct point_info *points, int
 	return obj_attention;
 }
 
+static int syna_tcm_sw_reset(struct syna_tcm_hcd *tcm_hcd)
+{
+	int retval;
+	unsigned char *resp_buf;
+	unsigned int resp_buf_size;
+	unsigned int resp_length;
+
+	resp_buf = NULL;
+	resp_buf_size = 0;
+
+	retval = syna_tcm_write_message(tcm_hcd,
+					CMD_RESET,
+					NULL,
+					0,
+					&resp_buf,
+					&resp_buf_size,
+					&resp_length,
+					RESPONSE_TIMEOUT_MS_SHORT);
+	if (retval < 0) {
+		retval = -EINVAL;
+		TPD_INFO("Failed to do sw reset\n");
+	}
+
+	kfree(resp_buf);
+	return retval;
+}
+
 static int syna_tcm_before_switch_to_gesture_mode(struct syna_tcm_hcd *tcm_hcd, bool enable)
 {
-	int ret = 0;
-	struct touchpanel_data *ts = spi_get_drvdata(tcm_hcd->s_client);
-	const struct firmware *fw = NULL;
-	char *fw_name_lpwg = NULL;
-	char *p_node = NULL;
-	char *postfix = "_LPWG.img";
-	uint8_t copy_len = 0;
-
-	TPD_INFO("%s  is called\n", __func__);
 
 	if (enable) {
-		fw_name_lpwg = kzalloc(MAX_FW_NAME_LENGTH, GFP_KERNEL);
-			if (fw_name_lpwg == NULL) {
-				TPD_INFO("fw_name_lpwg kzalloc error!\n");
-				return -ENOMEM;
-			}
-		p_node = strstr(ts->panel_data.fw_name, ".");
-		copy_len = p_node - ts->panel_data.fw_name;
-		memcpy(fw_name_lpwg, ts->panel_data.fw_name, copy_len);
-		strlcat(fw_name_lpwg, postfix, MAX_FW_NAME_LENGTH);
+		/*set gesture fw mode flag = 1*/
+		tcm_hcd->request_fw_image_id = 1;
+		/*sw reset*/
+		syna_tcm_sw_reset(tcm_hcd);
 
-		ret = request_firmware(&fw, fw_name_lpwg, ts->dev);
-		if (!ret) {
-			ts->loading_fw = true;
-				if (ts->ts_ops && ts->ts_ops->fw_update)
-					ret = ts->ts_ops->fw_update(ts->chip_data, fw, 1);
-				ts->loading_fw = false;
-		} else {
-			TPD_INFO("request_firmware(%s) fail and no need to download test fw !\n", fw_name_lpwg);
-		}
+		msleep(50);
+		/*wait hostdownload done*/
+		tp_wait_hdl_finished();
 
-		if (fw) {
-			release_firmware(fw);
-			fw = NULL;
-		}
-
-		kfree(fw_name_lpwg);
+		tcm_hcd->request_fw_image_id = 0;
 	}
 
 	return 0;
@@ -3005,7 +3009,12 @@ static int syna_tcm_set_gesture_mode(struct syna_tcm_hcd *tcm_hcd, bool enable)
 {
 	int retval = 0;
 	unsigned short config;
-	syna_tcm_before_switch_to_gesture_mode(tcm_hcd, enable);
+	struct touchpanel_data *ts = spi_get_drvdata(tcm_hcd->s_client);
+
+	if (ts->lpwg_fw_support) {
+		/*request lpwg firmware*/
+		syna_tcm_before_switch_to_gesture_mode(tcm_hcd, enable);
+	}
 
 	/*this command may take too much time, if needed can add flag to skip this */
 	retval = syna_tcm_get_dynamic_config(tcm_hcd, DC_IN_WAKEUP_GESTURE_MODE, &config);
@@ -3235,7 +3244,7 @@ static int synaptics_enable_game_mode(struct syna_tcm_hcd *tcm_hcd, bool enable)
 
 	return ret;
 }
-void tp_wait_hdl_finished(void);
+/* void tp_wait_hdl_finished(void); */
 
 static int syna_mode_switch(void *chip_data, work_mode mode, int flag)
 {
@@ -4799,6 +4808,22 @@ static uint8_t synaptics_get_touch_direction(void *chip_data)
 	return tcm_hcd->touch_direction;
 }
 
+static void syna_getglove_mode_status(void *chip_data, int *enable, int *count)
+{
+	struct syna_tcm_hcd *tcm_hcd = (struct syna_tcm_hcd *)chip_data;
+	struct touch_hcd *touch_hcd = tcm_hcd->touch_hcd;
+	struct touch_data *touch_data = &touch_hcd->touch_data;
+
+	TP_INFO(touch_data->glove_status, "%s: glove_status flag.\n", __func__);
+	TPD_INFO("glove_mode = %d \n", touch_data->glove_status);
+
+	/*mutex_lock(&tcm_hcd->rw_ctrl_mutex);*/
+	/*mutex_unlock(&tcm_hcd->rw_ctrl_mutex);*/
+
+	*enable = 1;
+	return;
+}
+
 static struct oplus_touchpanel_operations syna_tcm_ops = {
 	.ftm_process       = syna_ftm_process,
 	.get_vendor        = syna_get_vendor,
@@ -4824,6 +4849,7 @@ static struct oplus_touchpanel_operations syna_tcm_ops = {
 /*	.freq_hop_trigger = syna_freq_hop_trigger,*/
 	.smooth_lv_set    = syna_tcm_smooth_lv_set,
 	.sensitive_lv_set = syna_tcm_sensitive_lv_set,
+	.get_glove_mode         = syna_getglove_mode_status,
 };
 
 /*

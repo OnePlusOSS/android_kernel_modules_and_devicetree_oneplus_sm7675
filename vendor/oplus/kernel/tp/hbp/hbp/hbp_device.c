@@ -36,6 +36,8 @@
 #define HBP_IOCTRL_CLEAR_FIFO			_IO(HBP_IOCTRL_GROUP, 0x13)
 #define HBP_IOCTRL_SET_DEBUG_LEVEL		_IO(HBP_IOCTRL_GROUP, 0x14)
 #define HBP_IOCTRL_SET_BS_DATA_RECORD	_IO(HBP_IOCTRL_GROUP, 0x15)
+#define HBP_IOCTRL_SPI_SET_PARA			_IO(HBP_IOCTRL_GROUP, 0x16)
+#define HBP_IOCTRL_SPI_GET_PARA			_IO(HBP_IOCTRL_GROUP, 0x17)
 
 extern void hbp_state_notify(struct hbp_core *hbp, int id, hbp_panel_event event);
 extern void hbp_register_notify_cb(struct hbp_device *hbp_dev, struct device *dev);
@@ -609,15 +611,22 @@ static irqreturn_t hbp_irq_threaded_fn(int irq, void *dev_id)
 	//black gesture or fingerprint flow
 	if (unlikely(hbp_dev->state == HBP_PANEL_EVENT_SUSPEND ||
 		(hbp_dev->state == HBP_PANEL_EVENT_EARLY_SUSPEND))) {
-		memset(&gesture, 0, sizeof(gesture));
-		ret = hbp_dev->dev_ops->get_gesture(hbp_dev->priv, &gesture);
-		if (ret < 0) {
-			hbp_err("failed to get gesture type\n");
-		} else {
-			hbp_gesture_report(hbp_dev, &gesture);
+		if (reason == IRQ_REASON_GESTURE_DIFF) {
 			//for debug gesture, record frame data
 			if (hbp_dev->debug.report_gesture_frm) {
 				goto report_frame;
+			}
+		} else {
+			memset(&gesture, 0, sizeof(gesture));
+			ret = hbp_dev->dev_ops->get_gesture(hbp_dev->priv, &gesture);
+			if (ret < 0) {
+				hbp_err("failed to get gesture type\n");
+			} else {
+				hbp_gesture_report(hbp_dev, &gesture);
+				//for debug gesture, record frame data
+				if (hbp_dev->debug.report_gesture_frm) {
+					goto report_frame;
+				}
 			}
 		}
 		goto exit;
@@ -762,6 +771,39 @@ copy_err:
 	return ret;
 }
 
+static int hbp_dev_spi_set_para(struct hbp_device *hbp_dev, int cmd, union usr_data *usr)
+{
+	int ret = 0;
+
+	ret = hbp_dev->dev_ops->spi_set_para(hbp_dev->priv, usr->spi_setup.mode,
+		usr->spi_setup.bits_per_word, usr->spi_setup.speed);
+
+	hbp_info("mode:%d,bits_per_word:%d,speed:%d.\n", usr->spi_setup.mode,
+		usr->spi_setup.bits_per_word, usr->spi_setup.speed);
+
+	return ret;
+}
+
+static int hbp_dev_spi_get_para(struct hbp_device *hbp_dev, int cmd, char __user *user_data)
+{
+	int ret = 0;
+	union usr_data data;
+
+	ret = hbp_dev->dev_ops->spi_get_para(hbp_dev->priv, &data.spi_setup.mode,
+		&data.spi_setup.bits_per_word, &data.spi_setup.speed);
+
+	hbp_info("mode:%d,bits_per_word:%d,speed:%d.\n", data.spi_setup.mode,
+		data.spi_setup.bits_per_word, data.spi_setup.speed);
+
+	if (user_data) {
+		if (copy_to_user(user_data, &data, sizeof(union usr_data))) {
+			hbp_info("faile to copy spi_setup to user\n");
+		}
+	}
+
+	return ret;
+}
+
 static int hbp_queue_config(unsigned int buf_size, struct frame_queue *queue)
 {
 	int ret = 0;
@@ -809,6 +851,7 @@ static long hbp_ctrl_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigne
 	struct hbp_device *hbp_dev = (struct hbp_device *)filp->private_data;
 	union usr_data usr;
 	struct gesture_info gesture;
+	char __user *user_data = (char __user *)arg;
 
 	if (copy_from_user(&usr, (void *)arg, sizeof(union usr_data))) {
 		hbp_err("failed to copy data from user space\n");
@@ -840,10 +883,26 @@ static long hbp_ctrl_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigne
 	case HBP_IOCTRL_SPI_SYNC:
 		ret = hbp_dev_spi_sync(hbp_dev, cmd, &usr);
 		if (ret < 0) {
-			hbp_err("failed to write ");
+			hbp_err("failed to write");
 			return ret;
 		}
 		break;
+	case HBP_IOCTRL_SPI_SET_PARA:
+		ret = hbp_dev_spi_set_para(hbp_dev, cmd, &usr);
+		if (ret < 0) {
+			hbp_err("failed to spi setup");
+			return ret;
+		}
+		break;
+
+	case HBP_IOCTRL_SPI_GET_PARA:
+		ret = hbp_dev_spi_get_para(hbp_dev, cmd, user_data);
+		if (ret < 0) {
+			hbp_err("failed to spi get setup data");
+			return ret;
+		}
+		break;
+
 	case HBP_IOCTRL_GET_FRAME:
 		ret = frame_get(usr.frame.data, usr.frame.size, &hbp_dev->frame_queue);
 		if (ret < 0) {

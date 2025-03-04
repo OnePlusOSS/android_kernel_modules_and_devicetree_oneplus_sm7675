@@ -34,7 +34,6 @@ struct upgrade_setting_nf upgrade_setting_list[] = {
 
 
 /*******Part0:LOG TAG Declear********************/
-
 #ifdef TPD_DEVICE
 #undef TPD_DEVICE
 #define TPD_DEVICE "focaltech,nf_ft8057p"
@@ -3329,7 +3328,11 @@ ts_malloc_failed:
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+static void fts_tp_remove(struct spi_device *spi)
+#else
 static int fts_tp_remove(struct spi_device *spi)
+#endif
 {
 	struct touchpanel_data *ts = spi_get_drvdata(spi);
 	struct chip_data_ft8057p *ts_data = (struct chip_data_ft8057p *)ts->chip_data;
@@ -3346,9 +3349,12 @@ static int fts_tp_remove(struct spi_device *spi)
 	ts_data = NULL;
 
 	kfree(ts);
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+#else
 	return 0;
+#endif
 }
+
 
 static int fts_spi_suspend(struct device *dev)
 {

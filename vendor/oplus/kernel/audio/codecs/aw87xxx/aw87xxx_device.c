@@ -238,9 +238,10 @@ static int aw87xxx_dev_reg_update(struct aw_device *aw_dev,
 	}
 
 	for (i = 0; i < profile_data->len; i = i + 2) {
+#ifndef OPLUS_ARCH_EXTENDS
 		AW_DEV_LOGI(aw_dev->dev, "reg=0x%02x, val = 0x%02x",
 			profile_data->data[i], profile_data->data[i + 1]);
-
+#endif
 		/*delay ms*/
 		if (profile_data->data[i] == AW87XXX_DELAY_REG_ADDR) {
 			AW_DEV_LOGI(aw_dev->dev, "delay %d ms", profile_data->data[i + 1]);

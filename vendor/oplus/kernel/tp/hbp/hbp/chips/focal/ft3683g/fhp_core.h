@@ -192,6 +192,7 @@ enum _FTS_RST_REASON {
 	FTS_RST_REASON_WDT      = 0x02,
 	FTS_RST_REASON_EXTERNAL = 0x04,
 	FTS_RST_REASON_PWR      = 0x08,
+	FTS_GESTURE_DIFF		= 0x80,
 };
 
 /* communication interface */

@@ -78,6 +78,7 @@
 		qcom,fw-prefix;
 		qcom,wlan;
 		tsens = "sys-therm-3";
+		use-nv-mac;
 		qcom,wlan-msa-fixed-region = <&wlan_msa_mem>;
 		vdd-cx-mx-supply = <&S3B>;
 		qcom,vdd-cx-mx-config = <968000 1040000 0 0 1>;

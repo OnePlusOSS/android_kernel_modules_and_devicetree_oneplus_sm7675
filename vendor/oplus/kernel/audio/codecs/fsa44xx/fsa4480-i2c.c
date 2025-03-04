@@ -31,6 +31,7 @@
 #define FSA4480_I2C_NAME	"fsa4480-driver"
 
 #define HL5280_DEVICE_REG_VALUE 0x49
+#define HL5281_DEVICE_REG_VALUE 0x50
 
 #define FSA4480_DEVICE_ID  0x00
 #define FSA4480_SWITCH_SETTINGS 0x04
@@ -60,6 +61,7 @@
 enum switch_vendor {
     FSA4480 = 0,
     HL5280,
+    HL5281,
     DIO4480,
     WAS4780,
     BCT4480
@@ -320,7 +322,11 @@ static int fsa4480_usbc_analog_setup_switches(struct fsa4480_priv *fsa_priv)
 
 			dev_info(dev, "%s: set reg[0x%x] done.\n", __func__, FSA4480_FUN_EN);
 			dio_status = 0;
-
+		} else if (fsa_priv->vendor == HL5281) {
+			fsa4480_usbc_update_settings(fsa_priv, 0x00, 0x9F);
+			regmap_write(fsa_priv->regmap, FSA4480_FUN_EN, 0x5D);
+			msleep(400);
+			dev_info(dev, "%s: set HL5281 reg[0x%x] done.\n", __func__, FSA4480_FUN_EN);
 		} else if (fsa_priv->vendor == WAS4780){
 			fsa4480_usbc_update_settings(fsa_priv, 0x00, 0x9F);
 			usleep_range(1000, 1005);
@@ -944,6 +950,9 @@ static int fsa4480_probe(struct i2c_client *i2c)
 	if (HL5280_DEVICE_REG_VALUE == reg_value) {
 		dev_info(fsa_priv->dev, "%s: switch chip is HL5280\n", __func__);
 		fsa_priv->vendor = HL5280;
+	    } else if (HL5281_DEVICE_REG_VALUE == reg_value) {
+		dev_info(fsa_priv->dev, "%s: switch chip is HL5281\n", __func__);
+		fsa_priv->vendor = HL5281;
         } else if (0x09 == reg_value) {
                 dev_info(fsa_priv->dev, "%s: switch chip is BCT4480\n", __func__);
                 fsa_priv->vendor = BCT4480;
@@ -971,6 +980,10 @@ static int fsa4480_probe(struct i2c_client *i2c)
 		usleep_range(1*1000, 1*1005);
 	}
 
+	if (fsa_priv->vendor == HL5281) {
+		regmap_write(fsa_priv->regmap, FSA4480_FUN_EN, 0x18);//default the compare
+		usleep_range(1*1000, 1*1005);
+	}
 	fsa_priv->plug_state = false;
 	fsa_priv->tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
 	if (!fsa_priv->tcpc_dev) {

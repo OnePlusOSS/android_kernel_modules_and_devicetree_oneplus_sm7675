@@ -33,6 +33,8 @@ static bool time_sensitive = false;
 
 static bool render_running = false;
 static bool render_queque_buffer_sync_binder = false;
+static bool render_queque_buffer_just_now = false;
+static pid_t sf_binder_task_pid = 0;
 
 static u64 render_start_runing_ts;
 static u64 new_frame_produce_ts;
@@ -552,12 +554,33 @@ static const struct proc_ops ed_args_proc_ops = {
 	.proc_lseek		= default_llseek,
 };
 
+static bool is_sf_binder_task(struct task_struct *task)
+{
+	if (!strncmp(task->comm, "binder:", 7)) {
+		struct task_struct *group_leader = task->group_leader;
+		if (group_leader && !strcmp(group_leader->comm, "surfaceflinger")) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void ed_render_wakeup_times_stat(struct task_struct *task)
 {
 	if (!ed_enable)
 		return;
 
 	if (task->pid == render_task_pid) {
+		if (sf_binder_task_pid) {
+			if ((current->pid == sf_binder_task_pid) && is_sf_binder_task(current)) {
+				render_queque_buffer_sync_binder = true;
+			} else {
+				render_queque_buffer_sync_binder = false;
+			}
+		}
+		sf_binder_task_pid = 0;
+
 		if (render_wakeup_too_many_times_detect) {
 			int a_render_wakeup_times = atomic_read(&arg_render_wakeup_times);
 			if ((a_render_wakeup_times > 0)
@@ -567,11 +590,10 @@ void ed_render_wakeup_times_stat(struct task_struct *task)
 			}
 		}
 	} else if (current->pid == render_task_pid) {
-		if (!strncmp(task->comm, "binder:", 7)) {
-			struct task_struct *group_leader = task->group_leader;
-			if (group_leader && !strncmp(group_leader->comm, "surfaceflinger", 14)) {
-				render_queque_buffer_sync_binder = true;
-			}
+		if (is_sf_binder_task(task)) {
+			render_queque_buffer_just_now = true;
+			sf_binder_task_pid = task->pid;
+			systrace_c_printk("render_queque_buffer_sync_binder", render_queque_buffer_sync_binder ? 1 : 0);
 		}
 	}
 }
@@ -615,7 +637,9 @@ static void sched_switch_hook(void *unused, bool preempt,
 		if (render_start) {
 			hrtimer_try_to_cancel(&render_long_sleep_hrtimer);
 		} else { /* render_stop */
-			if (!render_queque_buffer_sync_binder && time_sensitive && (prev_state > 0)) {
+			systrace_c_printk("prev_state", prev_state);
+			if ((!render_queque_buffer_just_now || !render_queque_buffer_sync_binder)
+					&& time_sensitive && (prev_state == (TASK_INTERRUPTIBLE | TASK_FREEZABLE))) {
 				int buffer_num = atomic_read(&queued_buffer_num);
 				int a_render_sleep_time_us = atomic_read(&arg_render_sleep_time_us);
 				int a_buffer2_render_sleep_time_us = atomic_read(&arg_buffer2_render_sleep_time_us);
@@ -634,7 +658,7 @@ static void sched_switch_hook(void *unused, bool preempt,
 		}
 	}
 
-	render_queque_buffer_sync_binder = false;
+	render_queque_buffer_just_now = false;
 }
 
 static void register_ed_vendor_hooks(void)
@@ -661,7 +685,10 @@ static enum hrtimer_restart ed_hrtimer_callback(struct hrtimer *timer)
 		nr = 6;
 
 	if (nr > 0) {
-		if (nr != 2) {
+		if (nr == 2) {
+			systrace_c_printk("hrtimer_expiry_nr2", 1);
+			systrace_c_printk("hrtimer_expiry_nr2", 0);
+		} else {
 			systrace_c_printk("hrtimer_expiry_nr", nr);
 			systrace_c_printk("hrtimer_expiry_nr", 0);
 		}

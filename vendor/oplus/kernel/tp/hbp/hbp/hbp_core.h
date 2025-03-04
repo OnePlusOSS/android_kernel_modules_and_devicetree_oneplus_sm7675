@@ -110,6 +110,12 @@ union usr_data {
 	} ifp;
 
 	struct power_sequeue sq[MAX_POWER_SEQ];
+
+	struct {
+		uint8_t mode;
+		uint8_t bits_per_word;
+		int speed;
+	} spi_setup;
 };
 
 struct chip_info {
@@ -206,6 +212,8 @@ struct dev_operations {
 	int (*spi_write)(void *priv, void *tx, int32_t len);
 	int (*spi_read)(void *priv, char *rx, int32_t len);
 	int (*spi_sync)(void *priv, char *tx, char *rx, int32_t len);
+	int (*spi_set_para)(void *priv, uint8_t mode, uint8_t bits_per_word, int speed);
+	int (*spi_get_para)(void *priv, uint8_t *mode, uint8_t *bits_per_word, int *speed);
 	int (*get_frame)(void *priv, uint8_t *buf, uint32_t size);
 	int (*get_gesture)(void *priv, struct gesture_info *gesture);
 	int (*get_touch_points)(void *priv, struct point_info *points);

@@ -132,7 +132,8 @@ static int ipa_get_generic_stats(unsigned long arg)
 	int i, j;
 	struct ipa_lnx_generic_stats *generic_stats;
 	struct ipa_drop_stats_all *out;
-	int alloc_size;
+	/*CVE-2024-21464 (QC-CR#3445828) :all platforms that need the CR should use the uint64_t(QC case:07596359)*/
+	uint64_t alloc_size;
 	int reg_idx;
 	struct ipa_uc_holb_client_info *holb_client;
 	struct holb_discard_stats *holb_disc_stats_ptr;

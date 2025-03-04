@@ -284,6 +284,20 @@ static int fhp_spi_sync(void *priv, char *tx, char *rx, int32_t len)
 	return fts->bus_ops->spi_sync(fts->bus_ops, tx, rx, len);
 }
 
+static int fhp_spi_set_para(void *priv, uint8_t mode, uint8_t bits_per_word, int speed)
+{
+	struct fts_core *fts = (struct fts_core *)priv;
+
+	return fts->bus_ops->spi_set_para(fts->bus_ops, mode, bits_per_word, speed);
+}
+
+static int fhp_spi_get_para(void *priv, uint8_t *mode, uint8_t *bits_per_word, int *speed)
+{
+	struct fts_core *fts = (struct fts_core *)priv;
+
+	return fts->bus_ops->spi_get_para(fts->bus_ops, mode, bits_per_word, speed);
+}
+
 static int fhp_chip_get_frame(void *priv, u8 *raw, u32 rawsize)
 {
 	u8 cmd = 0;
@@ -379,13 +393,17 @@ static int fhp_chip_get_irq_reason(void *priv, enum irq_reason *reason)
 	case FTS_RST_REASON_PWR:
 		*reason = IRQ_REASON_RESET_PWR;
 		break;
+	case FTS_GESTURE_DIFF:
+		*reason = IRQ_REASON_GESTURE_DIFF;
+		break;
 	default:
 		*reason = IRQ_REASON_NORMAL;
 		break;
 	}
 
-	hbp_info("hbp chip reset, reason 0x%x\n", *reason);
-
+	if (reset_reason != FTS_GESTURE_DIFF) {
+		hbp_info("hbp chip reset, reason 0x%x\n", *reason);
+	}
 	ret = fhp_chip_write_reg(fts, FTS_REG_RESET_REASON, 0x00);
 	if (ret < 0) {
 		hbp_err("failed to clear reset reason");
@@ -928,7 +946,7 @@ static ssize_t fts_debug_write(struct file *filp, const char __user *buff, size_
 		break;
 
 	case PROC_CONFIGURE:
-		ts_data->bus_ops->spi_setup(ts_data->bus_ops, writebuf[1], writebuf[2], *(u32 *)(writebuf + 4));
+		ts_data->bus_ops->spi_set_para(ts_data->bus_ops, writebuf[1], writebuf[2], *(u32 *)(writebuf + 4));
 		break;
 	default:
 		break;
@@ -1055,6 +1073,8 @@ static int fhp_chip_debug_init(struct fts_core *ts_data)
 
 struct dev_operations fts_ops = {
 	.spi_sync = fhp_spi_sync,
+	.spi_set_para = fhp_spi_set_para,
+	.spi_get_para = fhp_spi_get_para,
 	.get_frame = fhp_chip_get_frame,
 	.get_gesture = fhp_chip_get_gesture,
 	.get_touch_points = fhp_chip_get_touch_points,

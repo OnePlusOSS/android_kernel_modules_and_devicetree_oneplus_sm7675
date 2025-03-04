@@ -76,7 +76,7 @@ static int rotation_detect_data_report(struct data_unit_t *input_event)
         return virtual_sensor_data_report(&event);
 }
 
-static int rotation_detect_flush_report()
+static int rotation_detect_flush_report(void)
 {
         return virtual_sensor_flush_report(ID_ROTATION_DETECT);
 }

@@ -145,7 +145,7 @@ static bool is_bright_contain_skip_stage(void)
 	int i = 0, nArrayLen;
 	get_pwkey_stages(stages);
 	/* skip stage for alm: 7898087 */
-	if (strstr(stages, "LIGHT_setScreenState_3_OFF") != NULL && strstr(stages, "LIGHT_setScreenState_4_OFF") != NULL) {
+	if (strstr(stages, "LIGHT_setScreenState_3_OFF") != NULL) {
 		BRIGHT_DEBUG_PRINTK("is_sepical_stage_os15 return true");
 		return true;
 	}

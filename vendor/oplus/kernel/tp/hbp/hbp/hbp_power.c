@@ -228,7 +228,9 @@ void hbp_power_ctrl(struct hbp_device *hbp_dev, struct power_sequeue sq[])
 			return;
 		}
 
-		msleep(sq[i].msleep);
+		if (sq[i].msleep) {
+			msleep(sq[i].msleep);
+		}
 	}
 }
 

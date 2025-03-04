@@ -253,6 +253,7 @@ int cam_context_buf_done_from_hw(struct cam_context *ctx,
 				ctx->img_iommu_hdl, req->out_map_entries[j].resource_handle);
 			if (rc) {
 				CAM_ERR(CAM_CTXT, "Failed to retrieve image buffers rc:%d", rc);
+				cam_packet_util_put_packet_addr(req->pf_data.packet_handle);
 				return rc;
 			}
 		}
@@ -1863,7 +1864,7 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 	if (packet && packet->num_io_configs) {
 		bytes_required = packet->num_io_configs * sizeof(struct cam_buf_io_cfg);
 		if (start_addr + bytes_written + bytes_required > end_addr)
-			goto end;
+			goto exit;
 
 		io_cfg = (struct cam_buf_io_cfg *)((uint32_t *)&packet->payload +
 			packet->io_configs_offset / 4);
@@ -1872,7 +1873,7 @@ static void __cam_context_req_mini_dump(struct cam_ctx_request *req,
 		bytes_written += bytes_required;
 		req_md->num_io_cfg = packet->num_io_configs;
 	}
-
+exit:
 	cam_packet_util_put_packet_addr(req->pf_data.packet_handle);
 end:
 	*bytes_updated = bytes_written;

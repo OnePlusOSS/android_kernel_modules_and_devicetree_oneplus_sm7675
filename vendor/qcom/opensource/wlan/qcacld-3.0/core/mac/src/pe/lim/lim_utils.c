@@ -11066,7 +11066,6 @@ void lim_overwrite_sta_puncture(struct pe_session *session,
 	ch_param->reg_punc_bitmap = new_punc;
 	session->puncture_bitmap = new_punc;
 }
-
 #else
 static void lim_update_ap_puncture(struct pe_session *session,
 				   struct ch_params *ch_params)
@@ -11114,7 +11113,8 @@ QDF_STATUS lim_pre_vdev_start(struct mac_context *mac,
 				       session->curr_op_freq,
 				       wlan_vdev_get_id(session->vdev));
 
-	if (IS_DOT11_MODE_EHT(session->dot11mode))
+	if (IS_DOT11_MODE_EHT(session->dot11mode) &&
+	    !(LIM_IS_STA_ROLE(session) && !lim_get_punc_chan_bit_map(session)))
 		wlan_reg_set_create_punc_bitmap(&ch_params, true);
 
 	wlan_reg_set_channel_params_for_pwrmode(mac->pdev,

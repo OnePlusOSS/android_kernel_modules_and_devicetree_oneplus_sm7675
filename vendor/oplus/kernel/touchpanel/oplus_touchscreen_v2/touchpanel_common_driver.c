@@ -555,6 +555,11 @@ static inline void tp_touch_down(struct touchpanel_data *ts, struct point_info p
 	ts->last_x_y_point[id].x = points.x;
 	ts->last_x_y_point[id].y = points.y;
 
+	if (id == 0 && ts->report_rate_testing) {
+		ts->touch_major_sum += points.touch_major;
+		ts->get_frame_num++;
+	}
+
 	TP_SPECIFIC_PRINT(ts->tp_index, ts->point_num, "Touchpanel id %d :Down[%4d %4d %4d %4d %4d %4d %4d] %d\n", id, points.x, points.y, points.z,
 						points.rx_press, points.tx_press, points.rx_er, points.tx_er, cost_time);
 }
@@ -2288,6 +2293,7 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->edge_pull_out_support = of_property_read_bool(np, "edge_pull_out_support");
 	ts->diaphragm_touch_support = of_property_read_bool(np, "diaphragm_touch_support");
 	ts->disable_touch_event_support = of_property_read_bool(np, "disable_touch_event_support");
+	ts->lpwg_fw_support = of_property_read_bool(np, "lpwg_fw_support");
 
 #ifdef CONFIG_TOUCHPANEL_TRUSTED_TOUCH
 	ts->trusted_touch_support = of_property_read_bool(np, "trusted_touch_support");
@@ -4238,6 +4244,8 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	ts->palm_to_sleep_enable = 0;
 	ts->tp_ic_touch_num = 0;
 	ts->last_tp_ic_touch_num = 0;
+	ts->report_rate_testing = false;
+	ts->report_rate_test_time = 5;
 	for (i = 0; i < MAX_FINGER_NUM; i++) {
 		ts->last_x_y_point[i].x = 0;
 		ts->last_x_y_point[i].y = 0;

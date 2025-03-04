@@ -14,6 +14,8 @@
 		oplus,adc_info_name = "855";
 		oplus,topic-update-interval = <5000>;
 
+		/*High temperature long-term solution for Battery bulge*/
+		high-temp-scheme;
 		oplus,support_usbtemp_protect_v2;
 		oplus_spec,usbtemp_batt_temp_low = <50>;
 		oplus_spec,usbtemp_batt_temp_high = <50>;

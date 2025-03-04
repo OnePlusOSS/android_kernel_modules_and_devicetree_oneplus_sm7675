@@ -242,5 +242,6 @@ void oplus_display_set_current_display(void *dsi_display);
 void oplus_display_update_current_display(void);
 struct dsi_display *oplus_display_get_current_display(void);
 
+int oplus_display_panel_A0020_gamma_compensation(struct dsi_display *display);
 #endif /* _OPLUS_DSI_SUPPORT_H_ */
 

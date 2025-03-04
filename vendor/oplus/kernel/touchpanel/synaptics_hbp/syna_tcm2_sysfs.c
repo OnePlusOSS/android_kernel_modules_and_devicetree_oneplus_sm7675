@@ -1801,6 +1801,7 @@ static int syna_cdev_ioctl_send_message(struct syna_tcm *tcm,
 	unsigned int payload_length = 0;
 	unsigned int delay_ms_resp = RESP_IN_POLLING;
 	struct tcm_buffer resp_data_buf;
+	bool cmd_under_water = false;
 
 	if (!tcm->is_connected) {
 		LOGE("Not connected\n");
@@ -1899,11 +1900,16 @@ retry:
 			}
 		} else if (data[3] == DC_UNDER_WATER_DETECT) {
 			tcm->under_water_detect = (unsigned short)syna_pal_le2_to_uint(&data[4]);
-			syna_dev_update_lpwg_status(tcm);
-			syna_sysfs_set_fingerprint_prepare(tcm);
 			LOGE("HBP set under_water_detect(0x%04x)\n", tcm->under_water_detect);
 			tcm->under_water_detect = (tcm->under_water_detect >> UNDER_WATER_BIT) & 0x1;
+			syna_dev_update_lpwg_status(tcm);
+			syna_sysfs_set_fingerprint_prepare(tcm);
 		}
+	}
+
+	if ((data[0] == CMD_GET_DYNAMIC_CONFIG) && (data[3] == DC_UNDER_WATER_DETECT)) {
+		syna_sysfs_set_fingerprint_prepare(tcm);
+		cmd_under_water = true;
 	}
 
 	retval = syna_tcm_send_command(tcm->tcm_dev,
@@ -1921,9 +1927,9 @@ retry:
 		 */
 	}
 
-	if ((data[0] == CMD_SET_DYNAMIC_CONFIG) && (payload_length == 3)) {
+	if (((data[0] == CMD_SET_DYNAMIC_CONFIG) && (payload_length == 3)) || (cmd_under_water == true)) {
 		if ((data[3] == DC_GESTURE_TYPE_ENABLE) || (data[3] == DC_TOUCH_AND_HOLD) || (data[3] == DC_UNDER_WATER_DETECT)) {
-			if (!tcm->fp_active) {
+			if (!tcm->fp_active || tcm->fp_prevent) {
 				syna_pal_sleep_ms(50);
 				syna_sysfs_set_fingerprint_post(tcm);
 			} else {

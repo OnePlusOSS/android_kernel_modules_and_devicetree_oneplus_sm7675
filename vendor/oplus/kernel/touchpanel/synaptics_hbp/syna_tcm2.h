@@ -66,6 +66,7 @@
 #define SIG_DISPLAY_OFF 45
 #define SIG_FINGER_DOWN 46
 #define SIG_UNDER_WATER 47
+#define SIG_FINGER_UP   48
 
 /*#define TP_NAME_SIZE_MAX 25*/
 /*
@@ -727,6 +728,7 @@ struct syna_tcm {
 	bool is_fp_down;
 	struct fp_underscreen_info fp_info;	/*tp info used for underscreen fingerprint*/
 	bool fp_active;	/*prepare for screen off fingerprint earlier*/
+	bool fp_prevent;	/*sensor near and fp closed, exit active state and enter sleep*/
 	struct touch_film_info film_info;
 
 	/* framebuffer callbacks notifier */

@@ -250,7 +250,7 @@ bool inline is_ftm_boot_mode(struct syna_tcm *tcm)
  */
 void syna_dev_update_lpwg_status(struct syna_tcm *tcm)
 {
-	tcm->lpwg_enabled = (tcm->gesture_type || tcm->touch_and_hold || tcm->fp_active || tcm->under_water_detect) ? true : false;
+	tcm->lpwg_enabled = (tcm->gesture_type || tcm->touch_and_hold || (tcm->fp_active && !tcm->fp_prevent) || tcm->under_water_detect) ? true : false;
 	return;
 }
 
@@ -766,7 +766,7 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 					tcm->is_fp_down = true;
 					LOGI("screen off fingerprint down(%u %u)\n", fp_info.x, fp_info.y);
 					syna_send_signal(tcm, SIG_FINGER_DOWN);
-					LOGI("send finger singal to app.\n");
+					LOGI("send finger down singal to app.\n");
 				}/* else {
 					LOGI("repeat 'screen off fingerprint down' triggered\n");
 				}*/
@@ -776,6 +776,8 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 				touch_call_notifier_fp(tcm, &fp_info);
 				tcm->is_fp_down = false;
 				LOGI("screen off fingerprint up\n");
+				syna_send_signal(tcm, SIG_FINGER_UP);
+				LOGI("send finger up singal to app.\n");
 			} else if (touch_data->gesture_id == FINGERPRINT_ERR_REPORT) {
 				LOGI("fingerprint error type:[%*ph]\n", 6, touch_data->extra_gesture_info);
 				switch (touch_data->extra_gesture_info[0]) {
@@ -1204,7 +1206,7 @@ static void syna_get_diff_data_record(struct syna_tcm *tcm)
 		return;
 	}
 
-	if (!tcm->differ_read_every_frame || tp_hbp_debug != LEVEL_DEBUG) {
+	if (!tcm->differ_read_every_frame || (tp_hbp_debug != LEVEL_DEBUG && tp_hbp_debug != LEVEL_DEBUG_SC_OFF)) {
 		LOGD("differ_read_every_frame is false or debug_level < 2\n");
 		return;
 	}
@@ -1306,13 +1308,6 @@ static irqreturn_t syna_dev_isr(int irq, void *data)
 		goto exit;
 
 	tcm->isr_pid = current->pid;
-#if defined(CONFIG_HMBIRD_SCHED) || defined(CONFIG_HMBIRD_SCHED_GKI)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0))
-	hmbird_set_sched_prop(current, SCHED_PROP_DEADLINE_LEVEL2);
-#else
-	sched_set_sched_prop(current, SCHED_PROP_DEADLINE_LEVEL2);
-#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)) */
-#endif
 #ifdef HAS_SYSFS_INTERFACE
 	if (tcm->is_attn_redirecting) {
 		syna_cdev_redirect_attn(tcm);

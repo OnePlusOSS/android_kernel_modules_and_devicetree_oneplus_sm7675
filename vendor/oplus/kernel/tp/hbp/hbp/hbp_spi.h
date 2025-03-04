@@ -26,7 +26,8 @@ struct bus_operations {
 	int (*write_block)(void *ops, uint8_t *data, size_t len);
 	int(*spi_sync)(void *ops, uint8_t *tx, uint8_t *rx, size_t len);
 	void (*shutdown)(void *ops);
-	int (*spi_setup)(void *ops, uint8_t mode, uint8_t bits_per_word, int speed);
+	int (*spi_set_para)(void *ops, uint8_t mode, uint8_t bits_per_word, int speed);
+	int (*spi_get_para)(void *ops, uint8_t *mode, uint8_t *bits_per_word, int *speed);
 };
 
 struct spi_param {

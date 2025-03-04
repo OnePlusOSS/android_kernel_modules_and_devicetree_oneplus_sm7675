@@ -209,5 +209,8 @@ int oplus_panel_pwm_switch_cmdq_delay_handle(void *dsi_panel, enum dsi_cmd_set_t
  */
 int oplus_panel_send_asynchronous_cmd(void);
 int oplus_set_osc_status(struct drm_encoder *drm_enc);
+
+int oplus_panel_cmd_reg_replace_specific_row(struct dsi_panel *panel, struct dsi_display_mode *mode,
+		enum dsi_cmd_set_type type, u8 *replace_reg, size_t replace_reg_len, u32 row);
 #endif /* __OPLUS_DISPLAY_INTERFACE_H__ */
 

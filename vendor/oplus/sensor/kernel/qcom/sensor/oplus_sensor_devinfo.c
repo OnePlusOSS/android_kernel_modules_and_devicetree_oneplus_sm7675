@@ -733,6 +733,12 @@ static void parse_mag_fusion_sensor_dts(struct sensor_algorithm *algo, struct de
 {
 	int rc = 0;
 	int value = 0;
+	int di = 0;
+
+	char *para[] = {
+		"track_trigger",
+		"absolute_trigger",
+	};
 
 	rc = of_property_read_u32(ch_node, "fusion-type", &value);
 	if (!rc) {
@@ -744,7 +750,20 @@ static void parse_mag_fusion_sensor_dts(struct sensor_algorithm *algo, struct de
 		algo->feature[1] = value;
 	}
 
-	SENSOR_DEVINFO_DEBUG("fusion-type:%d, fold-feature:%d\n", algo->feature[0], algo->feature[1]);
+	rc = of_property_read_u32(ch_node, "drop_zero", &value);
+	if (!rc) {
+		algo->feature[2] = value;
+	}
+
+	for (di = 0; di < ARRAY_SIZE(para); di++) {
+		rc = of_property_read_u32(ch_node, para[di], &value);
+		if (!rc) {
+			algo->parameter[di] = value;
+		}
+	}
+
+	SENSOR_DEVINFO_DEBUG("fusion-type:%d, fold-feature:%d, drop_zero:%d\n", algo->feature[0], algo->feature[1], algo->feature[2]);
+	SENSOR_DEVINFO_DEBUG("track_trigger:%d, absolute_trigger:%d\n", algo->parameter[0], algo->parameter[1]);
 }
 
 static void parse_oplus_measurement_sensor_dts(struct sensor_algorithm *algo, struct device_node *ch_node)

@@ -139,6 +139,20 @@ int oplus_panel_features_config(struct dsi_panel *panel)
 	LCD_INFO("oplus,dsi-dimming-setting-before-bl-0-enable: %s\n",
 			panel->oplus_priv.dimming_setting_before_bl_0_enable ? "true" : "false");
 
+	panel->oplus_priv.vidmode_backlight_async_wait_enable = utils->read_bool(utils->data,
+			"oplus,dsi-vidmode-backlight-async-wait-enable");
+	LCD_INFO("oplus,dsi-vidmode-backlight-async-wait-enable: %s\n",
+			panel->oplus_priv.vidmode_backlight_async_wait_enable ? "true" : "false");
+
+	panel->oplus_priv.set_backlight_not_do_esd_reg_read_enable = utils->read_bool(utils->data,
+			"oplus,dsi-set-backlight-not-do-esd-reg-read-enable");
+	LCD_INFO("oplus,dsi-set-backlight-not-do-esd-reg-read-enable: %s\n",
+			panel->oplus_priv.set_backlight_not_do_esd_reg_read_enable ? "true" : "false");
+
+	panel->oplus_priv.gamma_compensation_support = utils->read_bool(utils->data,
+			"oplus,gamma-compensation-support");
+	LCD_INFO("oplus,gamma-compensation-support: %s\n",
+			panel->oplus_priv.gamma_compensation_support ? "true" : "false");
 	return 0;
 }
 
@@ -229,9 +243,15 @@ void oplus_panel_switch_vid_mode(struct dsi_display *display, struct dsi_display
 
 	if (!strcmp(panel->name, "AB964 p 1 A0017 dsc video mode panel")) {
 		SDE_ATRACE_BEGIN("wait_for_vblank");
+		current_vblank = drm_crtc_vblank_count(crtc);
+		current_vblank = current_vblank + te_count;
 		if (refresh_rate == 120) {
-			current_vblank = drm_crtc_vblank_count(crtc);
-			current_vblank = current_vblank + te_count;
+			rc = wait_event_timeout(*drm_crtc_vblank_waitqueue(crtc), current_vblank == drm_crtc_vblank_count(crtc), usecs_to_jiffies(4100 + 100));
+			if (!rc) {
+				OFP_ERR("crtc wait_event_timeout\n");
+			}
+		}
+		if (refresh_rate == 60) {
 			rc = wait_event_timeout(*drm_crtc_vblank_waitqueue(crtc), current_vblank == drm_crtc_vblank_count(crtc), usecs_to_jiffies(8300 + 100));
 			if (!rc) {
 				OFP_ERR("crtc wait_event_timeout\n");
