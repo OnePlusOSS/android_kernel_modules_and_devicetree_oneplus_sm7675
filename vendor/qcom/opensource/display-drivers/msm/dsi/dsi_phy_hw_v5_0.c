@@ -127,6 +127,11 @@ extern bool oplus_enhance_mipi_strength;
 extern bool g_oplus_vreg_ctrl_config;
 #endif /* OPLUS_FEATURE_DISPLAY */
 
+#ifdef OPLUS_FEATURE_DISPLAY
+extern bool g_oplus_clk_vreg_ctrl_config;
+extern bool g_oplus_clk_vreg_ctrl_value;
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 static int dsi_phy_hw_v5_0_is_pll_on(struct dsi_phy_hw *phy)
 {
 	u32 data = 0;
@@ -378,7 +383,10 @@ static void dsi_phy_hw_dphy_enable(struct dsi_phy_hw *phy, struct dsi_phy_cfg *c
 		glbl_hstx_str_ctrl_0 = 0xFF;
 		if (g_oplus_vreg_ctrl_config) {
 			vreg_ctrl_0 = 0x47;
+		} else if (g_oplus_clk_vreg_ctrl_config) {
+			vreg_ctrl_0 = g_oplus_clk_vreg_ctrl_value;
 		}
+
 	} else {
 		glbl_str_swi_cal_sel_ctrl = 0x00;
 		glbl_hstx_str_ctrl_0 = 0x88;

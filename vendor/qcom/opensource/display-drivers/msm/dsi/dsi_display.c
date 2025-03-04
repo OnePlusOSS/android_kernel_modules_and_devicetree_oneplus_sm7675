@@ -74,6 +74,7 @@ static struct dsi_display *secondary_display;
 extern int oplus_display_panel_get_id2(void);
 extern int lcd_closebl_flag;
 extern bool is_lhbm_panel;
+extern bool g_gamma_regs_read_done;
 #endif /* OPLUS_FEATURE_DISPLAY */
 #define SEC_PANEL_NAME_MAX_LEN  256
 
@@ -864,6 +865,14 @@ static void dsi_display_set_cmd_tx_ctrl_flags(struct dsi_display *display,
 		 */
 		if (display->panel->panel_mode == DSI_OP_VIDEO_MODE) {
 			flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
+#ifdef OPLUS_FEATURE_DISPLAY
+			//MIPI_DCS_SET_DISPLAY_BRIGHTNES
+			if ((display->panel->oplus_priv.vidmode_backlight_async_wait_enable)
+				&& (atomic_read(&display->panel->vidmode_backlight_async_wait))
+				&& (((unsigned char*)(msg->tx_buf))[0] == 0x51)) {
+				flags |= DSI_CTRL_CMD_ASYNC_WAIT;
+			}
+#endif /* OPLUS_FEATURE_DISPLAY */
 		} else {
 			if (msg->flags & MIPI_DSI_MSG_CMD_DMA_SCHED)
 				flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
@@ -1247,6 +1256,12 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 #ifdef OPLUS_FEATURE_DISPLAY
 	if (atomic_read(&panel->esd_pending)) {
 		DSI_WARN("Skip the check because esd is pending\n");
+		if (!strcmp(dsi_display->panel->name, "AB964 p 1 A0017 dsc video mode panel")) {
+			if (dsi_display->panel->oplus_priv.set_backlight_not_do_esd_reg_read_enable
+			&& dsi_display->panel->panel_mode == DSI_OP_VIDEO_MODE) {
+				atomic_set(&panel->esd_pending, 0);
+			}
+		}
 		goto release_panel_lock;
 	}
 	if (panel->power_mode != SDE_MODE_DPMS_ON) {
@@ -9403,6 +9418,18 @@ int dsi_display_enable(struct dsi_display *display)
 		display->panel->power_mode = SDE_MODE_DPMS_ON;
 		/* Force update of demurra2 offset from UEFI stage to Kernel stage*/
 		oplus_panel_need_to_set_demura2_offset(display->panel);
+
+		if (!strcmp(display->panel->name, "AA577 P 3 A0020 dsc cmd mode panel")) {
+			oplus_display_panel_A0020_gamma_compensation(display);
+			DSI_ERR("oplus_display_panel_A0020_gamma_compensation success\n");
+			if (display->panel->oplus_priv.gamma_compensation_support && g_gamma_regs_read_done) {
+				rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_GAMMA_COMPENSATION);
+				if (rc) {
+				DSI_ERR("send DSI_CMD_GAMMA_COMPENSATION failed\n");
+				}
+			}
+		}
+
 #endif /* OPLUS_FEATURE_DISPLAY */
 		return 0;
 	}

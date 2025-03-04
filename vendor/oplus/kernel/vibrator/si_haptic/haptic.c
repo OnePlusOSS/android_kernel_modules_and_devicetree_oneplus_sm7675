@@ -4389,7 +4389,7 @@ static void rtp_work_func(struct work_struct *work)
 	}
 
 	mutex_unlock(&sih_haptic->rtp.rtp_lock);
-	hp_info("%s:rtp len is %d\n", __func__, sih_haptic->rtp.rtp_cont->len);
+    //hp_info("%s:rtp len is %d\n", __func__, sih_haptic->rtp.rtp_cont->len);
 
 	mutex_lock(&sih_haptic->lock);
 

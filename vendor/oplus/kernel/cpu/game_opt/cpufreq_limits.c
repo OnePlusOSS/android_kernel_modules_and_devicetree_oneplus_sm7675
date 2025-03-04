@@ -291,7 +291,7 @@ void ed_freq_boost_request(unsigned int boost_type)
 		ed_boost_type = ED_BOOST_NONE;
 	}
 
-	if (timeout_release_cpufreq_limit || disable_cpufreq_limit)
+	if (disable_cpufreq_limit)
 		goto unlock;
 
 	if (ed_boost_type > ED_BOOST_NONE)

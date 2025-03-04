@@ -164,7 +164,12 @@ static int devinfo_read_emmc_func(struct seq_file *s, void *v)
 		manufacture = "PHISON";
 		break;
 	case 0xD6:
-		manufacture = "HG";
+		if (NULL != strstr(mmc->card->cid.prod_name, "C9C761") || NULL != strstr(mmc->card->cid.prod_name, "C9C762")
+			|| NULL != strstr(mmc->card->cid.prod_name, "C9C764")) {
+			manufacture = "FORESEE";
+		} else {
+			manufacture = "HG";
+		}
 		break;
 	case 0xf4:
 		manufacture = "BIWIN";
@@ -1147,7 +1152,7 @@ static int __attribute__((__unused__)) init_ddr_vendor_size(struct device_info *
 	for (i=0; i < DRAMC_MR_CNT; i++) {
 		pr_err("mr_info:idx= %d, value, %x \n", mr_info[i].mr_index, mr_info[i].mr_value);
 		if(mr_info[i].mr_index == 5) {
-			ddr_vendor = mr_info[i].mr_value;
+			ddr_vendor = mr_info[i].mr_value & 0xFF;
 		}
 	}
 
@@ -1310,6 +1315,11 @@ devinfo_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, dev_info);
 
+	/* To tablet devices, no gpios for sub-main match. Just init ddr */
+	if (of_property_read_bool(pdev->dev.of_node, "without-hw-match")) {
+		goto ddr_init;
+	}
+
 	/*parse dts first */
 	parse_gpio_dts(&pdev->dev, dev_info);
 
@@ -1319,6 +1329,7 @@ devinfo_probe(struct platform_device *pdev)
 	set_gpios_active(dev_info);
 	init_other_hw_ids(pdev);
 	set_gpios_sleep(dev_info);
+ddr_init:
 #if !(defined(CONFIG_MTK_PLATFORM) || defined(CONFIG_OPLUS_DEVICE_INFO_MTK_PLATFORM))
 	/*register oplus special node*/
 	init_ddr_type(dev_info);

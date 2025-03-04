@@ -71,6 +71,7 @@
 #define RSCC_MODE_THRESHOLD_TIME_US 40
 #define DCS_COMMAND_THRESHOLD_TIME_US 40
 
+extern bool g_gamma_regs_read_done;
 /*#ifdef OPLUS_FEATURE_TP_BASIC*/
 extern int (*tp_gesture_enable_notifier)(unsigned int tp_index);
 extern int dcc_flags;
@@ -760,8 +761,25 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 	enum dsi_cmd_set_state state;
 	struct dsi_display_mode *mode;
 
-	if (!panel || !panel->cur_mode)
+	if (!panel || !panel->cur_mode) {
 		return -EINVAL;
+	}
+
+	mode = panel->cur_mode;
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+	if (oplus_ofp_is_supported() && oplus_ofp_video_mode_aod_fod_is_enabled() && mode->timing.refresh_rate == 60 && panel->power_mode == SDE_MODE_DPMS_ON) {
+		switch (type) {
+			case DSI_CMD_HBM_ON:
+				type = DSI_CMD_HBM_ON_60HZ;
+				break;
+			case DSI_CMD_HBM_OFF:
+				type = DSI_CMD_HBM_OFF_60HZ;
+				break;
+			default:
+				break;
+		}
+	}
+#endif
 #ifdef OPLUS_FEATURE_DISPLAY
 	OPLUS_LCD_TRACE_BEGIN(cmd_set_prop_map[type]);
 	oplus_panel_cmd_switch(panel, &type);
@@ -772,8 +790,6 @@ int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
 	oplus_panel_cmdq_pack_handle(panel, type, true);
 	oplus_panel_cmd_print(panel, type);
 #endif /* OPLUS_FEATURE_DISPLAY */
-
-	mode = panel->cur_mode;
 
 	cmds = mode->priv_info->cmd_sets[type].cmds;
 	count = mode->priv_info->cmd_sets[type].count;
@@ -950,7 +966,16 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 	}
 
 #ifdef OPLUS_FEATURE_DISPLAY
+ 	if (panel->oplus_priv.vidmode_backlight_async_wait_enable)
+		atomic_set(&panel->vidmode_backlight_async_wait, 1);
+	if (panel->oplus_priv.set_backlight_not_do_esd_reg_read_enable
+		&& panel->panel_mode == DSI_OP_VIDEO_MODE)
+		atomic_set(&panel->esd_pending, 1);
+
 	oplus_panel_update_backlight(panel, dsi, bl_lvl);
+
+	if (panel->oplus_priv.vidmode_backlight_async_wait_enable)
+		atomic_set(&panel->vidmode_backlight_async_wait, 0);
 #else /* OPLUS_FEATURE_DISPLAY */
 	if (panel->bl_config.bl_inverted_dbv)
 		bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
@@ -2372,7 +2397,9 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
 	"qcom,mdss-dsi-hbm-on-command",
 	"qcom,mdss-dsi-hbm-on-onepulse-command",
+	"qcom,mdss-dsi-hbm-on-60hz-command",
 	"qcom,mdss-dsi-hbm-off-command",
+	"qcom,mdss-dsi-hbm-off-60hz-command",
 	"qcom,mdss-dsi-lhbm-pressed-icon-gamma-command",
 	"qcom,mdss-dsi-lhbm-pressed-icon-grayscale-command",
 	"qcom,mdss-dsi-lhbm-pressed-icon-on-command",
@@ -2483,6 +2510,9 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-uir-loading-effect-2-command",
 	"qcom,mdss-dsi-uir-loading-effect-3-command",
 	"qcom,mdss-dsi-set-dc-on-command",
+	"oplus,dsi-panel-gamma-compensation-page0-command",
+	"oplus,dsi-panel-gamma-compensation-page1-command",
+	"oplus,dsi-panel-gamma-compensation-command",
 #endif /* OPLUS_FEATURE_DISPLAY */
 };
 
@@ -2587,7 +2617,9 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
 	"qcom,mdss-dsi-hbm-on-command-state",
 	"qcom,mdss-dsi-hbm-on-onepulse-command-state",
+	"qcom,mdss-dsi-hbm-on-60hz-command-state",
 	"qcom,mdss-dsi-hbm-off-command-state",
+	"qcom,mdss-dsi-hbm-off-60hz-command-state",
 	"qcom,mdss-dsi-lhbm-pressed-icon-gamma-command-state",
 	"qcom,mdss-dsi-lhbm-pressed-icon-grayscale-command-state",
 	"qcom,mdss-dsi-lhbm-pressed-icon-on-command-state",
@@ -2698,6 +2730,9 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-uir-loading-effect-2-command-state",
 	"qcom,mdss-dsi-uir-loading-effect-3-command-state",
 	"qcom,mdss-dsi-set-dc-on-command-state",
+	"oplus,dsi-panel-gamma-compensation-page0-command-state",
+	"oplus,dsi-panel-gamma-compensation-page1-command-state",
+	"oplus,dsi-panel-gamma-compensation-command-state",
 #endif /* OPLUS_FEATURE_DISPLAY */
 
 };
@@ -5968,6 +6003,15 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		if (panel->is_secondary) {
 			panel->panel_initialized = true;
 			goto error;
+		}
+	}
+
+	if (!strcmp(panel->name, "AA577 P 3 A0020 dsc cmd mode panel")) {
+		if (panel->oplus_priv.gamma_compensation_support && g_gamma_regs_read_done) {
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_GAMMA_COMPENSATION);
+			if (rc) {
+				DSI_ERR("send DSI_CMD_GAMMA_COMPENSATION failed\n");
+			}
 		}
 	}
 #endif

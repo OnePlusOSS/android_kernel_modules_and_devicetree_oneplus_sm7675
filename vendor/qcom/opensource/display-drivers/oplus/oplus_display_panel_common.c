@@ -42,6 +42,10 @@ int mca_mode = 1;
 int dcc_flags = 0;
 bool apollo_backlight_enable = false;
 extern int dither_enable;
+u32 g_oplus_clk_vreg_ctrl_value = 0;
+EXPORT_SYMBOL(g_oplus_clk_vreg_ctrl_value);
+bool g_oplus_clk_vreg_ctrl_config = false;
+EXPORT_SYMBOL(g_oplus_clk_vreg_ctrl_config);
 bool g_oplus_vreg_ctrl_config = false;
 EXPORT_SYMBOL(g_oplus_vreg_ctrl_config);
 bool oplus_enhance_mipi_strength = false;
@@ -1844,6 +1848,21 @@ int oplus_panel_parse_config(struct dsi_panel *panel)
 	panel->oplus_priv.oplus_vreg_ctrl_flag = utils->read_bool(utils->data, "oplus,vreg_ctrl_flag");
         g_oplus_vreg_ctrl_config = panel->oplus_priv.oplus_vreg_ctrl_flag;
         LCD_INFO("lcm oplus_vreg_ctrl_flag: %s\n", panel->oplus_priv.oplus_vreg_ctrl_flag ? "true" : "false");
+
+	panel->oplus_priv.oplus_clk_vreg_ctrl_flag = utils->read_bool(utils->data, "oplus,clk_vreg_ctrl_flag");
+	g_oplus_clk_vreg_ctrl_config = panel->oplus_priv.oplus_clk_vreg_ctrl_flag;
+	LCD_INFO("lcm oplus_clk_vreg_ctrl_flag: %s\n", panel->oplus_priv.oplus_clk_vreg_ctrl_flag ? "true" : "false");
+
+	ret = utils->read_u32(utils->data, "oplus,clk_vreg_ctrl_value", &panel->oplus_priv.oplus_clk_vreg_ctrl_value);
+	if (ret) {
+		LCD_INFO("failed to get panel parameter: oplus,clk_vreg_ctrl_value\n");
+		panel->oplus_priv.oplus_clk_vreg_ctrl_value = 0x44;
+	}
+	g_oplus_clk_vreg_ctrl_value = panel->oplus_priv.oplus_clk_vreg_ctrl_value;
+	LCD_INFO("lcm g_oplus_clk_vreg_ctrl_value:0x%x \n", panel->oplus_priv.oplus_clk_vreg_ctrl_value);
+
+
+	utils->read_u32(utils->data, "oplus,dsi-serial-number-reg", &panel->oplus_ser.serial_number_reg);
 
 	ret = utils->read_u32(utils->data, "oplus,wait-te-config", &panel->oplus_priv.wait_te_config);
 	if (ret) {

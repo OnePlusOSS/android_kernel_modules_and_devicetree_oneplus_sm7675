@@ -1840,6 +1840,9 @@ hdd_check_and_upgrade_udp_qos(struct hdd_adapter *adapter,
 	}
 }
 
+#ifdef CONFIG_ANDROID_KABI_RESERVE
+#define TX_STREAM_ACCELERATE_FLAG (0x3)
+#endif
 /**
  * hdd_wmm_classify_critical_pkt() - Function checks and classifies critical skb
  * @skb: pointer to network buffer
@@ -2026,6 +2029,12 @@ void hdd_wmm_get_user_priority_from_ip_tos(struct hdd_adapter *adapter,
 				psoc, adapter->deflink->vdev_id, &dscp);
 	}
 	*user_pri = adapter->dscp_to_up_map[dscp];
+
+#ifdef CONFIG_ANDROID_KABI_RESERVE
+	if ((skb->android_kabi_reserved2 & TX_STREAM_ACCELERATE_FLAG) == TX_STREAM_ACCELERATE_FLAG) {
+		*user_pri = SME_QOS_WMM_UP_VO;
+	}
+#endif
 
 #ifdef HDD_WMM_DEBUG
 	hdd_debug("tos is %d, dscp is %d, up is %d", tos, dscp, *user_pri);

@@ -38,6 +38,8 @@ bool already_readid = false;
 struct panel_id panel_id;
 extern u32 bl_lvl;
 bool is_lhbm_panel = false;
+extern bool g_gamma_regs_read_done;
+
 int oplus_panel_cmd_print(struct dsi_panel *panel, enum dsi_cmd_set_type type)
 {
 	u32 count;
@@ -166,6 +168,9 @@ int oplus_panel_cmd_switch(struct dsi_panel *panel, enum dsi_cmd_set_type *type)
 			}
 		}
 	} else if (panel->pwm_params.pwm_switch_support_extend_mode) {
+		if (*type == DSI_CMD_SET_OFF) {
+			panel->pwm_params.oplus_aod_mutual_fps_flag = false;
+		}
 		if (panel->pwm_params.oplus_dynamic_pulse == ONE_ONE_PULSE
 			|| (panel->pwm_params.oplus_dynamic_pulse == ONE_EIGHTEEN_PULSE
 			&& panel->bl_config.bl_level > 1162)) {
@@ -1297,3 +1302,59 @@ int oplus_set_osc_status(struct drm_encoder *drm_enc) {
 	return rc;
 }
 
+int oplus_panel_cmd_reg_replace_specific_row(struct dsi_panel *panel, struct dsi_display_mode *mode,
+		enum dsi_cmd_set_type type, u8 *replace_reg, size_t replace_reg_len, u32 row)
+{
+	int rc = 0;
+	struct dsi_cmd_desc *cmds = NULL;
+	size_t tx_len = 0;
+	u8 *tx_buf = NULL;
+	u32 count = 0;
+	u8 *payload = NULL;
+	u32 size = 0;
+	u32 index = 0;
+
+	if(!panel) {
+		DSI_ERR("invalid display panel\n");
+		return -ENODEV;
+	}
+	if(!replace_reg) {
+		DSI_ERR("invalid cmd reg\n");
+		return -ENODEV;
+	}
+
+	if (!mode) {
+		LCD_INFO("mode is null, use panel cur_mode\n");
+		mode = panel->cur_mode;
+	}
+	cmds = mode->priv_info->cmd_sets[type].cmds;
+	count = mode->priv_info->cmd_sets[type].count;
+
+	if (row > count) {
+		DSI_ERR("Exceeding the number of rows of the command\n");
+		return -EFAULT;
+	}
+	index = row - 1;
+
+	tx_len = cmds[index].msg.tx_len;
+	tx_buf = (u8 *)cmds[index].msg.tx_buf;
+	if ((tx_len - 1) != replace_reg_len) {
+		tx_len = replace_reg_len + 1;
+		size = tx_len * sizeof(u8);
+		payload = kzalloc(size, GFP_KERNEL);
+		if (!payload) {
+			rc = -ENOMEM;
+			return rc;
+		}
+		payload[0] = tx_buf[0];
+		if (tx_buf) {
+			kfree(tx_buf);
+		}
+		tx_buf = payload;
+		cmds[index].msg.tx_len = tx_len;
+	}
+	tx_buf++;
+	memcpy(tx_buf, replace_reg, replace_reg_len);
+
+	return 0;
+}

@@ -54,6 +54,9 @@
 #define DEFAULT_FREQ_UPDATE_MIN_INTERVAL    (2 * NSEC_PER_MSEC)
 #define DEFAULT_UTIL_INVALID_INTERVAL       (32 * NSEC_PER_MSEC)
 
+static int use_vutil_threshold = 100;
+module_param_named(use_vutil_threshold, use_vutil_threshold, uint, 0644);
+
 struct frame_group *frame_boost_groups[MAX_NUM_FBG_ID];
 
 static DEFINE_RAW_SPINLOCK(freq_protect_lock);
@@ -1374,8 +1377,8 @@ static unsigned long update_freq_policy_util(struct frame_group *grp, u64 wallcl
 #ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
 	if ((frame_util >= vutil) ||
 		(avai_buffer_count >= 3) ||
-		((avai_buffer_count == 2) && (curr_putil < prev_putil || prev_putil < 100) && (curr_putil < (vutil >> 1)) && !is_high_frame_rate(grp->id)) ||
-		((avai_buffer_count == 1 && curr_putil < prev_putil) || prev_putil < 100))
+		((avai_buffer_count == 2) && (curr_putil < prev_putil || prev_putil < use_vutil_threshold) && (curr_putil < (vutil >> 1))) ||
+		((avai_buffer_count == 1 && curr_putil < prev_putil) || prev_putil < use_vutil_threshold))
 		use_vutil = false;
 #else
 	/* Be carefully using vtuil */
@@ -1704,6 +1707,7 @@ bool default_group_update_cpufreq(int grp_id)
 unlock:
 	raw_spin_unlock_irqrestore(&grp->lock, flags);
 
+	rcu_read_lock();
 	if (need_update_prev_freq) {
 		rq = cpu_rq(prev_cpu);
 		if (fbg_hook.update_freq)
@@ -1719,6 +1723,7 @@ unlock:
 		else
 			cpufreq_update_util_wrap(rq, SCHED_CPUFREQ_DEF_FRAMEBOOST);
 	}
+	rcu_read_unlock();
 
 	return ret;
 }

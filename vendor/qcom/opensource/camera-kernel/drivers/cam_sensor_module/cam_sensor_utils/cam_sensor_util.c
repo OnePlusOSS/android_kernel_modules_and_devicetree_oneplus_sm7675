@@ -391,6 +391,7 @@ static int32_t cam_sensor_get_io_buffer(
 			CAM_ERR(CAM_SENSOR_UTIL,
 				"invalid size:io_cfg->offsets[0]: %d, buf_size: %d",
 				io_cfg->offsets[0], buf_size);
+			cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 			return -EINVAL;
 		}
 		i2c_settings->read_buff =
@@ -402,7 +403,6 @@ static int32_t cam_sensor_get_io_buffer(
 			io_cfg->direction);
 		rc = -EINVAL;
 	}
-
 	cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 	return rc;
 }
@@ -436,6 +436,7 @@ int32_t cam_sensor_util_write_qtimer_to_io_buffer(
 			CAM_ERR(CAM_SENSOR_UTIL,
 				"invalid size:io_cfg->offsets[0]: %d, buf_size: %d",
 				io_cfg->offsets[0], buf_size);
+			cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 			return -EINVAL;
 		}
 
@@ -446,17 +447,18 @@ int32_t cam_sensor_util_write_qtimer_to_io_buffer(
 			CAM_ERR(CAM_SENSOR_UTIL,
 				"not enough size for qtimer, target_size:%d",
 				target_size);
+			cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 			return -EINVAL;
 		}
 
 		memcpy((void *)target_buf, &qtime_ns, sizeof(uint64_t));
+		cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 	} else {
 		CAM_ERR(CAM_SENSOR_UTIL, "Invalid direction: %d",
 			io_cfg->direction);
 		rc = -EINVAL;
 	}
 
-	cam_mem_put_cpu_buf(io_cfg->mem_handle[0]);
 	return rc;
 }
 
@@ -645,6 +647,7 @@ int cam_sensor_i2c_command_parser(
 			(cmd_desc[i].offset >
 			(len_of_buff - sizeof(struct common_header)))) {
 			CAM_ERR(CAM_SENSOR_UTIL, "buffer provided too small");
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 			return -EINVAL;
 		}
 		cmd_buf = (uint32_t *)generic_ptr;
@@ -653,6 +656,7 @@ int cam_sensor_i2c_command_parser(
 		remain_len -= cmd_desc[i].offset;
 		if (remain_len < cmd_desc[i].length) {
 			CAM_ERR(CAM_SENSOR_UTIL, "buffer provided too small");
+			cam_mem_put_cpu_buf(cmd_desc[i].mem_handle);
 			return -EINVAL;
 		}
 

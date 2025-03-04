@@ -21,10 +21,15 @@
 #include <linux/time64.h>
 #include <linux/kdev_t.h>
 #include <linux/vmalloc.h>
+#include <linux/version.h>
 #include "scp_helper.h"
 #include "sensor_feedback.h"
-#ifdef CONFIG_OPLUS_FEATURE_FEEDBACK
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_FEEDBACK)
 #include <soc/oplus/system/kernel_fb.h>
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+#define PDE_DATA(inode) pde_data(inode)
 #endif
 
 #define SENSOR_DEVICE_TYPE		"10002"
@@ -260,7 +265,7 @@ static ssize_t hal_info_store(struct device *dev,
 		strbuf);
 	pr_info("payload =%s\n", payload);
 
-#ifdef CONFIG_OPLUS_FEATURE_FEEDBACK
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_FEEDBACK)
 	oplus_kevent_fb(FB_SENSOR, g_fb_conf[index].fb_event_id, payload);
 #endif
 	return count;
@@ -410,7 +415,7 @@ static int parse_shr_info(struct sensor_fb_cxt *sensor_fb_cxt)
 				sensor_fb_cxt->fb_smem.event[count].count,
 				detail_buff);
 		pr_info("payload =%s\n", payload);
-#ifdef CONFIG_OPLUS_FEATURE_FEEDBACK
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_FEEDBACK)
 		oplus_kevent_fb(FB_SENSOR, g_fb_conf[index].fb_event_id, payload);
 #endif
 	}
@@ -453,7 +458,7 @@ static int sensor_report_thread(void *arg)
 		spin_unlock(&sensor_fb_cxt->rw_lock);
 	}
 
-	pr_info("step2 ret =%s\n", ret);
+	pr_info("step2 ret =%d\n", ret);
 	return ret;
 }
 
@@ -474,10 +479,16 @@ static ssize_t sensor_list_read_proc(struct file *file, char __user *buf,
 	return len;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+static struct proc_ops sensor_list_fops = {
+	.proc_read = sensor_list_read_proc,
+};
+#else
 static struct file_operations sensor_list_fops = {
 	.owner = THIS_MODULE,
 	.read = sensor_list_read_proc,
 };
+#endif
 
 static int create_sensor_node(struct sensor_fb_cxt *sensor_fb_cxt)
 {

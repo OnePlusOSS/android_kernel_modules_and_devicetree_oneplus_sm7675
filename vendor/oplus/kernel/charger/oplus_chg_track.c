@@ -1099,6 +1099,7 @@ static struct oplus_chg_track_chg_abnormal_reason chg_abnormal_reason_table[] = 
 	{ NOTIFY_BAT_NOT_CONNECT, "batt_no_conn", 0 },
 	{ NOTIFY_BAT_FULL_THIRD_BATTERY, "batt_no_auth", 0 },
 	{ NOTIFY_ALLOW_READING_ERR, "allow_reading_err", 0 },
+	{ NOTIFY_FASTCHG_CHECK_FAIL, "non_standard_charger", 0 },
 };
 
 static struct oplus_chg_track_i2c_err_reason i2c_err_reason_table[] = {
@@ -4806,6 +4807,9 @@ static int oplus_chg_track_check_chg_abnormal(struct oplus_chg_chip *chip, struc
 		}
 		track_status->allow_reading_err = 0;
 	}
+
+	if (notify_code & (1 << NOTIFY_FASTCHG_CHECK_FAIL))
+		oplus_chg_track_get_chg_abnormal_reason_info(NOTIFY_FASTCHG_CHECK_FAIL, track_status);
 
 	pr_debug("track_notify_code:0x%x, chager_notify_code:0x%x, "
 		"abnormal_reason[%s]\n",

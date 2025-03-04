@@ -111,7 +111,7 @@ static int fts_hw_reset(struct chip_data_ft3518 *ts_data, u32 delayms)
 	if (delayms) {
 		msleep(delayms);
 	}
-
+	ts_data->is_ic_sleep = false;
 	return 0;
 }
 static int fts_power_control(void *chip_data, bool enable)
@@ -136,7 +136,7 @@ static int fts_power_control(void *chip_data, bool enable)
 		msleep(POWEWRUP_TO_RESET_TIME);
 		fts_rstgpio_set(ts_data->hw_res, true);
 		msleep(RESET_TO_NORMAL_TIME);
-
+		ts_data->is_ic_sleep = false;
 	} else {
 		fts_rstgpio_set(ts_data->hw_res, false);
 		msleep(1);
@@ -709,6 +709,7 @@ static int fts_get_rawdata(struct chip_data_ft3518 *ts_data, int *raw,
 	u8 raw_addr = 0;
 	u8 regval = 0;
 	u8 *buf = NULL;
+	u8 retval = 0;
 
 	TPD_INFO("%s:call", __func__);
 	/*kzalloc buffer*/
@@ -732,6 +733,11 @@ static int fts_get_rawdata(struct chip_data_ft3518 *ts_data, int *raw,
 
 		if (ret < 0) {
 			TPD_INFO("%s:write 0x01 to reg0x06 fail", __func__);
+			goto reg_restore;
+		}
+		retval = touch_i2c_read_byte(ts_data->client, FACTORY_REG_DATA_SELECT);
+		if (retval != 0x01) {
+			TPD_INFO("%s:read reg0x06 != 0x01, maybe write fail", __func__);
 			goto reg_restore;
 		}
 	}
@@ -1363,7 +1369,7 @@ static int fts_enable_headset_mode(struct chip_data_ft3518 *ts_data,
 static void fts_force_glove_mode(struct chip_data_ft3518 *ts_data, bool enable)
 {
 	int retval = 0;
-	u8 regval = 0;
+	int regval = 0;
 
 	TPD_INFO("%s: %s force glove mode.\n", __func__, enable ? "Enter" : "Exit");
 
@@ -1399,7 +1405,6 @@ static int fts_mode_switch(void *chip_data, work_mode mode, int flag)
 		fts_power_control(chip_data, true);
 	}
 
-	ts_data->is_ic_sleep = false;
 	switch (mode) {
 	case MODE_NORMAL:
 		TPD_INFO("MODE_NORMAL");
@@ -1421,7 +1426,7 @@ static int fts_mode_switch(void *chip_data, work_mode mode, int flag)
 			 ts_data->ts->is_suspended);
 
 		if (ts_data->ts->is_suspended) {                             /* do not pull up reset when doing resume*/
-			if (ts_data->last_mode == MODE_SLEEP) {
+			if (ts_data->is_ic_sleep == true) {
 				fts_hw_reset(ts_data, RESET_TO_NORMAL_TIME);
 			}
 		}
@@ -1493,7 +1498,6 @@ static int fts_mode_switch(void *chip_data, work_mode mode, int flag)
 		goto mode_err;
 	}
 
-	ts_data->last_mode = mode;
 	return 0;
 mode_err:
 	return ret;
@@ -2613,7 +2617,7 @@ static int ft3518_parse_dts(struct chip_data_ft3518 *ts_data, struct i2c_client 
 
 static void fts_get_glove_mode(void *chip_data, int *enable, int *count)
 {
-	u8 regval = 0;
+	int regval = 0;
 	struct chip_data_ft3518 *ts_data = (struct chip_data_ft3518 *)chip_data;
 
 	if (!ts_data || !enable || !count) {
@@ -2794,6 +2798,7 @@ static int fts_tp_probe(struct i2c_client *client,
 	ts_data->monitor_data = &ts->monitor_data;
 	ts_data->snr_read_support = ts->snr_read_support;
 	ts_data->chip_resolution_info = &ts->resolution_info;
+	ts_data->is_ic_sleep = false;
 	/*step6:create synaptics related proc files*/
 	fts_create_proc(ts, ts_data->syna_ops);
 

@@ -53,7 +53,7 @@ static int futex_set_inherit_ux_refs(struct task_struct *holder, struct task_str
 		return 0;
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	set_ux = test_set_inherit_ux(p);
+	set_ux = (test_set_inherit_ux(p) || test_task_is_rt(p));
 #else
 	set_ux = false;
 #endif
@@ -120,6 +120,15 @@ static inline bool curr_is_ux_thread(void)
 {
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
 	return test_task_ux(current);
+#else
+	return false;
+#endif
+}
+
+static inline bool curr_is_rt_thread(void)
+{
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
+	return test_task_is_rt(current);
 #else
 	return false;
 #endif
@@ -228,7 +237,7 @@ static void futex_notify_waiter(unsigned long pid)
 		return;
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
-	is_target = test_task_ux(waiter) && !curr_is_ux_thread();
+	is_target = (test_task_ux(waiter) || test_task_is_rt(waiter)) && !curr_is_ux_thread();
 #endif
 
 	if (!is_target)
@@ -386,7 +395,7 @@ static void android_vh_futex_wait_start_handler(void *unused, unsigned int flags
 {
 	struct task_struct *holder;
 
-	if (unlikely(!locking_opt_enable(LK_FUTEX_ENABLE)) || !curr_is_ux_thread())
+	if (unlikely(!locking_opt_enable(LK_FUTEX_ENABLE)) || (!curr_is_ux_thread() && !curr_is_rt_thread()))
 		return;
 
 	holder = futex_find_task_by_pid((flags & ~(0x3 << LOCK_TYPE_SHIFT)) >> FLAGS_OWNER_SHIFT);
@@ -438,10 +447,12 @@ void android_vh_alter_futex_plist_add_handler(void *unused, struct plist_node *n
 	if (unlikely(!locking_opt_enable(LK_FUTEX_ENABLE) || *already_on_hb))
 		return;
 
-	if (!curr_is_ux_thread())
+	if (!curr_is_ux_thread() && !curr_is_rt_thread())
 		return;
 
 	ots = get_oplus_task_struct(current);
+	if (unlikely(IS_ERR_OR_NULL(ots)))
+		return;
 	if (ots->lkinfo.holder)
 		boost_holder(ots->lkinfo.holder, current);
 

@@ -47,9 +47,9 @@
 		touchpanel,pen-max-pressure = <16384>;
 		touchpanel,pen-max-tilt = <60 60>;
 		touchpanel,msecs-to-jiffies-time = <100>;
-		touchpanel,smooth-level = <0 1 2 6 8 10>;
-		touchpanel,smooth-level-charging = <2 3 7 8 9 10>;
-		touchpanel,sensitive-level = <0 88 80 40 25 12>;
+		touchpanel,smooth-level = <255 32 64 96 128 254>;
+		touchpanel,sensitive-level = <255 40 30 15 9 3>;
+		touchpanel,sensitive-level-charging = <255 50 40 25 15 8>;
 		tp_type = <15>;//HUAXING
 		panel_type = <15>;
 

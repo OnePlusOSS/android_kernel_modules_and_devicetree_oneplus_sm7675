@@ -1534,6 +1534,13 @@ static unsigned int nvt_trigger_reason(void *chip_data, int gesture_enable, int 
 		return IRQ_IGNORE;
 	}
 
+	if (((chip_info->point_data[1] & 0x07) == 0x05) && !(is_suspended == 1)) {
+		TPD_INFO("nvt_palm_to_sleep_enable\n");
+		return IRQ_PALM;
+	} else if (is_suspended == 1) {
+		return IRQ_IGNORE;
+	}
+
 	return irq_reason;
 }
 
@@ -1847,6 +1854,46 @@ static int nvt_get_touch_points(void *chip_data, struct point_info *points,
 	return obj_attention;
 }
 
+static int8_t nvt_extend_cmd2_store(struct chip_data_nt36528 *chip_info,
+			uint8_t u8Cmd, uint8_t u8SubCmd, uint8_t u8SubCmd1)
+{
+	int i, retry = 5;
+	uint8_t buf[4] = {0};
+
+	/*---set xdata index to EVENT BUF ADDR---(set page)*/
+	nvt_set_page(chip_info, chip_info->trim_id_table.mmap->EVENT_BUF_ADDR);
+
+	for (i = 0; i < retry; i++) {
+		if (buf[1] != u8Cmd) {
+		/*---set cmd status---*/
+			buf[0] = EVENT_MAP_HOST_CMD;
+			buf[1] = u8Cmd;
+			buf[2] = u8SubCmd;
+			buf[3] = u8SubCmd1;
+			CTP_SPI_WRITE(chip_info->s_client, buf, 4);
+		}
+		msleep(20);
+
+		/*---read cmd status---*/
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0xFF;
+		CTP_SPI_READ(chip_info->s_client, buf, 2);
+		if (buf[1] == 0x00) {
+			break;
+		} else {
+			TPD_INFO("cmd2 read buf1[%d] \n", buf[1]);
+		}
+	}
+	if (unlikely(i == retry)) {
+		TPD_INFO("send Cmd 0x%02X 0x%02X 0x%02X failed, buf[1]=0x%02X\n",
+				u8Cmd, u8SubCmd, u8SubCmd1, buf[1]);
+		return -1;
+	} else {
+		TPD_INFO("send Cmd 0x%02X 0x%02X 0x%02X success, tried %d times\n",
+				u8Cmd, u8SubCmd, u8SubCmd1, i);
+	}
+	return 0;
+}
 
 static int8_t nvt_extend_cmd_store(struct chip_data_nt36528 *chip_info,
 				   uint8_t u8Cmd, uint8_t u8SubCmd)
@@ -2492,6 +2539,124 @@ static int nvt_enable_headset_mode(struct chip_data_nt36528 *chip_info,
 	}
 
 	return ret;
+}
+
+static int nvt_sensitive_lv_set(void *chip_data, int level)
+{
+	int8_t ret = -1;
+	struct chip_data_nt36528 *chip_info = (struct chip_data_nt36528 *)chip_data;
+
+	TPD_INFO("%s: sensitive value = %d, chip_info->is_sleep_writed = %d\n", __func__, level, chip_info->is_sleep_writed);
+
+	ret = nvt_extend_cmd2_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_JITTER_LEVEL, level);
+	return ret;
+}
+
+static int nvt_smooth_lv_set(void *chip_data, int level)
+{
+	int8_t ret = -1;
+	struct chip_data_nt36528 *chip_info = (struct chip_data_nt36528 *)chip_data;
+
+	TPD_INFO("%s: smooth value = %d, chip_info->is_sleep_writed = %d\n", __func__, level, chip_info->is_sleep_writed);
+
+	ret = nvt_extend_cmd2_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_SMOOTH_LEVEL, level);
+	return ret;
+}
+/*
+static int nvt_smooth_lv_with_charger_set(void *chip_data, int level)
+{
+	int8_t ret = -1;
+	struct chip_data_nt36528 *chip_info = (struct chip_data_nt36528 *)chip_data;
+
+	TPD_INFO("%s: smooth value = %d, chip_info->is_sleep_writed = %d\n", __func__, level, chip_info->is_sleep_writed);
+
+	ret = nvt_extend_cmd2_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_SMOOTH_WITH_CHARGER_LEVEL, level);
+	return ret;
+}
+*/
+static int nvt_diaphragm_touch_lv_set(void *chip_data, int mode)
+{
+	int8_t ret = -1;
+	struct chip_data_nt36528 *chip_info = (struct chip_data_nt36528 *)chip_data;
+
+	TPD_INFO("%s: diaphragm mode = %d\n", __func__, mode);
+
+	/*
+	switch(mode)
+	case DIAPHRAGM_DEFAULT_MODE: // 0
+	case DIAPHRAGM_FILM_MODE: // 1
+	case DIAPHRAGM_WATERPROO_MODE: // 2
+	case DIAPHRAGM_FILM_WATERPROO_MODE: // 3
+	*/
+	ret = nvt_extend_cmd2_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_FILM_WATERPROOF, mode);
+
+	return ret;
+}
+
+static void nvt_rate_white_list_ctrl(void *chip_data, int value)
+{
+	int ret = 0;
+	uint8_t cmd = 1;
+	struct chip_data_nt36528 *chip_info = (struct chip_data_nt36528 *)chip_data;
+
+	if (chip_info == NULL) {
+		return;
+	}
+
+	switch (value) {
+	case 120: /* 120Hz */
+		cmd = 0x01;
+		break;
+	case 180: /* 180Hz */
+		cmd = 0x02;
+		break;
+	case 240: /* 240Hz */
+		cmd = 0x03;
+		break;
+	default:
+		TPD_INFO("%s: report rate not support\n", __func__);
+		return;
+	}
+
+	ret = nvt_extend_cmd2_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_REPORT_RATE, cmd);
+	if (ret < 0) {
+		TPD_INFO("Failed to set report rate frequence config\n");
+	}
+	TPD_INFO("%s: report rate = %d, cmd = 0x%02X, chip_info->is_sleep_writed = %d\n",
+		__func__, value, cmd, chip_info->is_sleep_writed);
+}
+
+static void nvt_get_water_mode(void *chip_data)
+{
+	int8_t ret = 0;
+	struct chip_data_nt36528 *chip_info = (struct chip_data_nt36528 *)chip_data;
+	struct touchpanel_data *ts = spi_get_drvdata(chip_info->s_client);
+	uint8_t buf[8] = {0};
+
+	/*---read Waterproof mode status---*/
+	buf[0] = EVENTBUFFER_EXT_DBG_STATUS_WATERPROOF;
+	buf[1] = 0x00;
+	ret = CTP_SPI_READ(chip_info->s_client, buf, 2);
+
+	if (ret) {
+		TPD_INFO("%s: read water mode failed\n", __func__);
+	}
+
+	TPD_INFO("%s:  buf[1]=0x%02X\n", __func__, buf[1]);
+
+	if ((buf[1] >> 2) & 0x01) {
+		TPD_INFO("%s:  in Water mode \n", __func__);
+		ts->water_mode = 1;
+	}
+	else {
+		TPD_INFO("%s:  out Water mode \n", __func__);
+		ts->water_mode = 0;
+	}
+}
+
+static void nvt_force_water_mode(void *chip_data, bool enable)
+{
+	TPD_INFO("%s: %s force_water_mode is not supported .\n", __func__, enable ? "Enter" : "Exit");
 }
 
 #ifdef CONFIG_OPLUS_TP_APK
@@ -4486,7 +4651,7 @@ static int nvt_black_screen_test_preoperation(struct seq_file *s,
 		goto RELEASE_DATA;
 	}
 
-	ret = request_firmware(&ts->com_test_data.limit_fw, chip_info->test_limit_name,
+	/*ret = request_firmware(&ts->com_test_data.limit_fw, chip_info->test_limit_name,
 				   &chip_info->s_client->dev);
 	TPD_INFO("Roland--->fw path is %s\n", chip_info->test_limit_name);
 
@@ -4494,7 +4659,7 @@ static int nvt_black_screen_test_preoperation(struct seq_file *s,
 		TPD_INFO("Request firmware failed - %s (%d)\n", chip_info->test_limit_name,
 			 ret);
 		goto RELEASE_DATA;
-	}
+	}*/
 
 	/*get test data*/
 	ph = (struct auto_test_header *)(ts->com_test_data.limit_fw->data);
@@ -4596,8 +4761,8 @@ RELEASE_DATA:
 RELEASE_FIRMWARE:
 	release_firmware(ts->com_test_data.black_test_fw);
 	ts->com_test_data.black_test_fw = NULL;
-	release_firmware(ts->com_test_data.limit_fw);
-	ts->com_test_data.limit_fw = NULL;
+	/*release_firmware(ts->com_test_data.limit_fw);
+	ts->com_test_data.limit_fw = NULL;*/
 	tp_devm_kfree(&chip_info->s_client->dev, (void **)&fw_name_test,
 			  MAX_FW_NAME_LENGTH);
 	chip_info->need_judge_irq_throw = false;
@@ -4620,8 +4785,8 @@ static int nvt_black_screen_test_endoperation(struct seq_file *s,
 
 	release_firmware(ts->com_test_data.black_test_fw);
 	ts->com_test_data.black_test_fw = NULL;
-	release_firmware(ts->com_test_data.limit_fw);
-	ts->com_test_data.limit_fw = NULL;
+	/*release_firmware(ts->com_test_data.limit_fw);
+	ts->com_test_data.limit_fw = NULL;*/
 	chip_info->need_judge_irq_throw = false;
 
 	return 0;
@@ -4650,6 +4815,12 @@ static struct oplus_touchpanel_operations nvt_ops = {
 	.esd_handle				 = nvt_esd_handle,
 	.reset_gpio_control		 = nvt_reset_gpio_control,
 	.set_gesture_state		  = nvt_set_gesture_state,
+	.smooth_lv_set		  = nvt_smooth_lv_set,
+	.sensitive_lv_set		  = nvt_sensitive_lv_set,
+	.diaphragm_touch_lv_set		  = nvt_diaphragm_touch_lv_set,
+	.rate_white_list_ctrl       = nvt_rate_white_list_ctrl,
+	.get_water_mode		  = nvt_get_water_mode,
+	.force_water_mode		  = nvt_force_water_mode,
 	.ftm_process_extra		  = NULL,
 };
 
@@ -6354,7 +6525,7 @@ static int nvt_autotest_preoperation(struct seq_file *s, void *chip_data,
 
 	TPD_INFO("%s +\n", __func__);
 	/* request test limit data from userspace*/
-	TPD_INFO("panel_data.test_limit_name - %s\n", ts->panel_data.test_limit_name);
+	/*TPD_INFO("panel_data.test_limit_name - %s\n", ts->panel_data.test_limit_name);
 	ret = request_firmware(&ts->com_test_data.limit_fw,
 				   ts->panel_data.test_limit_name, ts->dev);
 
@@ -6362,8 +6533,7 @@ static int nvt_autotest_preoperation(struct seq_file *s, void *chip_data,
 		TPD_INFO("Request firmware failed - %s (%d)\n", ts->panel_data.test_limit_name,
 			 ret);
 		return -1;
-	}
-
+	}*/
 
 	nvt_esd_check_enable(chip_info, false);
 
@@ -6390,6 +6560,9 @@ static int nvt_autotest_preoperation(struct seq_file *s, void *chip_data,
 				  MAX_FW_NAME_LENGTH);
 		return -1;
 	}
+
+	tp_devm_kfree(&chip_info->s_client->dev, (void **)&fw_name_test,
+			  MAX_FW_NAME_LENGTH);
 
 	ret = nvt_fw_update_sub(chip_info, ts->com_test_data.black_test_fw, 0);
 
@@ -6580,10 +6753,10 @@ RELEASE_FIRMWARE:
 		ts->com_test_data.black_test_fw = NULL;
 	}
 
-	if (ts->com_test_data.limit_fw) {
+	/*if (ts->com_test_data.limit_fw) {
 		release_firmware(ts->com_test_data.limit_fw);
 		ts->com_test_data.limit_fw = NULL;
-	}
+	} */
 
 	tp_devm_kfree(&chip_info->s_client->dev, (void **)&fw_name_test,
 			  MAX_FW_NAME_LENGTH);
@@ -6609,10 +6782,10 @@ static int nvt_autotest_endoperation(struct seq_file *s, void *chip_data,
 		ts->com_test_data.black_test_fw = NULL;
 	}
 
-	if (ts->com_test_data.limit_fw) {
+	/*if (ts->com_test_data.limit_fw) {
 		release_firmware(ts->com_test_data.limit_fw);
 		ts->com_test_data.limit_fw = NULL;
-	}
+	}*/
 
 	TPD_INFO("%s -\n", __func__);
 

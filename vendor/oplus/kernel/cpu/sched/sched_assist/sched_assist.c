@@ -103,10 +103,7 @@ static int register_scheduler_vendor_hooks(void)
 	REGISTER_TRACE_RVH(android_rvh_dequeue_task, android_rvh_dequeue_task_handler);
 #endif
 
-	REGISTER_TRACE_RVH(android_rvh_sched_setaffinity, android_rvh_sched_setaffinity_handler);
-#ifndef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
 	REGISTER_TRACE_RVH(android_rvh_set_cpus_allowed_by_task, android_rvh_set_cpus_allowed_by_task_handler);
-#endif
 
 	/* register vender hook in fs/exec.c */
 	REGISTER_TRACE_VH(task_rename, task_rename_handler);

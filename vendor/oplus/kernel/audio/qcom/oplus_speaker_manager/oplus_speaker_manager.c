@@ -33,7 +33,7 @@ const char *const ext_amp_vdd_need[] = { "None", "Need" };
 const char *const ext_amp_boost_vol_text[] = {"Level_1", "Level_2", "Level_3", "Level_4"};
 const char *const ext_amp_speaker_switch_function[] = { "Off", "On" };
 const char *const ext_rcv_amp_function[] = { "Off", "On" };
-const char *const ext_amp_speaker_mode_function[] = { "Off", "Music", "Voice", "Fm", "Rcv", "Left", "Right"};
+const char *const ext_amp_speaker_mode_function[] = { "Off", "Music", "Voice", "Fm", "Rcv", "Left", "Right", "Left_Voice"};
 const char *const ext_amp_voice_function[] = { "Off", "On" };
 const char *const ext_amp_mute_function[] = { "Off", "On" };
 const char *const ext_amp_check_feedback[] = { "Off", "On" };
@@ -539,7 +539,8 @@ int oplus_spkr_pa_event(struct snd_soc_dapm_widget *w, struct snd_kcontrol *kcon
 		if (contrl_status->chipset == ALL_SPK) {
 			if (contrl_status->amp_mode_setting == WORK_MODE_RECEIVER) {
 				oplus_speaker_amp_set(R_SPK, WORK_STATUS_ON);
-			} else if (contrl_status->amp_mode_setting == WORK_MODE_LEFT) {
+			} else if ((contrl_status->amp_mode_setting == WORK_MODE_LEFT)
+				|| (contrl_status->amp_mode_setting == WORK_MODE_LEFT_VOICE)) {
 				oplus_speaker_amp_set(L_SPK, WORK_STATUS_ON);
 			} else if (contrl_status->amp_mode_setting == WORK_MODE_RIGHT) {
 				oplus_speaker_amp_set(R_SPK, WORK_STATUS_ON);

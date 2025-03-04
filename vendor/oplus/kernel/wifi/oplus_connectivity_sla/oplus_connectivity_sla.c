@@ -315,10 +315,10 @@ static void print_stream_info(struct sk_buff *skb)
 					srcport = ntohs(udp_hdr(skb)->source);
 					dstip = (unsigned char *)&iph->daddr;
 
-					debug("screen_on[%d] uid[%u] proto[%d] srcport[%d] dstport[%d]"
-						" dstip[%d.%d.%d.%d] dev[%s] mark[%x] ct_mark[%x] app_type[%d]\n",
-						oplus_sla_screen_on, uid, iph->protocol, srcport, dstport,
-						dstip[0], dstip[1], dstip[2], dstip[3], dev ? dev->name : "null", skb->mark,
+					debug("screen_on[%d] oplus_sla_enable_status[%d] oplus_sla_vpn_connected[%d] uid[%u] proto[%d] srcport[%d] dstport[%d]"
+						" dstip[%d.%d.%d.%d] dev[%s] mark[%x] ct_mark[%x] ct_mark[%x] app_type[%d]\n",
+						oplus_sla_screen_on, oplus_sla_enable_status, oplus_sla_vpn_connected, uid, iph->protocol, srcport, dstport,
+						dstip[0], dstip[1], dstip[2], dstip[3], dev ? dev->name : "null", skb->mark, ct->mark,
 						get_ct_mark(ct), get_app_type(ct));
 				}
 			}
@@ -907,6 +907,10 @@ static unsigned int oplus_sla_output_hook(void *priv,
 {
 	int ret = NF_ACCEPT;
 	int game_ret = NF_ACCEPT;
+
+	if (oplus_sla_vpn_connected || !oplus_sla_enable_status) {
+		goto end_sla_output;
+	}
 
 	game_ret = detect_game_skb(skb);
 

@@ -5080,6 +5080,16 @@ util_parse_pamlie_perstaprofile_stactrl(uint8_t *subelempayload,
 			break;
 		case WLAN_ELEMID_EXTN_ELEM:
 			extn_ie = (struct extn_ie_header *)ie;
+			/**
+			 * Zero IE len means there is no IE contents (EXT ID)
+			 * and so, if IE is dereferenced after IE len then it
+			 * can leads to out of bound error.
+			 * | IE ID | IE len | EXT ID |
+			 */
+			if (!extn_ie->ie_len) {
+				mlo_err_rl("extn element has zero len");
+				return QDF_STATUS_E_PROTO;
+			}
 			switch (extn_ie->ie_extn_id) {
 			case WLAN_EXTN_ELEMID_MUEDCA:
 				if (extn_ie->ie_len == WLAN_MAX_MUEDCA_IE_LEN) {
@@ -5171,7 +5181,8 @@ util_parse_pa_info_from_linkinfo(uint8_t *linkinfo,
 	linkinfo_currpos = linkinfo;
 	linkinfo_remlen = linkinfo_len;
 
-	while (linkinfo_remlen) {
+	while (linkinfo_remlen &&
+	       pa_info->num_links < QDF_ARRAY_SIZE(pa_info->link_info)) {
 		if (linkinfo_remlen <  sizeof(struct subelem_header)) {
 			mlo_err_rl("Remaining length in link info %zu octets is smaller than subelement header length %zu octets",
 				   linkinfo_remlen,

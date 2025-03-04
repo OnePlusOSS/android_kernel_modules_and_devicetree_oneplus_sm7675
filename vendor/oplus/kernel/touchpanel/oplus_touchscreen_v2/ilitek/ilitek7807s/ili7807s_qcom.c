@@ -1358,6 +1358,20 @@ void ili_report_ap_mode(u8 *buf, int len)
 	ilits->glove_mode = buf[ilits->tp_data_len - 6] & 0x01;
 	ilits->water_flag = (buf[ilits->tp_data_len - 6] & 0x02) >> 1;
 	ilits->thr = (s16)((buf[ilits->tp_data_len - 5] << 8) | buf[ilits->tp_data_len - 4]);
+	if (ilits->ts->health_monitor_support) {
+		if (ilits->glove_mode_flag == 0 && ilits->glove_mode == 1) {
+			ILI_DBG("glove_mode changed from 0 to 1\n");
+			ilits->glove_mode_status = 1;
+			tp_healthinfo_report(&ilits->ts->monitor_data, HEALTH_GLOVE, &ilits->glove_mode_status);
+		}
+
+		if (ilits->glove_mode_flag == 1 && ilits->glove_mode == 0) {
+			ILI_DBG("glove_mode changed from 1 to 0\n");
+			ilits->glove_mode_status = 0;
+			tp_healthinfo_report(&ilits->ts->monitor_data, HEALTH_GLOVE, &ilits->glove_mode_status);
+		}
+		ilits->glove_mode_flag = ilits->glove_mode;
+	}
 	ILI_DBG("glove_mode = %d, water_flag = %d, thr = %d\n", ilits->glove_mode, ilits->water_flag, ilits->thr);
 	ilitek_tddi_touch_send_debug_data(buf, len);
 }
@@ -3253,6 +3267,34 @@ static bool ilitek_irq_throw_away(void *chip_data)
 	return false;
 }
 
+static void ilitek_getglove_mode_status(void *chip_data, int *enable, int *count)
+{
+	u8 cmd_write[3] = { 0xDA, 0x01, 0x02 };
+	u8 cmd_read[4] = { 0 };
+
+	mutex_lock(&ilits->touch_mutex);
+
+	ILI_INFO("\n");
+
+	if (ilits->wrapper(cmd_write, sizeof(cmd_write), NULL, 0, OFF, OFF) < 0) {
+		ILI_ERR("Write Glove Mode cmd failed\n");
+		return;
+	}
+
+	if (ilits->wrapper(NULL, 0, cmd_read, sizeof(cmd_read), ON, OFF) < 0) {
+		ILI_ERR("Read Glove Mode Status cmd failed\n");
+		return;
+	}
+
+	ILI_DBG("cmd_read = 0x%x,0x%x,0x%x,0x%x \n", cmd_read[0], cmd_read[1], cmd_read[2], cmd_read[3]);
+	ILI_INFO("glove status = 0x%x \n", cmd_read[3]);
+
+	mutex_unlock(&ilits->touch_mutex);
+	*enable = cmd_read[3];
+
+	return;
+}
+
 static struct oplus_touchpanel_operations ilitek_ops = {
 	.ftm_process                = ilitek_ftm_process,
 	.ftm_process_extra          = ilitek_ftm_process_extra,
@@ -3275,6 +3317,7 @@ static struct oplus_touchpanel_operations ilitek_ops = {
 	.tp_irq_throw_away          = ilitek_irq_throw_away,
 	.rate_white_list_ctrl   	= ilitek_rate_white_list_ctrl,
 	.diaphragm_touch_lv_set     = ilitek_diaphragm_touch_lv_set,
+	.get_glove_mode             = ilitek_getglove_mode_status,
 };
 
 static int ilitek_read_debug_data(struct seq_file *s,

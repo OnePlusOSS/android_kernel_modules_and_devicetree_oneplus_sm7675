@@ -364,15 +364,16 @@ process_fetch_insn(struct fetch_insn *code, void *rec, void *dest,
 			return -EINVAL;
 		}
 
-		offset = oplus_regs_query_register_offset(reg);
-		if (offset < 0) {
+		ret = oplus_regs_query_register_offset(reg);
+		if (ret < 0) {
 			kfree(reg_string);
 			pr_err(OPLUS_UPROBE_LOG_TAG "parse register failed\n");
 			return -EINVAL;
 		}
 
+                offset = ret;
 		val = regs_get_register(regs, offset);
-		pr_storage(OPLUS_UPROBE_LOG_TAG "FETCH_OP_REG val(0x%llx) offset(%d) comp_val(0x%llx)\n", val, offset, comp_val);
+		pr_storage(OPLUS_UPROBE_LOG_TAG "FETCH_OP_REG val(0x%llx) offset(%u) comp_val(0x%llx)\n", val, offset, comp_val);
 		if (comp_val == val) {
 			pr_storage(OPLUS_UPROBE_LOG_TAG "FETCH_OP_REG val(0x%llx) comp_val(0x%llx)\n", val, comp_val);
 			process_action_insn(action, userid, runtime);
@@ -406,16 +407,18 @@ process_fetch_insn(struct fetch_insn *code, void *rec, void *dest,
 			return -EINVAL;
 		}
 
-		offset = oplus_regs_query_register_offset(reg);
-		pr_storage(OPLUS_UPROBE_LOG_TAG"oplus_parse_arg 2 reg(%s) offset(%d) regval(0x%llx)\n", reg, offset, set_val);
+		offset = (unsigned int)oplus_regs_query_register_offset(reg);
 		if (offset < 0) {
+			pr_storage(OPLUS_UPROBE_LOG_TAG"oplus_parse_arg 2 reg(%s) offset(%d) regval(0x%llx)\n", reg, offset, set_val);
 			pr_err(OPLUS_UPROBE_LOG_TAG "parse register failed\n");
+			kfree(reg_string);
 			return -EINVAL;
+		} else if (offset >= 0) {
+			offset >>= 3;
+			pt_regs_write_reg(regs, offset, (unsigned long)set_val);
+			pr_storage(OPLUS_UPROBE_LOG_TAG "FETCH_OP_MOD_BF offset(%d) set_val(0x%llx)\n", offset, set_val);
 		}
 
-		offset >>= 3;
-		pr_storage(OPLUS_UPROBE_LOG_TAG "FETCH_OP_MOD_BF offset(%d) set_val(0x%llx)\n", offset, set_val);
-		pt_regs_write_reg(regs, offset, set_val);
 		kfree(reg_string);
 		break;
 	case FETCH_OP_DATA:
@@ -428,7 +431,7 @@ process_fetch_insn(struct fetch_insn *code, void *rec, void *dest,
 	case FETCH_OP_RETVAL:
 		val = regs_return_value(regs);
 		if(val == code->offset) {
-			pr_storage(OPLUS_UPROBE_LOG_TAG "FETCH_OP_RETVAL get ret val(%d) offset(%d)\n", val, code->offset);
+			pr_storage(OPLUS_UPROBE_LOG_TAG "FETCH_OP_RETVAL get ret val(%llu) offset(%d)\n", val, code->offset);
 			process_action_insn(action, userid, runtime);
 		}
 		break;
@@ -789,7 +792,7 @@ static struct oplus_uprobe* parse_uprobe_cmd(int argc, char **argv)
 		goto err;
 	}
 	argc -= 3;
-	pr_storage(OPLUS_UPROBE_LOG_TAG "filename(%s), offset(0x%x) argc(%d)\n", filename, offset, argc);
+	pr_storage(OPLUS_UPROBE_LOG_TAG "filename(%s), offset(0x%lx) argc(%d)\n", filename, offset, argc);
 	ou = kzalloc(struct_size(ou, param.args, argc), GFP_KERNEL);
 	if (!ou) {
 		pr_err(OPLUS_UPROBE_LOG_TAG "alloc ou failed\n");
@@ -1049,7 +1052,7 @@ static ssize_t oplus_uprobe_proc_write(struct file *file, const char __user *buf
 
     if (atomic_read(&uprobe_count) > MAX_UPROBE_COUNT) {
 		pr_err(OPLUS_UPROBE_LOG_TAG "uprobe_count Maximum limit\n");
-		pr_storage(OPLUS_UPROBE_LOG_TAG "uprobe_count Maximum limit uprobe_count(%d)\n", uprobe_count);
+		pr_storage(OPLUS_UPROBE_LOG_TAG "uprobe_count Maximum limit uprobe_count(%d)\n", atomic_read(&uprobe_count));
 		goto err;
 	}
 
@@ -1066,7 +1069,7 @@ static ssize_t oplus_uprobe_proc_write(struct file *file, const char __user *buf
 		comp_inode = d_real_inode(comp->path.dentry);
 		if (comp_inode == d_real_inode(ou->path.dentry) && (comp->offset == ou->offset)) {
 			up_write(&oplus_event_sem);
-			pr_storage(OPLUS_UPROBE_LOG_TAG "the same event exist, filename %s, offset 0x%x\n", comp->filename, comp->offset);
+			pr_storage(OPLUS_UPROBE_LOG_TAG "the same event exist, filename %s, offset 0x%lx\n", comp->filename, comp->offset);
 			goto err;
 		}
 	}

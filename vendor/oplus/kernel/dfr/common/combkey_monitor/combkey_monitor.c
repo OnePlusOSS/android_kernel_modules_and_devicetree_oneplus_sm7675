@@ -89,8 +89,16 @@ static void pwrkey_long_press_callback(struct work_struct *work)
 static int combkey_monitor_notifier_call(struct notifier_block *nb, unsigned long type, void *data)
 {
 	struct keyevent_notifier_param *param = data;
-	struct key_press_time_data pwr_tm_data;
-	struct key_press_time_data volup_tm_data;
+	struct key_press_time_data pwr_tm_data = {
+		.curr_down_time = 0,
+		.curr_up_time = 0,
+		.key_handle_interval = 0
+	};
+	struct key_press_time_data volup_tm_data = {
+		.curr_down_time = 0,
+		.curr_up_time = 0,
+		.key_handle_interval = 0
+	};
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_FEEDBACK)
 	char payload[1024] = {0x00};
 #endif

@@ -236,6 +236,7 @@ struct sap_context {
 	qdf_event_t ft_pending_event;
 	uint32_t freq_before_ch_switch;
 	struct ch_params ch_params_before_ch_switch;
+	bool is_dfs_wakelock_held;
 #ifdef WLAN_FEATURE_P2P_P2P_STA
 /*
  *This param is used for GO+GO force scc logic where after

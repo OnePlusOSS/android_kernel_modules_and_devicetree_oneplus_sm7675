@@ -351,6 +351,17 @@ int oplus_ofp_init(void *dsi_panel)
 		}
 	}
 
+	/* indicates how many frames cost from aod off cmd sent to normal frame */
+	rc = utils->read_u32(utils->data, "oplus,ofp-aod-off-frame-cost", &value);
+	if (rc) {
+		OFP_INFO("failed to read oplus,ofp-aod-off-frame-cost, rc=%d\n", rc);
+		/* set default value to 0 */
+		panel->oplus_priv.aod_off_frame_cost = 0;
+	} else {
+		panel->oplus_priv.aod_off_frame_cost = value;
+		OFP_INFO("aod_off_frame_cost:%d\n", panel->oplus_priv.aod_off_frame_cost);
+	}
+
 	if (!strcmp(panel->type, "secondary")) {
 		/* set default display id to primary display */
 		oplus_ofp_set_display_id(OPLUS_OFP_PRIMARY_DISPLAY);

@@ -27,6 +27,7 @@ struct render_related_thread {
 static int rt_num = 0;
 static int total_num = 0;
 static pid_t game_tgid = -1;
+static pid_t sf_app_wakeup_game_thread_pid = -1;
 
 static DEFINE_RWLOCK(rt_info_rwlock);
 atomic_t have_valid_render_pid = ATOMIC_INIT(0);
@@ -37,11 +38,14 @@ static inline bool same_rt_thread_group(struct task_struct *waker,
 	return (waker->tgid == game_tgid) && (wakee->tgid == game_tgid);
 }
 
-static inline bool specified_rt_thread_group(struct task_struct *waker,
+static inline bool sf_app_wakeup_game_thread(struct task_struct *waker,
         struct task_struct *wakee)
 {
+	/*
+	 * surfaceflinger app thread start game logic every frame
+	 */
 	return (wakee->tgid == game_tgid) && !strcmp(waker->comm, "app") &&
-			(waker->parent != NULL) && !strcmp(waker->parent->comm, "surfaceflinger");
+		(waker->group_leader != NULL) && !strcmp(waker->group_leader->comm, "surfaceflinger");
 }
 
 static struct render_related_thread *find_related_thread(struct task_struct *task)
@@ -89,7 +93,7 @@ static void try_to_wake_up_success_hook(void *unused, struct task_struct *task)
 	 * ignore wakeup event if waker or wakee
 	 * not belong to a same game thread group.
 	 */
-	if (!(same_rt_thread_group(current, task) || specified_rt_thread_group(current, task)))
+	if (!(same_rt_thread_group(current, task) || sf_app_wakeup_game_thread(current, task)))
 		return;
 
 	/*
@@ -97,7 +101,7 @@ static void try_to_wake_up_success_hook(void *unused, struct task_struct *task)
 	 * if not available, skip.
 	 */
 	if (write_trylock(&rt_info_rwlock)) {
-		if(specified_rt_thread_group(current, task)) {
+		if (sf_app_wakeup_game_thread(current, task)) {
 			wakee = find_related_thread(task);
 			if (!wakee) {
 				if (total_num >= MAX_TID_COUNT)
@@ -108,13 +112,20 @@ static void try_to_wake_up_success_hook(void *unused, struct task_struct *task)
 				wakee->wake_count = 1;
 				total_num++;
 			} else {
-				wakee++;
+				wakee->wake_count++;
 			}
+			sf_app_wakeup_game_thread_pid = task->pid;
 			goto unlock;
 		}
 
 		if (!same_rt_thread_group(current, task))
 			goto unlock;
+
+		/* not repeat count */
+		if (current->pid == sf_app_wakeup_game_thread_pid) {
+			sf_app_wakeup_game_thread_pid = -1;
+			goto unlock;
+		}
 
 		/* wakee is a render related thread */
 		wakee = find_related_thread(task);
@@ -275,6 +286,7 @@ static ssize_t rt_info_proc_write(struct file *file, const char __user *buf,
 	rt_num = 0;
 	total_num = 0;
 	game_tgid = -1;
+	sf_app_wakeup_game_thread_pid = -1;
 	ed_set_render_task(NULL);
 
 	while (iter != NULL) {

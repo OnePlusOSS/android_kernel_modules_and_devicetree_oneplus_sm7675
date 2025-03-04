@@ -502,6 +502,8 @@ uint8_t aw_speaker_get_mode(struct oplus_speaker_device *speaker_device)
 			return AW_CTOS_PROFILE_MUSIC;
 		case WORK_MODE_RIGHT:
 			return AW_CTOS_PROFILE_MUSIC;
+		case WORK_MODE_LEFT_VOICE:
+			return AW_CTOS_PROFILE_VOICE;
 		default:
 			return -EINVAL;
 	}

@@ -43,6 +43,9 @@
 #define FTS_REG_FOD_INFO_LEN                    9
 #define FTS_REG_AOD_INFO                        0xD3
 #define FTS_REG_AOD_INFO_LEN                    6
+#define FTS_REG_DIFFER_VERSION                	0xCD
+#define FTS_DIFFER_VERSION_V1                	0
+#define FTS_DIFFER_VERSION_V2                	1
 
 #define FTS_REG_INT_CNT                         0x8F
 #define FTS_REG_FLOW_WORK_CNT                   0x91
@@ -100,6 +103,7 @@
 #define FTS_POINTS_TWO                          41  /*8*10 - 1*/
 #define FTS_MAX_POINTS_LENGTH                   134  /* ((FTS_POINTS_ONE) + (FTS_POINTS_TWO))  */
 #define FTS_MAX_POINTS_SNR_LENGTH               1824 /* FTS_MAX_POINTS_LENGTH + 2 + 2*tx*rx + (tx+rx+4)*2*2 */
+#define FTS_MAX_POINTS_SNR_LENGTH_V2            2220 /* point_buffer:84 + status:10 + edge:40 + aux:18 + differ:tx*rx*2+(tx+rx)*2*2+2 + 8*rx+2 */
 #define FTS_REG_POINTS                          0x01
 #define FTS_REG_POINTS_N                        (FTS_POINTS_ONE + 1)
 #define FTS_REG_POINTS_LB                       0x3E
@@ -321,6 +325,7 @@ struct chip_data_ft3683g {
 	bool prc_mode;
 	bool touch_analysis_support;
 	bool ft3683_grip_v2_support;
+	bool is_ic_sleep;    /*ic sleep status*/
 	u32 touch_size;
 	u8 *touch_buf;
 	int ta_flag;
@@ -333,10 +338,14 @@ struct chip_data_ft3683g {
 	u8 fp_down;
 	u8 ctrl_reg_state;
 
-	u8 snr_buf[FTS_MAX_POINTS_SNR_LENGTH];
+	u8 snr_buf[FTS_MAX_POINTS_SNR_LENGTH_V2];
 	int diff_buf[FTS_DIFF_BUF_LENGTH];
 	int sc_water[FTS_SC_BUF_LENGTH];
 	int sc_nomal[FTS_SC_BUF_LENGTH];
+	u16 cur_noise;
+	u16 buffer_len;
+	u32 time_since_last_frame;
+	u32 frame_cnt;
 
 	int rl_cnt;
 	int scb_cnt;
@@ -362,6 +371,7 @@ struct chip_data_ft3683g {
 	u8 fre_num;
 	u8 snr_count;
 	u8 differ_mode;
+	u8 tp_differ_version;
 
 	char *test_limit_name;
 	char *fw_name;

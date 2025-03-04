@@ -397,7 +397,7 @@
 		oplus,gauge_stuck_time = <50>;
 
 		oplus,smooth_switch;
-		oplus,reserve_chg_soc = <3>;
+		oplus,reserve_chg_soc = <2>;
 	};
 
 	oplus_vooc: oplus,vooc {

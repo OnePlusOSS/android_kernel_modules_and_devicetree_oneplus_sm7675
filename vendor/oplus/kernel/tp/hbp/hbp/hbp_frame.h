@@ -25,6 +25,7 @@ enum irq_reason {
 	IRQ_REASON_RESET_WDT,
 	IRQ_REASON_RESET_EXTERNAL,
 	IRQ_REASON_RESET_PWR,
+	IRQ_REASON_GESTURE_DIFF,
 };
 
 union touch_time {

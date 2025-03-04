@@ -540,15 +540,6 @@ static void hdd_hostapd_channel_allow_suspend(struct hdd_adapter *adapter,
 	struct hdd_hostapd_state *hostapd_state =
 		WLAN_HDD_GET_HOSTAP_STATE_PTR(adapter->deflink);
 	struct sap_context *sap_ctx;
-	bool is_dfs;
-
-	hdd_debug("bss_state: %d, chan_freq: %d, dfs_ref_cnt: %d",
-		  hostapd_state->bss_state, chan_freq,
-		  atomic_read(&hdd_ctx->sap_dfs_ref_cnt));
-
-	/* Return if BSS is already stopped */
-	if (hostapd_state->bss_state == BSS_STOP)
-		return;
 
 	sap_ctx = WLAN_HDD_GET_SAP_CTX_PTR(adapter->deflink);
 	if (!sap_ctx) {
@@ -556,10 +547,17 @@ static void hdd_hostapd_channel_allow_suspend(struct hdd_adapter *adapter,
 		return;
 	}
 
-	is_dfs = wlan_mlme_check_chan_param_has_dfs(hdd_ctx->pdev,
-						    ch_params,
-						    chan_freq);
-	if (!is_dfs)
+	hdd_debug("bss_state: %d, chan_freq: %d, dfs_ref_cnt: %d, is_dfs_wakelock_held %d",
+		  hostapd_state->bss_state, chan_freq,
+		  atomic_read(&hdd_ctx->sap_dfs_ref_cnt),
+		  sap_ctx->is_dfs_wakelock_held);
+
+	/* Return if BSS is already stopped */
+	if (hostapd_state->bss_state == BSS_STOP)
+		return;
+
+	hdd_debug("is_dfs_wakelock_held: %d", sap_ctx->is_dfs_wakelock_held);
+	if (!sap_ctx->is_dfs_wakelock_held)
 		return;
 
 	/* Release wakelock when no more DFS channels are used */
@@ -570,6 +568,8 @@ static void hdd_hostapd_channel_allow_suspend(struct hdd_adapter *adapter,
 		qdf_runtime_pm_allow_suspend(&hdd_ctx->runtime_context.dfs);
 
 	}
+
+	sap_ctx->is_dfs_wakelock_held = false;
 }
 
 /**
@@ -592,19 +592,21 @@ static void hdd_hostapd_channel_prevent_suspend(struct hdd_adapter *adapter,
 	struct sap_context *sap_ctx;
 	bool is_dfs;
 
-	hdd_debug("bss_state: %d, chan_freq: %d, dfs_ref_cnt: %d",
-		  hostapd_state->bss_state, chan_freq,
-		  atomic_read(&hdd_ctx->sap_dfs_ref_cnt));
-	/* Return if BSS is already started && wakelock is acquired */
-	if ((hostapd_state->bss_state == BSS_START) &&
-		(atomic_read(&hdd_ctx->sap_dfs_ref_cnt) >= 1))
-		return;
-
 	sap_ctx = WLAN_HDD_GET_SAP_CTX_PTR(adapter->deflink);
 	if (!sap_ctx) {
 		hdd_err("sap ctx null");
 		return;
 	}
+
+	hdd_debug("bss_state: %d, chan_freq: %d, dfs_ref_cnt: %d, is_dfs_wakelock_held: %d",
+		  hostapd_state->bss_state, chan_freq,
+		  atomic_read(&hdd_ctx->sap_dfs_ref_cnt),
+		  sap_ctx->is_dfs_wakelock_held);
+
+	/* Return if BSS is already started && wakelock is acquired */
+	if (hostapd_state->bss_state == BSS_START &&
+	    (atomic_read(&hdd_ctx->sap_dfs_ref_cnt) >= 1))
+		return;
 
 	is_dfs = wlan_mlme_check_chan_param_has_dfs(hdd_ctx->pdev,
 						    &sap_ctx->ch_params,
@@ -619,6 +621,8 @@ static void hdd_hostapd_channel_prevent_suspend(struct hdd_adapter *adapter,
 		qdf_wake_lock_acquire(&hdd_ctx->sap_dfs_wakelock,
 				      WIFI_POWER_EVENT_WAKELOCK_DFS);
 	}
+
+	sap_ctx->is_dfs_wakelock_held = true;
 }
 
 /**
@@ -2544,7 +2548,7 @@ QDF_STATUS hdd_hostapd_sap_event_cb(struct sap_event *sap_event,
 #endif
 		hdd_hostapd_channel_prevent_suspend(adapter,
 			ap_ctx->operating_chan_freq,
-			&sap_config->ch_params);
+			&ap_ctx->sap_context->ch_params);
 
 		hostapd_state->bss_state = BSS_START;
 		vdev = hdd_objmgr_get_vdev_by_user(link_info, WLAN_DP_ID);

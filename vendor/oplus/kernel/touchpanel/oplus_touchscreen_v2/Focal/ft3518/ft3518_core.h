@@ -233,7 +233,6 @@ struct chip_data_ft3518 {
 	int rl_cnt;
 	int scb_cnt;
 	int srawdata_cnt;
-	int last_mode;
 	int csv_fd;
 	int irq_num;
 	int probe_done;

@@ -1322,7 +1322,6 @@ static int32_t cam_eeprom_pkt_parse(struct cam_eeprom_ctrl_t *e_ctrl, void *arg)
 		CAM_ERR(CAM_EEPROM, "Invalid packet params");
 		cam_mem_put_cpu_buf(dev_config.packet_handle);
 		rc = -EINVAL;
-		cam_mem_put_cpu_buf(dev_config.packet_handle);
 		return rc;
 	}
 

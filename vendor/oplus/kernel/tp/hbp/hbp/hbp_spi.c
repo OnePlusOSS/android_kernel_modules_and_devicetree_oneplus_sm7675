@@ -488,6 +488,25 @@ static int hbp_spi_setup(void *ops, uint8_t mode, uint8_t bits_per_word, int spe
 	return 0;
 }
 
+static int hbp_spi_get_para(void *ops, uint8_t *mode, uint8_t *bits_per_word, int *speed)
+{
+	struct spi_bus *bus;
+
+	bus = container_of(ops, struct spi_bus, spi_ops);
+	if (IS_ERR_OR_NULL(bus)) {
+		hbp_err("fatal: invalid bus\n");
+		return -ENODEV;
+	}
+
+	*mode = bus->spi_dev->mode;
+	*bits_per_word = bus->spi_dev->bits_per_word;
+	*speed = bus->spi_dev->max_speed_hz;
+
+	hbp_info("mode:%d,bits_per_word:%d,speed:%d.\n", *mode, *bits_per_word, *speed);
+
+	return 0;
+}
+
 static int hbp_spi_probe(struct spi_device *spi_dev)
 {
 	int ret = 0;
@@ -522,7 +541,8 @@ static int hbp_spi_probe(struct spi_device *spi_dev)
 	bus->spi_ops.write_block = hbp_spi_write_block;
 	bus->spi_ops.spi_sync = hbp_spi_sync;
 	bus->spi_ops.shutdown = hbp_spi_shutdown;
-	bus->spi_ops.spi_setup = hbp_spi_setup;
+	bus->spi_ops.spi_set_para = hbp_spi_setup;
+	bus->spi_ops.spi_get_para = hbp_spi_get_para;
 
 	spi_set_drvdata(spi_dev, bus);
 

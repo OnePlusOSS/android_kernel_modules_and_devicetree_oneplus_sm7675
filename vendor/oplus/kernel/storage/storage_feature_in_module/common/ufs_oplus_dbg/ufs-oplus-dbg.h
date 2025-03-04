@@ -93,6 +93,9 @@ struct signal_quality {
 	u32 ufs_bus_err_cnt;
 	u32 ufs_crypto_err_cnt;
 	u32 ufs_link_lost_cnt;
+	u32 task_abort_cnt;
+	u32 host_reset_cnt;
+	u32 dev_reset_cnt;
 	u32 unipro_PA_err_total_cnt;
 	u32 unipro_PA_err_cnt[UNIPRO_PA_ERR_MAX];
 	u32 unipro_DL_err_total_cnt;

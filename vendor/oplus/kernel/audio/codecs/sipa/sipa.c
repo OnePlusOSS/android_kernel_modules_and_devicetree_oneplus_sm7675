@@ -936,6 +936,7 @@ int sipa_speaker_enable(struct oplus_speaker_device *speaker_device, int enable)
 	channel = speaker_device->type - L_SPK;
 	switch (speaker_device->speaker_mode) {
 	case WORK_MODE_VOICE:
+	case WORK_MODE_LEFT_VOICE:
 		scene = AUDIO_SCENE_VOICE;
 		break;
 	case WORK_MODE_RECEIVER:

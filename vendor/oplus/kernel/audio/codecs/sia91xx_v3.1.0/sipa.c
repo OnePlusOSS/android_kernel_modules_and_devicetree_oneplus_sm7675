@@ -2215,7 +2215,6 @@ static int sipa_spk_mute_ctrl_put(struct snd_kcontrol *kcontrol,
 
 	if (si_pa) {
 		if (speaker_mute_control) {
-			si_pa->sipa_on = false;
 			if (sia91xx_soft_mute(si_pa)) {
 				gpio_set_value(si_pa->rst_pin, 1);
 			}

@@ -134,7 +134,7 @@ enum touch_report_code {
 	TOUCH_REPORT_GESTURE_INFO = 198,
 	TOUCH_REPORT_GESTURE_COORDINATE = 199,
 	TOUCH_REPORT_PALM_DETECTED = 200,
-	TOUCH_REPORT_GLOVE_DETECTED = 203,
+	TOUCH_REPORT_GLOVE_DETECTED = 204,
 };
 
 enum module_type {
@@ -534,6 +534,7 @@ struct syna_tcm_hcd {
 	int tp_irq_state;
 	int zeroflash_init_done;
 	int check_uboot_failed_count;
+	int request_fw_image_id;
 
 	struct completion config_complete;
 	struct mutex reset_mutex;
@@ -687,6 +688,7 @@ struct zeroflash_hcd {
 	unsigned char *buf;
 	char *fw_name;
 	const struct firmware *fw_entry;
+	const struct firmware *fw_lpwg_entry;
 	struct work_struct config_work;
 	struct work_struct firmware_work;
 	struct workqueue_struct *config_workqueue;
@@ -797,7 +799,7 @@ int syna_reset_gpio(void *chip_data, bool enable);
 void syna_tcm_hdl_done(struct syna_tcm_hcd *tcm_hcd);
 void zeroflash_update_fw_image(void);
 int zeroflash_parse_fw_image(void);
-
+void tp_wait_hdl_finished(void);
 void syna_tcm_start_reset_timer(struct syna_tcm_hcd *tcm_hcd);
 void syna_tcm_stop_reset_timer(struct syna_tcm_hcd *tcm_hcd);
 

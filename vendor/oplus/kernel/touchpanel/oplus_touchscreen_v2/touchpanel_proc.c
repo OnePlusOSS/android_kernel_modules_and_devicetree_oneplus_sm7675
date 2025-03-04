@@ -1113,6 +1113,61 @@ static ssize_t proc_hardware_control_write(struct file *file,
 
 DECLARE_PROC_OPS(proc_hardware_control_fops, simple_open, proc_hardware_control_read, proc_hardware_control_write, NULL);
 
+static ssize_t proc_report_rate_test_read(struct file *file, char __user *buffer,
+				       size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	char page[PAGESIZE] = {0};
+	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+	if (!ts) {
+		return count;
+	}
+
+	if (ts->is_suspended) {
+		TP_INFO(ts->tp_index, "%s: tp is suspended.\n", __func__);
+		return count;
+	}
+	ts->get_frame_num = 0;
+	ts->touch_major_sum = 0;
+	ts->report_rate_testing = true;
+	usleep_range(ts->report_rate_test_time * 1000 * 1000, ts->report_rate_test_time * 1000 * 1000 + 10);
+	ts->report_rate_testing = false;
+
+	snprintf(page, PAGESIZE - 1, "report frames:%u, rate:%uHZ. touch major avg:%u.\n",
+		ts->get_frame_num, ts->get_frame_num / ts->report_rate_test_time, (ts->touch_major_sum + ts->get_frame_num / 2) / ts->get_frame_num);
+	ret = simple_read_from_buffer(buffer, count, ppos, page, strlen(page));
+	return ret;
+}
+
+static ssize_t proc_report_rate_test_write(struct file *file,
+				     const char __user *buffer, size_t count, loff_t *ppos)
+{
+	int value = 0;
+	char buf[5] = {0};
+	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
+
+	if (!ts) {
+		return count;
+	}
+
+	tp_copy_from_user(buf, sizeof(buf), buffer, count, 4);
+
+	if (kstrtoint(buf, 10, &value)) {
+		TP_INFO(ts->tp_index, "%s: kstrtoint error\n", __func__);
+		return count;
+	}
+	if (value > REPORT_RATE_MAX_TEST_TIME_S) {
+		TP_INFO(ts->tp_index, "%s: input test time too long:%uS, max time is:%uS. \n", __func__, value, REPORT_RATE_MAX_TEST_TIME_S);
+		value = REPORT_RATE_MAX_TEST_TIME_S;
+	}
+	TP_INFO(ts->tp_index, "%s: report rate test time set:%u. \n", __func__, value);
+	ts->report_rate_test_time = value;
+	return count;
+}
+
+DECLARE_PROC_OPS(proc_report_rate_test_fops, simple_open, proc_report_rate_test_read, proc_report_rate_test_write, NULL);
+
 static ssize_t proc_noise_modetest_read(struct file *file, char __user *buffer,
 					size_t count, loff_t *ppos)
 {
@@ -1878,6 +1933,8 @@ static ssize_t proc_disable_touch_event_write(struct file *file, const char __us
 		return count;
 	}
 
+	TP_INFO(ts->tp_index, "%s: write value=%d\n", __func__,
+		disable_touch_event);
 	ts->disable_touch_event = disable_touch_event;
 
 	return count;
@@ -4010,6 +4067,11 @@ static ssize_t proc_glove_mode_write(struct file *file, const char __user *buffe
 		return count;
 	}
 
+	if (ts->is_suspended) {
+		TS_TP_INFO("%s: is_suspended, exit\n", __func__);
+		return count;
+	}
+
 	tp_copy_from_user(buf, sizeof(buf), buffer, count, 4);
 
 	if (kstrtoint(buf, 10, &value)) {
@@ -4281,6 +4343,7 @@ static int init_debug_info_proc(struct touchpanel_data *ts)
 			ts->ts_ops->force_water_mode
 		},
 		{"hardware_control", 0666, NULL, &proc_hardware_control_fops, ts, false, true},
+		{"report_rate_test", 0666, NULL, &proc_report_rate_test_fops, ts, false, true},
 	};
 
 	TP_INFO(ts->tp_index, "%s entry\n", __func__);

@@ -24,6 +24,27 @@
                     39 00 00 00 00 00 04 FF 5A A5 00
                 ];
 
+                oplus,dsi-panel-gamma-compensation-page0-command = [
+                    39 00 00 40 00 00 04 FF 5A A5 2F
+                    15 00 00 00 00 00 02 99 00
+                    39 00 00 40 00 00 04 FF 5A A5 00
+                ];
+                oplus,dsi-panel-gamma-compensation-page1-command = [
+                    39 00 00 40 00 00 04 FF 5A A5 2F
+                    15 00 00 00 00 00 02 99 00
+                ];
+                oplus,dsi-panel-gamma-compensation-command = [
+                    39 00 00 40 00 00 04 FF 5A A5 2F
+                    15 00 00 40 00 00 02 99 97
+                    39 00 00 40 00 00 07 80 00 00 00 00 00 00
+                    15 00 00 40 00 00 02 99 00
+                    39 00 00 40 00 00 04 FF 5A A5 2F
+                    15 00 00 40 00 00 02 99 BB
+                    39 00 00 40 00 00 07 80 00 00 00 00 00 00
+                    15 00 00 40 00 00 02 99 00
+                    39 00 00 00 00 00 04 FF 5A A5 00
+                ];
+
                 qcom,mdss-dsi-panel-info-switch-page-command-state = "dsi_lp_mode";
                 qcom,mdss-dsi-timing-switch-high-fre-command-state = "dsi_hs_mode";
                 qcom,mdss-dsi-timing-switch-command-state = "dsi_hs_pack_mode";
@@ -50,3 +71,7 @@
                 qcom,mdss-dsi-on-high-fre-command-state = "dsi_lp_mode";
                 qcom,mdss-dsi-temperature-compensation-command-state = "dsi_hs_mode";
                 qcom,mdss-dsi-read-compensation-reg1-command-state = "dsi_hs_mode";
+
+                oplus,dsi-panel-gamma-compensation-page0-command-state = "dsi_hs_mode";
+                oplus,dsi-panel-gamma-compensation-page1-command-state = "dsi_hs_mode";
+                oplus,dsi-panel-gamma-compensation-command-state = "dsi_hs_mode";
