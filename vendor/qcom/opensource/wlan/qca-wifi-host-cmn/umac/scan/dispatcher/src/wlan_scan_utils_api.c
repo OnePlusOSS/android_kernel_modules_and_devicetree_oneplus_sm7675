@@ -3518,7 +3518,7 @@ static uint32_t util_gen_new_ie(struct wlan_objmgr_pdev *pdev,
 		if (!(tmp_new[0] == WLAN_ELEMID_NONTX_BSSID_CAP ||
 		      tmp_new[0] == WLAN_ELEMID_SSID ||
 		      tmp_new[0] == WLAN_ELEMID_MULTI_BSSID_IDX ||
-		      ((tmp_new[0] == WLAN_ELEMID_EXTN_ELEM) &&
+		      ((tmp_new[0] == WLAN_ELEMID_EXTN_ELEM) && tmp_new[1] &&
 		       (tmp_new[2] == WLAN_EXTN_ELEMID_NONINHERITANCE)))) {
 			if ((pos + tmp_new[1] + MIN_IE_LEN) <=
 			    (new_ie + ielen)) {

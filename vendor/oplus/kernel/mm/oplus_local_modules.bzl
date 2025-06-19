@@ -181,12 +181,29 @@ def define_oplus_local_modules():
         }),
     )
 
+    define_oplus_ddk_module(
+        name = "oplus_exit_mm_optimize",
+        srcs = native.glob([
+            "**/*.h",
+            "exit_mm_optimize/exit_mm_optimize.c",
+        ]),
+        ko_deps = [
+            "//vendor/oplus/kernel/mm:oplus_bsp_hybridswap_zram",
+        ],
+        includes = ["."],
+        copts = select({
+            "//build/kernel/kleaf:kocov_is_true": ["-fprofile-arcs", "-ftest-coverage"],
+            "//conditions:default": [],
+        }),
+    )
+
     ddk_copy_to_dist_dir(
         name = "oplus_bsp_mm",
         module_list = [
             "oplus_bsp_memleak_detect_simple",
             "oplus_bsp_sigkill_diagnosis",
             "oplus_bsp_zram_opt",
+            "oplus_exit_mm_optimize",
             "oplus_bsp_proactive_compact",
             "oplus_bsp_hybridswap_zram",
             "oplus_bsp_zsmalloc",

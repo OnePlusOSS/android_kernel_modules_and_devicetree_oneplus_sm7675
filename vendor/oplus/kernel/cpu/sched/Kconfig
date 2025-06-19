@@ -215,3 +215,9 @@ config OPLUS_SCHED_HALT_MASK_PRT
 	depends on OPLUS_SYSTEM_KERNEL_QCOM
 	help
 	  cpu halt_mask partial_halt_mask and parse_client
+
+config OPLUS_FEATURE_CEILING_FREE
+	tristate "ceiling free"
+	default n
+	help
+		set cb/omrg max frequency to default when user touch screen.

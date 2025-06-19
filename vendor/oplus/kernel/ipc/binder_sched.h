@@ -24,8 +24,14 @@
 extern unsigned int g_sched_enable;
 
 #define BINDER_NAME                     "binder"
+
+#ifdef CONFIG_OPLUS_BINDER_REF_OPT
 #define MAX_SYSTEM_SERVER_DESC          10048
 #define SYSTEM_SERVER_UID               1000
+#endif
+
+#define HWBINDER_NAME			"hwbinder"
+#define VNDBINDER_NAME			"vndbinder"
 
 enum OBS_STATUS {
 	 OBS_INVALID,

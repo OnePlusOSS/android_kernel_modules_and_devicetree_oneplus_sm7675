@@ -98,6 +98,7 @@ def kernel_build(
         make_goals = None,
         kconfig_ext = None,
         dtstree = None,
+        rewrite_absolute_paths_in_config = None,
         kmi_symbol_list = None,
         protected_exports_list = None,
         protected_modules_list = None,
@@ -301,6 +302,11 @@ def kernel_build(
         module_implicit_outs: like `module_outs`, but not copied to the distribution directory.
 
           Labels are created for each item in `module_implicit_outs` as in `outs`.
+
+        rewrite_absolute_paths_in_config: If true, `.config` does not contain
+          absolute paths for files like `kmi_symbol_list`, `module_signing_key`,
+          `system_trusted_key`. A relative path is written instead and the file
+          is restored to that relative path under `$OUT_DIR`.
 
         kmi_symbol_list: A label referring to the main KMI symbol list file. See `additional_kmi_symbol_lists`.
 
@@ -548,6 +554,7 @@ def kernel_build(
         raw_kmi_symbol_list = raw_kmi_symbol_list_target_name,
         module_signing_key = module_signing_key,
         system_trusted_key = system_trusted_key,
+        rewrite_absolute_paths_in_config = rewrite_absolute_paths_in_config,
         lto = lto,
         defconfig_fragments = defconfig_fragments,
         **internal_kwargs

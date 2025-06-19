@@ -207,8 +207,8 @@ int dsi_panel_read_panel_reg(struct dsi_display_ctrl *ctrl,
 	cmdsreq.msg.rx_len = len;
 	cmdsreq.msg.flags |= MIPI_DSI_MSG_UNICAST_COMMAND;
 
-	if (!strcmp(panel->name, "AA570 P 1 A0017 vid mode panel") &&
-			panel->panel_mode == DSI_OP_VIDEO_MODE) {
+	if ((!strcmp(panel->name, "AA570 P 1 A0017 vid mode panel") || !strcmp(panel->name, "AB964 p 1 A0017 dsc video mode panel"))
+		&& panel->panel_mode == DSI_OP_VIDEO_MODE) {
 		cmdsreq.msg.flags |= MIPI_DSI_MSG_USE_LPM;
 	}
 

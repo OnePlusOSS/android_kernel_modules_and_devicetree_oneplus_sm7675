@@ -1364,7 +1364,8 @@ struct hal_hw_txrx_ops {
 	uint32_t (*hal_rx_get_reo_error_code)(hal_ring_desc_t rx_desc);
 	void (*hal_rx_tlv_csum_err_get)(uint8_t *rx_tlv_hdr,
 					uint32_t *ip_csum_err,
-					uint32_t *tcp_udp_csum_err);
+					uint32_t *tcp_udp_csum_err,
+					uint32_t *ip_frag);
 	void (*hal_rx_mpdu_desc_info_get)(void *desc_addr,
 					  void *mpdu_desc_info_hdl);
 	uint8_t (*hal_rx_err_status_get)(hal_ring_desc_t rx_desc);

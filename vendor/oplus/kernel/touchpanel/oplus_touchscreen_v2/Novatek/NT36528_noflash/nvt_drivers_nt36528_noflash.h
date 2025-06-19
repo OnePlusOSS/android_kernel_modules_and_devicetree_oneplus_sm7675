@@ -57,6 +57,7 @@
 #define DOWN_SLIDE_DETECT               22
 #define LEFT_SLIDE_DETECT               23
 #define RIGHT_SLIDE_DETECT              24
+#define SINGLE_DETECT                   27
 
 #define LEFT_VEE_DETECT                 31
 #define RIGHT_VEE_DETECT                32
@@ -358,6 +359,7 @@ struct chip_data_nt36528 {
 	bool g_fw_sta;
 	u8 *fw_buf_dma;
 	bool need_judge_irq_throw;
+	bool aod_flag;
 
 	int tp_index;
 	/*add for doze*/

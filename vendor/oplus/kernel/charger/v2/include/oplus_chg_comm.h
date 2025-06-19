@@ -165,6 +165,8 @@ int oplus_comm_get_wired_ffc_cutoff_fv(struct oplus_mms *topic, int step,
 int oplus_comm_get_wired_ffc_step_max(struct oplus_mms *topic);
 int oplus_comm_get_wired_aging_ffc_version(struct oplus_mms *topic);
 int oplus_comm_get_dec_vol(struct oplus_mms *topic, int *fv_dec, int *wired_ffc_dec, int *wls_ffc_dec);
+int oplus_comm_get_fastchg_check_switch(struct oplus_mms *topic);
+void oplus_comm_set_fastchg_check_switch(struct oplus_mms *topic, bool val);
 bool oplus_comm_get_boot_completed(void);
 int oplus_comm_get_bms_heat_temp_compensation(struct oplus_mms *topic);
 void oplus_comm_set_bms_heat_temp_compensation(struct oplus_mms *topic, int bms_heat_temp_compensation);
@@ -182,4 +184,5 @@ int oplus_set_chg_up_limit(struct oplus_mms *topic, int charge_limit_enable, int
     int is_force_set_charge_limit, int charge_limit_recharge_value, int callname);
 void oplus_comm_set_anti_expansion_status(struct oplus_mms *topic,int val);
 int oplus_comm_get_dis_ui_power_state(struct oplus_mms *topic);
+int oplus_comm_get_removed_bat_decidegc(struct oplus_mms *topic);
 #endif /* __OPLUS_CHG_COMM_H__ */

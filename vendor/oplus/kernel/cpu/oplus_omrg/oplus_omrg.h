@@ -49,6 +49,9 @@ unsigned int omrg_cpufreq_check_limit(struct cpufreq_policy *policy,
 unsigned long omrg_devfreq_check_limit(struct devfreq *df,
                       unsigned long target_freq);
 int perf_ctrl_get_omrg_dev_freq(void __user *uarg);
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CEILING_FREE)
+void omrg_ceiling_free(bool ceiling_free_enable);
+#endif
 #else
 static inline void omrg_cpufreq_register(struct cpufreq_policy *policy) {}
 static inline void omrg_cpufreq_unregister(struct cpufreq_policy *policy) {}
@@ -74,6 +77,9 @@ static inline int perf_ctrl_get_omrg_dev_freq(void __user *uarg)
 {
 	return -EFAULT;
 }
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CEILING_FREE)
+static inline void omrg_ceiling_free(bool ceiling_free_enable) {}
+#endif
 #endif
 
 /* extern bool oplus_cluster_cpu_all_pwrdn(void); */

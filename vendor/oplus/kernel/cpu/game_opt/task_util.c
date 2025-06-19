@@ -493,18 +493,10 @@ static void sched_stat_runtime_hook(void *unused, struct task_struct *p, u64 run
 	update_task_runtime(p, runtime);
 }
 
-static void sched_stat_runtime_rt_hook(void *unused, struct task_struct *p, u64 runtime)
-{
-	update_task_runtime(p, runtime);
-}
-
 static void register_task_util_vendor_hooks(void)
 {
-	/* Register vender hook in kernel/sched/fair.c */
+	/* Register vender hook in kernel/sched/fair.c{rt.c|deadline.c} */
 	register_trace_sched_stat_runtime(sched_stat_runtime_hook, NULL);
-
-	/* Register vender hook in kernel/sched/rt.c */
-	register_trace_android_vh_sched_stat_runtime_rt(sched_stat_runtime_rt_hook, NULL);
 }
 
 int task_util_init(void)

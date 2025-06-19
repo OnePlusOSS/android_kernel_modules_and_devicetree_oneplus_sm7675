@@ -618,6 +618,9 @@ struct rx_mon_pkt_tlvs {
 #define HAL_RX_TLV_IP_CSUM_FAIL_GET(_rx_pkt_tlv)	\
 	HAL_RX_MSDU_END(_rx_pkt_tlv).ip_chksum_fail
 
+#define HAL_RX_TLV_IP_FRAG_GET(_rx_pkt_tlv)	\
+	HAL_RX_MSDU_END(_rx_pkt_tlv).ip_frag
+
 #define HAL_RX_TLV_TCP_UDP_CSUM_FAIL_GET(_rx_pkt_tlv)	\
 	HAL_RX_MSDU_END(_rx_pkt_tlv).tcp_udp_chksum_fail
 
@@ -2474,18 +2477,20 @@ static inline uint8_t *hal_rx_pkt_hdr_get_be(uint8_t *buf)
  * @rx_tlv_hdr: start address of rx_tlv_hdr
  * @ip_csum_err: buffer to return ip_csum_fail flag
  * @tcp_udp_csum_err: placeholder to return tcp-udp checksum fail flag
+ * @ip_frag: fragment IP flag
  *
  * Return: None
  */
 static inline void
 hal_rx_tlv_csum_err_get_be(uint8_t *rx_tlv_hdr, uint32_t *ip_csum_err,
-			   uint32_t *tcp_udp_csum_err)
+			   uint32_t *tcp_udp_csum_err, uint32_t *ip_frag)
 {
 	struct rx_pkt_tlvs *rx_pkt_tlvs =
 					(struct rx_pkt_tlvs *)rx_tlv_hdr;
 
 	*ip_csum_err = HAL_RX_TLV_IP_CSUM_FAIL_GET(rx_pkt_tlvs);
 	*tcp_udp_csum_err = HAL_RX_TLV_TCP_UDP_CSUM_FAIL_GET(rx_pkt_tlvs);
+	*ip_frag = HAL_RX_TLV_IP_FRAG_GET(rx_pkt_tlvs);
 }
 
 static inline

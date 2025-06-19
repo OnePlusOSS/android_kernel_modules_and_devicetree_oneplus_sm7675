@@ -3020,13 +3020,15 @@ hal_rx_get_reo_error_code(hal_soc_handle_t hal_soc_hdl, hal_ring_desc_t rx_desc)
 
 static inline void
 hal_rx_tlv_csum_err_get(hal_soc_handle_t hal_soc_hdl, uint8_t *rx_tlv_hdr,
-			uint32_t *ip_csum_err, uint32_t *tcp_udp_csum_err)
+			uint32_t *ip_csum_err, uint32_t *tcp_udp_csum_err,
+			uint32_t *ip_frag)
 {
 	struct hal_soc *hal_soc = (struct hal_soc *)hal_soc_hdl;
 
 	return hal_soc->ops->hal_rx_tlv_csum_err_get(rx_tlv_hdr,
 						     ip_csum_err,
-						     tcp_udp_csum_err);
+						     tcp_udp_csum_err,
+						     ip_frag);
 }
 
 static inline void

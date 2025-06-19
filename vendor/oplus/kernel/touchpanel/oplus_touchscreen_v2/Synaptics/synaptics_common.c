@@ -136,12 +136,14 @@ static int synaptics_doing_black_screen_autotest(struct seq_file *s,
 		TPD_INFO("not support nvt_test_ops->syna_black_screen_test_noise callback\n");
 
 	} else {
-		ret = syna_test_ops->syna_black_screen_test_noise(s, ts->chip_data, p_nvt_testdata,
+		if (p_test_item_info != NULL) {
+			ret = syna_test_ops->syna_black_screen_test_noise(s, ts->chip_data, p_nvt_testdata,
 						       p_test_item_info);
 
-		if (ret < 0) {
-			TPD_INFO("test [syna_black_screen_test_noise] failed! ret is %d\n", ret);
-			error_count++;
+			if (ret < 0) {
+				TPD_INFO("test [syna_black_screen_test_noise] failed! ret is %d\n", ret);
+				error_count++;
+			}
 		}
 	}
 

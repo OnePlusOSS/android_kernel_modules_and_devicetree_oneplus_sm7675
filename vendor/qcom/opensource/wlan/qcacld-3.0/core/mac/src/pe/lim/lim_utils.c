@@ -8639,6 +8639,8 @@ static void lim_intersect_eht_caps(tDot11fIEeht_cap *rcvd_eht,
 		peer_eht->support_320mhz_6ghz = 1;
 	else
 		peer_eht->support_320mhz_6ghz = 0;
+
+	peer_eht->mcs_15 = session_eht->mcs_15 & rcvd_eht->mcs_15;
 }
 
 void lim_update_usr_eht_cap(struct mac_context *mac_ctx,

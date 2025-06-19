@@ -319,6 +319,7 @@ enum command {
 	CMD_SET_STATIC_CONFIG               = 0x22,
 	CMD_GET_DYNAMIC_CONFIG              = 0x23,
 	CMD_SET_DYNAMIC_CONFIG              = 0x24,
+	CMD_SET_LONG_CONFIG                 = 0xc7,
 	CMD_GET_TOUCH_REPORT_CONFIG         = 0x25,
 	CMD_SET_TOUCH_REPORT_CONFIG         = 0x26,
 	CMD_REZERO                          = 0x27,

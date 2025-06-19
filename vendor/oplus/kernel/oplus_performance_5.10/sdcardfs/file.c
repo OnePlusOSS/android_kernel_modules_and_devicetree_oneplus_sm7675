@@ -22,71 +22,10 @@
 #ifdef CONFIG_SDCARD_FS_FADV_NOACTIVE
 #include <linux/backing-dev.h>
 #endif
+#include <linux/fs.h>
 #include <linux/fsnotify.h>
 #include <linux/pagemap.h>
-/*
-static ssize_t sdcardfs_read(struct file *file, char __user *buf,
-			   size_t count, loff_t *ppos)
-{
-	int err;
-	struct file *lower_file;
-	struct dentry *dentry = file->f_path.dentry;
-#ifdef CONFIG_SDCARD_FS_FADV_NOACTIVE
-	struct backing_dev_info *bdi;
-#endif
-
-	lower_file = sdcardfs_lower_file(file);
-
-#ifdef CONFIG_SDCARD_FS_FADV_NOACTIVE
-	if (file->f_mode & FMODE_NOACTIVE) {
-		if (!(lower_file->f_mode & FMODE_NOACTIVE)) {
-			bdi = lower_file->f_mapping->backing_dev_info;
-			lower_file->f_ra.ra_pages = bdi->ra_pages * 2;
-			spin_lock(&lower_file->f_lock);
-			lower_file->f_mode |= FMODE_NOACTIVE;
-			spin_unlock(&lower_file->f_lock);
-		}
-	}
-#endif
-
-	err = kernel_read(lower_file, ppos, buf, count);
-	// update our inode atime upon a successful lower read
-	if (err >= 0)
-		fsstack_copy_attr_atime(d_inode(dentry),
-					file_inode(lower_file));
-
-	return err;
-}
-
-static ssize_t sdcardfs_write(struct file *file, const char __user *buf,
-			    size_t count, loff_t *ppos)
-{
-	int err;
-	struct file *lower_file;
-	struct dentry *dentry = file->f_path.dentry;
-	struct inode *inode = d_inode(dentry);
-
-	// check disk space
-	if (!check_min_free_space(dentry, count, 0)) {
-		pr_err("No minimum free space.\n");
-		return -ENOSPC;
-	}
-
-	lower_file = sdcardfs_lower_file(file);
-	err = kernel_write(lower_file, ppos, buf, count);
-	// update our inode times+sizes upon a successful lower write
-	if (err >= 0) {
-		if (sizeof(loff_t) > sizeof(long))
-			inode_lock(inode);
-		fsstack_copy_inode_size(inode, file_inode(lower_file));
-		fsstack_copy_attr_times(inode, file_inode(lower_file));
-		if (sizeof(loff_t) > sizeof(long))
-			inode_unlock(inode);
-	}
-
-	return err;
-}
-*/
+#include <linux/splice.h>
 
 static int sdcardfs_readdir(struct file *file, struct dir_context *ctx)
 {
@@ -174,59 +113,28 @@ out:
 static int sdcardfs_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	int err = 0;
-	bool willwrite;
-	struct file *lower_file;
-	const struct vm_operations_struct *saved_vm_ops = NULL;
+	const struct cred *saved_cred = NULL;
+	struct file *lower_file = sdcardfs_lower_file(file);
+	struct dentry *dentry = file->f_path.dentry;
+	struct sdcardfs_sb_info *sbi = SDCARDFS_SB(dentry->d_sb);
+	struct inode *inode = d_inode(dentry);
 
-	/* this might be deferred to mmap's writepage */
-	willwrite = ((vma->vm_flags | VM_SHARED | VM_WRITE) == vma->vm_flags);
+	if (!lower_file->f_op->mmap)
+		return -ENODEV;
 
-	/*
-	 * File systems which do not implement ->writepage may use
-	 * generic_file_readonly_mmap as their ->mmap op.  If you call
-	 * generic_file_readonly_mmap with VM_WRITE, you'd get an -EINVAL.
-	 * But we cannot call the lower ->mmap op, so we can't tell that
-	 * writeable mappings won't work.  Therefore, our only choice is to
-	 * check if the lower file system supports the ->writepage, and if
-	 * not, return EINVAL (the same error that
-	 * generic_file_readonly_mmap returns in that case).
-	 */
-	lower_file = sdcardfs_lower_file(file);
-	if (willwrite && !lower_file->f_mapping->a_ops->writepage) {
-		err = -EINVAL;
-		pr_err("sdcardfs: lower file system does not support writeable mmap\n");
-		goto out;
-	}
+	if (WARN_ON(file != vma->vm_file))
+		return -EIO;
 
-	/*
-	 * find and save lower vm_ops.
-	 *
-	 * XXX: the VFS should have a cleaner way of finding the lower vm_ops
-	 */
-	if (!SDCARDFS_F(file)->lower_vm_ops) {
-		err = lower_file->f_op->mmap(lower_file, vma);
-		if (err) {
-			pr_err("sdcardfs: lower mmap failed %d\n", err);
-			goto out;
-		}
-		saved_vm_ops = vma->vm_ops; /* save: came from lower ->mmap */
-	}
+	/* save current_cred and override it */
+	saved_cred = override_fsids(sbi, SDCARDFS_I(inode)->data);
+	if (!saved_cred)
+		return -ENOMEM;
 
-	/*
-	 * Next 3 lines are all I need from generic_file_mmap.  I definitely
-	 * don't want its test for ->readpage which returns -ENOEXEC.
-	 */
+	vma_set_file(vma, lower_file);
+	err = call_mmap(vma->vm_file, vma);
+	revert_fsids(saved_cred);
 	file_accessed(file);
-	vma->vm_ops = &sdcardfs_vm_ops;
 
-	file->f_mapping->a_ops = &sdcardfs_aops; /* set our aops */
-	if (!SDCARDFS_F(file)->lower_vm_ops) /* save for our ->fault */
-		SDCARDFS_F(file)->lower_vm_ops = saved_vm_ops;
-	vma->vm_private_data = file;
-	get_file(lower_file);
-	vma->vm_file = lower_file;
-
-out:
 	return err;
 }
 
@@ -384,7 +292,12 @@ out:
 ssize_t sdcardfs_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
 	int err;
+	const struct cred *saved_cred = NULL;
 	struct file *file = iocb->ki_filp, *lower_file;
+	struct dentry *dentry = file->f_path.dentry;
+	struct inode *inode = file_inode(file);
+	struct sdcardfs_sb_info *sbi = SDCARDFS_SB(dentry->d_sb);
+
 
 	lower_file = sdcardfs_lower_file(file);
 	if (!lower_file->f_op->read_iter) {
@@ -393,6 +306,13 @@ ssize_t sdcardfs_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 	}
 
 	get_file(lower_file); /* prevent lower_file from being released */
+	/* save current_cred and override it */
+	saved_cred = override_fsids(sbi, SDCARDFS_I(inode)->data);
+	if (!saved_cred) {
+		err = -ENOMEM;
+		goto out;
+	}
+
 	err = vfs_iter_read(lower_file, iter, &iocb->ki_pos,
 		iocb_to_rw_flags(iocb->ki_flags, SDCARDFS_IOCB_MASK));
 	fput(lower_file);
@@ -400,6 +320,7 @@ ssize_t sdcardfs_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 	if (err >= 0 || err == -EIOCBQUEUED)
 		fsstack_copy_attr_atime(file->f_path.dentry->d_inode,
 					file_inode(lower_file));
+	revert_fsids(saved_cred);
 out:
 	return err;
 }
@@ -410,8 +331,12 @@ out:
 ssize_t sdcardfs_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
 	int err;
+	const struct cred *saved_cred = NULL;
 	struct file *file = iocb->ki_filp, *lower_file;
-	struct inode *inode = file->f_path.dentry->d_inode;
+	struct inode *inode = file_inode(file);
+	struct dentry *dentry = file->f_path.dentry;
+	struct sdcardfs_sb_info *sbi = SDCARDFS_SB(dentry->d_sb);
+
 
 	lower_file = sdcardfs_lower_file(file);
 	if (!lower_file->f_op->write_iter) {
@@ -420,8 +345,17 @@ ssize_t sdcardfs_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 	}
 
 	get_file(lower_file); /* prevent lower_file from being released */
+	file_start_write(lower_file);
+	/* save current_cred and override it */
+	saved_cred = override_fsids(sbi, SDCARDFS_I(inode)->data);
+	if (!saved_cred) {
+		err = -ENOMEM;
+		goto out;
+	}
+
 	err = vfs_iter_write(lower_file, iter, &iocb->ki_pos,
 		iocb_to_rw_flags(iocb->ki_flags, SDCARDFS_IOCB_MASK));
+	file_end_write(lower_file);
 	fput(lower_file);
 	/* update upper inode times/sizes as needed */
 	if (err >= 0 || err == -EIOCBQUEUED) {
@@ -432,14 +366,79 @@ ssize_t sdcardfs_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 		if (sizeof(loff_t) > sizeof(long))
 			inode_unlock(inode);
 	}
+	revert_fsids(saved_cred);
 out:
 	return err;
 }
 
+static ssize_t sdcardfs_splice_read(struct file *in, loff_t *ppos,
+	struct pipe_inode_info *pipe, size_t len, unsigned int flags)
+{
+	ssize_t ret;
+	const struct cred *saved_cred = NULL;
+	struct file *lower_file = sdcardfs_lower_file(in);
+	struct dentry *dentry = in->f_path.dentry;
+	struct sdcardfs_sb_info *sbi = SDCARDFS_SB(dentry->d_sb);
+	struct inode *inode = file_inode(in);
+
+	get_file(lower_file); /* prevent lower_file from being released */
+	/* save current_cred and override it */
+	saved_cred = override_fsids(sbi, SDCARDFS_I(inode)->data);
+	if (!saved_cred) {
+		ret = -ENOMEM;
+		goto out_err;
+	}
+
+	ret = vfs_splice_read(lower_file, ppos, pipe, len, flags);
+	fput(lower_file);
+	/* update upper inode atime as needed */
+	if (ret >= 0 || ret == -EIOCBQUEUED)
+		fsstack_copy_attr_atime(in->f_path.dentry->d_inode,
+					file_inode(lower_file));
+	revert_fsids(saved_cred);
+out_err:
+	return ret;
+}
+
+static ssize_t sdcardfs_splice_write(struct pipe_inode_info *pipe,
+	struct file *out, loff_t *ppos, size_t len, unsigned int flags)
+{
+	ssize_t ret;
+	const struct cred *saved_cred = NULL;
+	struct file *lower_file = sdcardfs_lower_file(out);
+	struct inode *inode = file_inode(out);
+	struct dentry *dentry = out->f_path.dentry;
+	struct sdcardfs_sb_info *sbi = SDCARDFS_SB(dentry->d_sb);
+
+
+	get_file(lower_file); /* prevent lower_file from being released */
+	file_start_write(lower_file);
+	/* save current_cred and override it */
+	saved_cred = override_fsids(sbi, SDCARDFS_I(inode)->data);
+	if (!saved_cred) {
+		ret = -ENOMEM;
+		goto out_err;
+	}
+
+	ret = iter_file_splice_write(pipe, lower_file, ppos, len, flags);
+	file_end_write(lower_file);
+	fput(lower_file);
+
+	if (ret >= 0 || ret == -EIOCBQUEUED) {
+		if (sizeof(loff_t) > sizeof(long))
+			inode_lock(inode);
+		fsstack_copy_inode_size(inode, file_inode(lower_file));
+		fsstack_copy_attr_times(inode, file_inode(lower_file));
+		if (sizeof(loff_t) > sizeof(long))
+			inode_unlock(inode);
+	}
+	revert_fsids(saved_cred);
+out_err:
+	return ret;
+}
+
 const struct file_operations sdcardfs_main_fops = {
 	.llseek		= generic_file_llseek,
-	//.read		= sdcardfs_read,
-	//.write		= sdcardfs_write,
 	.unlocked_ioctl	= sdcardfs_unlocked_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl	= sdcardfs_compat_ioctl,
@@ -452,8 +451,8 @@ const struct file_operations sdcardfs_main_fops = {
 	.fasync		= sdcardfs_fasync,
 	.read_iter	= sdcardfs_read_iter,
 	.write_iter	= sdcardfs_write_iter,
-	.splice_read	= copy_splice_read,
-	.splice_write	= iter_file_splice_write,
+	.splice_read	= sdcardfs_splice_read,
+	.splice_write	= sdcardfs_splice_write,
 };
 
 /* trimmed directory options */

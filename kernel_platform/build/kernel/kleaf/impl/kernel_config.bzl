@@ -736,6 +736,9 @@ kernel_config = rule(
             doc = "defconfig fragments",
             allow_files = True,
         ),
+        "rewrite_absolute_paths_in_config": attr.bool(
+            doc = "rewrite absolute paths in .config as relative paths",
+        ),
         "_write_depset": attr.label(
             default = "//build/kernel/kleaf/impl:write_depset",
             executable = True,

@@ -258,6 +258,8 @@
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
 
 #define DEFAULT_RUN_DELAY_TIME          50
+/*99-1 = 98*/
+#define SCHEDULE_CS_PRESS_PRIORITY      1
 
 typedef struct{
     unsigned short manufacturer_id;

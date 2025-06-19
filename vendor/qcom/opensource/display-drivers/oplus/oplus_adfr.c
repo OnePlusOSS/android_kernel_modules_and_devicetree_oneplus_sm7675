@@ -6010,6 +6010,7 @@ int oplus_adfr_get_test_te(void *buf)
 		ADFR_INFO("test te gpio is invalid, use current timing refresh rate\n");
 	} else {
 		*refresh_rate = p_oplus_adfr_params->test_te.refresh_rate;
+		ADFR_INFO("oplus_adfr_test_te_refresh_rate:%u\n", *refresh_rate);
 	}
 
 	ADFR_DEBUG("oplus_adfr_test_te_refresh_rate:%u\n", *refresh_rate);

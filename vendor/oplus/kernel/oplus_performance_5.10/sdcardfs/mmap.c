@@ -20,51 +20,6 @@
 
 #include "sdcardfs.h"
 
-static vm_fault_t sdcardfs_fault(struct vm_fault *vmf)
-{
-	int err;
-	struct file *file;
-	const struct vm_operations_struct *lower_vm_ops;
-
-	file = (struct file *)vmf->vma->vm_private_data;
-	lower_vm_ops = SDCARDFS_F(file)->lower_vm_ops;
-	BUG_ON(!lower_vm_ops);
-
-	err = lower_vm_ops->fault(vmf);
-	return err;
-}
-
-static void sdcardfs_vm_open(struct vm_area_struct *vma)
-{
-	struct file *file = (struct file *)vma->vm_private_data;
-
-	get_file(file);
-}
-
-static void sdcardfs_vm_close(struct vm_area_struct *vma)
-{
-	struct file *file = (struct file *)vma->vm_private_data;
-
-	fput(file);
-}
-
-static vm_fault_t sdcardfs_page_mkwrite(struct vm_fault *vmf)
-{
-	int err = 0;
-	struct file *file;
-	const struct vm_operations_struct *lower_vm_ops;
-
-	file = (struct file *)vmf->vma->vm_private_data;
-	lower_vm_ops = SDCARDFS_F(file)->lower_vm_ops;
-	BUG_ON(!lower_vm_ops);
-	if (!lower_vm_ops->page_mkwrite)
-		goto out;
-
-	err = lower_vm_ops->page_mkwrite(vmf);
-out:
-	return err;
-}
-
 static ssize_t sdcardfs_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
 {
 	/*
@@ -77,11 +32,4 @@ static ssize_t sdcardfs_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
 
 const struct address_space_operations sdcardfs_aops = {
 	.direct_IO	= sdcardfs_direct_IO,
-};
-
-const struct vm_operations_struct sdcardfs_vm_ops = {
-	.fault		= sdcardfs_fault,
-	.page_mkwrite	= sdcardfs_page_mkwrite,
-	.open		= sdcardfs_vm_open,
-	.close		= sdcardfs_vm_close,
 };

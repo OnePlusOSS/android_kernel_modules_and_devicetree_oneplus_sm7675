@@ -138,6 +138,10 @@ static struct kthread_worker g_omrg_worker;
 static struct task_struct *g_omrg_work_thread;
 static bool g_omrg_initialized;
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CEILING_FREE)
+static atomic_t is_omrg_ceiling_free;
+#endif
+
 static void omrg_irq_work(struct irq_work *w)
 {
 	struct omrg_rule *ruler = container_of(w, struct omrg_rule, irq_work);
@@ -387,6 +391,13 @@ static void omrg_cpufreq_apply_limits(unsigned int cpu)
 	freq_dev->prev_min_freq = min_freq;
 
 	rcu_read_unlock();
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CEILING_FREE)
+	if (atomic_read(&is_omrg_ceiling_free)) {
+		min_freq = FREQ_QOS_MIN_DEFAULT_VALUE;
+		max_freq = FREQ_QOS_MAX_DEFAULT_VALUE;
+	}
+#endif
 
 	ret = freq_qos_update_request(&freq_dev->min_qos_req, min_freq);
 	if (ret < 0)
@@ -1148,6 +1159,29 @@ error_out:
 	cpus_read_unlock();
 	return ret;
 }
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CEILING_FREE)
+void omrg_ceiling_free(bool ceiling_free_enable)
+{
+	struct omrg_rule *ruler = NULL;
+
+	if (!g_omrg_initialized)
+		return;
+
+	if (atomic_read(&is_omrg_ceiling_free) == ceiling_free_enable)
+		return;
+
+	atomic_set(&is_omrg_ceiling_free, ceiling_free_enable);
+
+	list_for_each_entry(ruler, &g_omrg_rule_list, node) {
+		if (!ceiling_free_enable)
+			omrg_irq_work_queue(&ruler->irq_work);
+		else if (ceiling_free_enable && !omrg_disable_ruler(ruler))
+			pr_err("omrg reset ceiling failed\n");
+	}
+}
+EXPORT_SYMBOL(omrg_ceiling_free);
+#endif
 
 static ssize_t store_ruler_enable(struct omrg_rule *ruler,
 				 const char *buf, size_t count)
