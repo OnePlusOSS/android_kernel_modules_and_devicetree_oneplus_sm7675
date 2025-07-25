@@ -494,12 +494,13 @@ hal_rxdma_buff_addr_info_set_rh(void *rxdma_entry, qdf_dma_addr_t paddr,
  * @rx_tlv_hdr: start address of rx_tlv_hdr
  * @ip_csum_err: buffer to return ip_csum_fail flag
  * @tcp_udp_csum_err: placeholder to return tcp-udp checksum fail flag
+ * @ip_frag: fragment IP flag
  *
  * Return: None
  */
 static inline void
 hal_rx_tlv_csum_err_get_rh(uint8_t *rx_tlv_hdr, uint32_t *ip_csum_err,
-			   uint32_t *tcp_udp_csum_err)
+			   uint32_t *tcp_udp_csum_err, uint32_t *ip_frag)
 {
 	*ip_csum_err = hal_rx_attn_ip_cksum_fail_get(rx_tlv_hdr);
 	*tcp_udp_csum_err = hal_rx_attn_tcp_udp_cksum_fail_get(rx_tlv_hdr);

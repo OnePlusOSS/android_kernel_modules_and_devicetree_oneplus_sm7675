@@ -18,6 +18,9 @@
  */
 
 #include "cs_press_f71.h"
+#include <linux/sched.h>
+#include <linux/sched/signal.h>
+#include <uapi/linux/sched/types.h>
 
 //#define ALIENTEK
 #ifndef ALIENTEK
@@ -1139,6 +1142,10 @@ void fml_key_report(void)
 */
 static int cs_press_event_handler(void *unused)
 {
+    struct sched_param param = {.sched_priority = SCHEDULE_CS_PRESS_PRIORITY};
+
+    sched_setscheduler(current, SCHED_FIFO, &param);
+
     do {
         LOG_ERR("cs_press_event_handler do wait\n");
         wait_event_interruptible(cs_press_waiter,

@@ -1809,9 +1809,10 @@ static bool dp_fisa_aggregation_should_stop(
 					   fisa_flow->hal_cumultive_ip_len;
 	uint32_t ip_csum_err = 0;
 	uint32_t tcp_udp_csum_err = 0;
+	uint32_t ip_frag;
 
 	hal_rx_tlv_csum_err_get(fisa_flow->dp_ctx->hal_soc, rx_tlv_hdr,
-				&ip_csum_err, &tcp_udp_csum_err);
+				&ip_csum_err, &tcp_udp_csum_err, &ip_frag);
 
 	hal_rx_get_l3_l4_offsets(fisa_flow->dp_ctx->hal_soc, rx_tlv_hdr,
 				 &l3_hdr_offset, &l4_hdr_offset);

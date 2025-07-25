@@ -107,6 +107,8 @@
 #define FTS_REG_POINTS                          0x01
 #define FTS_REG_POINTS_N                        (FTS_POINTS_ONE + 1)
 #define FTS_REG_POINTS_LB                       0x3E
+#define FTS_MAX_TX_NUM                          20
+#define FTS_MAX_RX_NUM                          41
 
 #define FTS_MAX_TOUCH_BUF                       4096
 

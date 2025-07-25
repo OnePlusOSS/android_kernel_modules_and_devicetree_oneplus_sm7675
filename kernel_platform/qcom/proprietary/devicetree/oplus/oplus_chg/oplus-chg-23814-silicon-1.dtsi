@@ -9,12 +9,12 @@
 					350 1 1
 					450 1 2
 					530 2 3>;
-		deep_spec,term_coeff = <3150 300 2
-					3250 450 5
-					3300 500 6
-					3370 500 7
-					3400 500 8
-					3450 500 8>;
+		deep_spec,term_coeff = <3150 650 2
+					3250 800 4
+					3300 900 6
+					3370 1000 8
+					3400 1100 9
+					3450 1200 11>;
 		deep_spec,ddrc_strategy_name = "ddrc_curve";
 		deep_spec,volt_step = <20>;
 		deep_spec,ddbc_curve {

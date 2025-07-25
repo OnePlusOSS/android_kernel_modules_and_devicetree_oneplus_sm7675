@@ -440,8 +440,8 @@ adreno_drawctxt_create(struct kgsl_device_private *dev_priv,
 		}
 	}
 
-    if (strstr(drawctxt->base.proc_priv->cmdline, "snapchat")) {
-		drawctxt->base.flags &= ~KGSL_CONTEXT_NO_FAULT_TOLERANCE;
+    if (strstr(drawctxt->base.proc_priv->cmdline, "com.tencent.tmgp.dfm")) {
+		drawctxt->base.flags |= KGSL_CONTEXT_NO_FAULT_TOLERANCE;
     }
 
 	/* copy back whatever flags we dediced were valid */

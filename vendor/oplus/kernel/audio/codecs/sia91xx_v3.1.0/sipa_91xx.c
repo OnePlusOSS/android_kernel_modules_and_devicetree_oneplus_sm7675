@@ -530,7 +530,11 @@ int sia91xx_mute(
 				return -SIPA_ERROR_SOFT_MUTE;
 			}
 		} else {
-			si_pa->sipa_on = true;
+
+			if (si_pa->sipa_on == true) {
+				pr_info("[debug][%s] %s: si_pa->sipa_on is true, direct return!\n", LOG_FLAG, __func__);
+				return 0;
+			}
 #ifdef OPLUS_FEATURE_SPEAKER_MUTE
 // Add for spk mute ctrl
 			if (speaker_mute_control && (si_pa->scene != AUDIO_SCENE_RECEIVER || si_pa->channel_num != 0)) {
@@ -543,6 +547,7 @@ int sia91xx_mute(
 				return -SIPA_ERROR_SOFT_MUTE;
 
 			sipa_regmap_check_trimming(si_pa);
+			si_pa->sipa_on = true;
 		}
 	}
 

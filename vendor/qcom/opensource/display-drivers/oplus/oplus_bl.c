@@ -457,7 +457,6 @@ void oplus_panel_backlight_demura_dbv_switch(struct dsi_panel *panel, u32 bl_lvl
 		}
 	}
 
-	LCD_INFO("send_demura_after_hbm_off_flag = %d\n", send_demura_after_hbm_off_flag);
 	if ((panel->oplus_priv.bl_demura_mode != bl_demura_last_mode || send_demura_after_hbm_off_flag) && (panel->power_mode == SDE_MODE_DPMS_ON)) {
 		rc = dsi_panel_tx_cmd_set(panel, bl_demura_mode);
 		send_demura_after_hbm_off_flag = false;

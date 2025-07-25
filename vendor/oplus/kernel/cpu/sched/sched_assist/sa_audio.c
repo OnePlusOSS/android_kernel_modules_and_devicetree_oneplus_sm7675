@@ -572,7 +572,7 @@ bool oplus_sched_assist_audio_idle_balance(struct rq *this_rq)
 		 */
 		p = pick_highest_pushable_task(src_rq, this_cpu);
 
-		if (!p)
+		if (!p || !cpumask_test_cpu(this_cpu, p->cpus_ptr))
 			goto skip;
 
 		/* we only allow audio-app group task (util must < sa_audio_threshold_util) doing this work */

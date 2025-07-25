@@ -100,6 +100,9 @@ const struct mtk_chip_config st_spi_ctrdata = {
 };
 #endif
 #endif
+#define SYNA_CMD_GAME_AIUINIT_EN                     0xD5
+#define SYNA_CMD_GAME_AIUINIT                        0x03
+#define AIUNIT_LONG_NUM         MAX_AIUNIT_SET_NUM*10
 
 static struct syna_tcm_data *g_tcm_info[TP_SUPPORT_MAX] = {NULL};
 
@@ -2591,6 +2594,45 @@ exit:
 	return retval;
 }
 
+static int syna_tcm_set_long_config(struct syna_tcm_data *tcm_info, unsigned char*buf)
+{
+	int retval = 0;
+	char *report = NULL;
+	unsigned char out_buf[AIUNIT_LONG_NUM+1] = {0};
+	unsigned char *resp_buf = NULL;
+	unsigned int resp_buf_size = 0, resp_length = 0;
+	unsigned int i = 0;
+
+	TPD_DEBUG("%s:config 0x%x\n", __func__, buf[0]);
+
+	for (i = 0; i < (AIUNIT_LONG_NUM+1); i++) {
+	   out_buf[i] = buf[i];
+	}
+
+	retval = syna_tcm_write_message(tcm_info,
+					CMD_SET_LONG_CONFIG,
+					out_buf,
+					sizeof(out_buf),
+					&resp_buf,
+					&resp_buf_size,
+					&resp_length,
+					RESPONSE_TIMEOUT_MS_SHORT);
+
+	if (retval < 0) {
+		TP_INFO(tcm_info->tp_index, "Failed to write command %s\n", STR(CMD_SET_LONG_CONFIG));
+		report = tp_kzalloc(30, GFP_KERNEL);
+		if (report) {
+			tp_healthinfo_report(tcm_info->monitor_data, HEALTH_REPORT, report);
+			tp_kfree((void **)&report);
+		}
+		goto exit;
+	}
+
+exit:
+	tp_kfree((void **)&resp_buf);
+
+	return retval;
+}
 static int syna_tcm_sleep(struct syna_tcm_data *tcm_info, bool en)
 {
 	int retval = 0;
@@ -3249,6 +3291,8 @@ static int syna_tcm_set_game_mode(struct syna_tcm_data *tcm_info, int enable)
 	struct touchpanel_data *ts = spi_get_drvdata(tcm_info->client);
 	/*unsigned short noise_length = 0;*/
 
+	syna_tcm_set_dynamic_config(tcm_info, SYNA_CMD_GAME_AIUINIT_EN, enable);
+	msleep(1);
 	tcm_info->game_mode = !!enable;
 	retval = syna_tcm_get_dynamic_config(tcm_info, DC_ERROR_PRIORITY, &regval);
 	if (retval < 0) {
@@ -8088,7 +8132,67 @@ static int syna_tcm_send_temperature(void *chip_data, int temp, bool status)
 
 	return retval;
 }
+static void syna_aiunit_game_info(void *chip_data)
 
+{
+	struct syna_tcm_data *tcm_info = (struct syna_tcm_data *)chip_data;
+	u8 cmd[MAX_AIUNIT_SET_NUM * 10 + 1] = { 0 };
+	int i = 0;
+	int ret = 0;
+	unsigned short regval = 0;
+
+	if (tcm_info == NULL) {
+		return;
+	}
+
+	if (tcm_info->ts->is_suspended) {
+		return;
+	}
+	if (tcm_info->ts->aiunit_game_enable) {
+		ret = syna_tcm_set_dynamic_config(tcm_info, SYNA_CMD_GAME_AIUINIT_EN, 1);
+		msleep(3);
+		ret = syna_tcm_get_dynamic_config(tcm_info, SYNA_CMD_GAME_AIUINIT_EN, &regval);
+		if (regval == 1) {
+			TPD_INFO("%s: aiunit game info enter suc.\n", __func__);
+		} else {
+			TPD_INFO("%s: aiunit game info enter fail.\n", __func__);
+		}
+	} else {
+		ret = syna_tcm_set_dynamic_config(tcm_info, SYNA_CMD_GAME_AIUINIT_EN, 0);
+		msleep(3);
+		ret = syna_tcm_get_dynamic_config(tcm_info, SYNA_CMD_GAME_AIUINIT_EN, &regval);
+		if (regval == 0) {
+			TPD_INFO("%s: aiunit game info exit suc.\n", __func__);
+		} else {
+			TPD_INFO("%s: aiunit game info exit fail.\n", __func__);
+		}
+	}
+
+	cmd[0] = SYNA_CMD_GAME_AIUINIT;
+	for (i = 0; i < MAX_AIUNIT_SET_NUM; i++) {
+		cmd[10 * i + 1] = tcm_info->ts->tp_ic_aiunit_game_info[i].gametype;
+		cmd[10 * i + 2] = tcm_info->ts->tp_ic_aiunit_game_info[i].aiunit_game_type;
+		cmd[10 * i + 3] = tcm_info->ts->tp_ic_aiunit_game_info[i].left & 0xff;
+		cmd[10 * i + 4] = (tcm_info->ts->tp_ic_aiunit_game_info[i].left >> 8) & 0xff;
+		cmd[10 * i + 5] = tcm_info->ts->tp_ic_aiunit_game_info[i].top & 0xff;
+		cmd[10 * i + 6] = (tcm_info->ts->tp_ic_aiunit_game_info[i].top >> 8) & 0xff;
+		cmd[10 * i + 7] = tcm_info->ts->tp_ic_aiunit_game_info[i].right & 0xff;
+		cmd[10 * i + 8] = (tcm_info->ts->tp_ic_aiunit_game_info[i].right >> 8) & 0xff;
+		cmd[10 * i + 9] = tcm_info->ts->tp_ic_aiunit_game_info[i].bottom & 0xff;
+		cmd[10 * i + 10] = (tcm_info->ts->tp_ic_aiunit_game_info[i].bottom >> 8) & 0xff;
+		TPD_INFO("type:%x,%x left:%x,%x top:%x,%x right:%x,%x bottom:%x,%x.", \
+				cmd[10 * i + 1], cmd[10 * i + 2], \
+				cmd[10 * i + 3], cmd[10 * i + 4], \
+				cmd[10 * i + 5], cmd[10 * i + 6], \
+				cmd[10 * i + 7], cmd[10 * i + 8], \
+				cmd[10 * i + 9], cmd[10 * i + 10]);
+	}
+
+	ret = syna_tcm_set_long_config(tcm_info, cmd);
+	if (ret < 0) {
+		TPD_INFO("fts tp aiunit game write fail");
+	}
+}
 static void syna_set_gesture_state(void *chip_data, int state)
 {
 	struct syna_tcm_data *tcm_info = (struct syna_tcm_data *)chip_data;
@@ -8154,6 +8258,7 @@ static struct oplus_touchpanel_operations syna_tcm_ops = {
 	.get_touch_points_help		= syna_get_touch_points_help,
 	.set_high_frame_rate            = syna_tcm_set_high_frame_rate,
 	.send_temperature		= syna_tcm_send_temperature,
+	.aiunit_game_info   = syna_aiunit_game_info,
 };
 
 static void syna_async_work_lock(struct work_struct *work)

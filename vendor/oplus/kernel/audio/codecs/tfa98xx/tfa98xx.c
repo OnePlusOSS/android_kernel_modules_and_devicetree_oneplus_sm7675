@@ -150,12 +150,20 @@ static int tfa98xx_factory_flag = 0;
 //Modify for multi-project baseline
 //static char fw_name[100] = {0};
 //==>/vendor/firmware/../../odm/firmware/tfa98xx.cnt
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 115))
+static char *fw_name = "tfa98xx.cnt";
+#else
 static char *fw_name = "../../odm/firmware/tfa98xx.cnt";
+#endif
 module_param(fw_name, charp, 0644);
 MODULE_PARM_DESC(fw_name, "TFA98xx DSP firmware (container file) name.");
 
 /*2024/08/16, used to distinguish different project pcb version*/
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 115))
+static char *fw_name_reverse = "tfa98xx_reverse.cnt";
+#else
 static char *fw_name_reverse = "../../odm/firmware/tfa98xx_reverse.cnt";
+#endif
 module_param(fw_name_reverse, charp, 0644);
 MODULE_PARM_DESC(fw_name_reverse, "TFA98xx DSP firmware (container file) name.");
 #else
@@ -5767,8 +5775,9 @@ int tfa98xx_i2c_probe(struct i2c_client *i2c)
 	int i = 0;
 	#endif /* OPLUS_ARCH_EXTENDS */
 	#ifdef OPLUS_ARCH_EXTENDS
-
+	#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 115))
 	char buf[50] = {0};
+	#endif
 	#endif //OPLUS_ARCH_EXTENDS
 
 
@@ -6126,13 +6135,14 @@ int tfa98xx_i2c_probe(struct i2c_client *i2c)
 	memcpy(dai, tfa98xx_dai, sizeof(tfa98xx_dai));
 
 #ifdef OPLUS_ARCH_EXTENDS
-
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 115))
 	snprintf(buf, sizeof(buf), "tfa98xx.%x-%04x", i2c->adapter->nr, i2c->addr);
 	ret = dev_set_name(&i2c->dev,"%s", buf);
 	if (ret < 0) {
 		pr_info( "dev_set_name ret=: %d\n", ret);
 		return ret;
 	}
+#endif
 	pr_err("%s: dev_name = [%s]\n", __func__, dev_name(&i2c->dev));
 
 	tfa98xx_append_i2c_address(&i2c->dev,

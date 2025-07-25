@@ -83,6 +83,7 @@
 #define TOUCH_REPORT_CONFIG_SIZE 128
 
 #define DTAP_DETECT     0x01
+#define STAP_DETECT     0x40
 #define CIRCLE_DETECT   0x02
 #define SWIPE_DETECT    0x04
 #define UNICODE_DETECT  0x08
@@ -134,6 +135,8 @@ enum touch_report_code {
 	TOUCH_REPORT_GESTURE_INFO = 198,
 	TOUCH_REPORT_GESTURE_COORDINATE = 199,
 	TOUCH_REPORT_PALM_DETECTED = 200,
+	TOUCH_GET_WATER_MODE = 202,
+	TOUCH_GESTURE_SINGLE_TAP   = 203,
 	TOUCH_REPORT_GLOVE_DETECTED = 204,
 };
 
@@ -158,6 +161,8 @@ enum test_item_bit {
 	TYPE_PT11 				= 11,
 	TYPE_DYNAMIC_RANGE_DOZE = 14,
 	TYPE_NOISE_DOZE			= 15,
+	TYPE_PT17 				= 17,
+	TYPE_PT18 				= 18,
 	TYPE_HYBRIDRAW_CAP      = 18,
 	TYPE_RAW_CAP            = 22,
 	TYPE_TREXSHORT_CUSTOM   = 25,
@@ -229,6 +234,7 @@ enum dynamic_config_id {
 	DC_FREQUENCE_HOPPING = 0xD2,
 	DC_SET_REPORT_FRE = 0x11,
 	DC_GLOVE_MODE_ENABLED = 0x0D,
+	DC_GESTURE_MASK   = 0xFE,
 };
 
 enum command {
@@ -576,6 +582,7 @@ struct syna_tcm_hcd {
 	bool irq_trigger_hdl_support;
 	bool health_monitor_support;
 	bool health_monitor_v2_support;
+	bool pt17_pt18_test_support;
 };
 
 struct device_hcd {

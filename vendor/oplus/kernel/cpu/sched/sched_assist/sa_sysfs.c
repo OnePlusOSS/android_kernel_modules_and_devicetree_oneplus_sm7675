@@ -210,7 +210,6 @@ static ssize_t proc_ux_task_write(struct file *file, const char __user *buf,
 	int ux_state = 0, ux_orig = 0;
 	int err = 0;
 	int is_hint_message = 0;
-	static DEFINE_MUTEX(sa_ux_mutex);
 
 	int uid = task_uid(current).val;
 
@@ -258,7 +257,6 @@ static ssize_t proc_ux_task_write(struct file *file, const char __user *buf,
 	if (err)
 		return err;
 
-	mutex_lock(&sa_ux_mutex);
 	if (!strncmp(opt_str[OPT_STR_TYPE], "p", 1) && (ux_state >= 0)) {
 		struct task_struct *ux_task = NULL;
 
@@ -270,6 +268,10 @@ static ssize_t proc_ux_task_write(struct file *file, const char __user *buf,
 			rcu_read_unlock();
 
 			if (ux_task) {
+				if (im_mali(ux_task->comm)) {
+					put_task_struct(ux_task);
+					return -EFAULT;
+				}
 				ux_orig = oplus_get_ux_state(ux_task);
 
 				if ((ux_state & SA_OPT_SET) && oplus_get_inherit_ux(ux_task)) {
@@ -304,7 +306,6 @@ static ssize_t proc_ux_task_write(struct file *file, const char __user *buf,
 		}
 	}
 
-	mutex_unlock(&sa_ux_mutex);
 	return count;
 }
 
@@ -436,6 +437,11 @@ static long write_task_ux(pid_t pid, pid_t tid, int ux_value, bool fromSysOrApp)
 	if (ux_task) {
 		bool need_update = true;
 		int ux_state = -1;
+
+		if (im_mali(ux_task->comm)) {
+			put_task_struct(ux_task);
+			return -EPERM;
+		}
 
 		/* clear inherit type if ux is intentional set */
 		if ((ux_value & (SA_OPT_SET|SA_OPT_RESET)) && oplus_get_inherit_ux(ux_task)) {

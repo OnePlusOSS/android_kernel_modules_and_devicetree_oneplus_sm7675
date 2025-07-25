@@ -49,6 +49,9 @@ struct chip_data_ft3518 *g_fts_data = NULL;
 #define FTS_RETRIES_WRITE                           100
 #define FTS_RETRIES_DELAY_WRITE                     1
 
+#define FTS_CMD_GAME_AIUINIT_EN                     0xC9
+#define FTS_CMD_GAME_AIUINIT                        0xCA
+
 #define FTS_CMD_FLASH_STATUS_NOP                    0x0000
 #define FTS_CMD_FLASH_STATUS_ECC_OK                 0xF055
 #define FTS_CMD_FLASH_STATUS_ERASE_OK               0xF0AA
@@ -1356,6 +1359,11 @@ static int fts_enable_game_mode(struct chip_data_ft3518 *ts_data, bool enable)
 {
 	/*TODO, based on test result*/
 	TPD_INFO("MODE_GAME, write 0x86=%d", enable);
+	if (ts_data == NULL) {
+		return -ENOMEM;
+	}
+	touch_i2c_write_byte(ts_data->client, FTS_CMD_GAME_AIUINIT_EN, enable);
+	msleep(1);
 	return touch_i2c_write_byte(ts_data->client, FTS_REG_GAME_MODE_EN, !enable);
 }
 
@@ -2503,6 +2511,67 @@ static void fts_rate_white_list_ctrl(void *chip_data, int value)
 		TPD_INFO("%s: setting new report rate failed!\n", __func__);
 }
 
+static void fts_aiunit_game_info(void *chip_data)
+{
+	struct chip_data_ft3518 *ts_data = (struct chip_data_ft3518 *)chip_data;
+	u8 cmd[MAX_AIUNIT_SET_NUM * 10 + 1] = { 0 };
+	int i = 0;
+	int ret = 0;
+
+	if (ts_data == NULL) {
+		return;
+	}
+
+	if (ts_data->ts->is_suspended) {
+		return;
+	}
+
+	if (ts_data->ts->aiunit_game_enable) {
+		ret = touch_i2c_write_byte(ts_data->client, FTS_CMD_GAME_AIUINIT_EN, 1);
+		msleep(3);
+		ret = touch_i2c_read_byte(ts_data->client, FTS_CMD_GAME_AIUINIT_EN);
+		if (ret == 1) {
+			TPD_INFO("%s: aiunit game info enter suc.\n", __func__);
+		} else {
+			TPD_INFO("%s: aiunit game info enter fail.\n", __func__);
+		}
+	} else {
+		ret = touch_i2c_write_byte(ts_data->client, FTS_CMD_GAME_AIUINIT_EN, 0);
+		msleep(3);
+		ret = touch_i2c_read_byte(ts_data->client, FTS_CMD_GAME_AIUINIT_EN);
+		if (ret == 0) {
+			TPD_INFO("%s: aiunit game info exit suc.\n", __func__);
+		} else {
+			TPD_INFO("%s: aiunit game info exit fail.\n", __func__);
+		}
+	}
+
+	cmd[0] = FTS_CMD_GAME_AIUINIT;
+	for (i = 0; i < MAX_AIUNIT_SET_NUM; i++) {
+		cmd[10 * i + 1] = ts_data->ts->tp_ic_aiunit_game_info[i].gametype;
+		cmd[10 * i + 2] = ts_data->ts->tp_ic_aiunit_game_info[i].aiunit_game_type;
+		cmd[10 * i + 3] = ts_data->ts->tp_ic_aiunit_game_info[i].left & 0xff;
+		cmd[10 * i + 4] = (ts_data->ts->tp_ic_aiunit_game_info[i].left >> 8) & 0xff;
+		cmd[10 * i + 5] = ts_data->ts->tp_ic_aiunit_game_info[i].top & 0xff;
+		cmd[10 * i + 6] = (ts_data->ts->tp_ic_aiunit_game_info[i].top >> 8) & 0xff;
+		cmd[10 * i + 7] = ts_data->ts->tp_ic_aiunit_game_info[i].right & 0xff;
+		cmd[10 * i + 8] = (ts_data->ts->tp_ic_aiunit_game_info[i].right >> 8) & 0xff;
+		cmd[10 * i + 9] = ts_data->ts->tp_ic_aiunit_game_info[i].bottom & 0xff;
+		cmd[10 * i + 10] = (ts_data->ts->tp_ic_aiunit_game_info[i].bottom >> 8) & 0xff;
+		TPD_INFO("type:%x,%x left:%x,%x top:%x,%x right:%x,%x bottom:%x,%x.", \
+				cmd[10 * i + 1], cmd[10 * i + 2], \
+				cmd[10 * i + 3], cmd[10 * i + 4], \
+				cmd[10 * i + 5], cmd[10 * i + 6], \
+				cmd[10 * i + 7], cmd[10 * i + 8], \
+				cmd[10 * i + 9], cmd[10 * i + 10]);
+	}
+
+	ret = touch_i2c_write_block(ts_data->client, cmd[0], 10 * MAX_AIUNIT_SET_NUM, &cmd[1]);
+	if (ret < 0) {
+		TPD_INFO("fts tp aiunit game write fail");
+	}
+}
+
 static void fts_enable_gesture_mask(void *chip_data, uint32_t enable)
 {
 	int ret = 0;
@@ -2667,6 +2736,7 @@ static struct oplus_touchpanel_operations fts_ops = {
 	.get_water_mode             = fts_get_water_mode,
 	.force_water_mode           = fts_force_water_mode,
 	.rate_white_list_ctrl       = fts_rate_white_list_ctrl,
+	.aiunit_game_info           = fts_aiunit_game_info,
 	/*todo
 	        .get_vendor                 = synaptics_get_vendor,
 	        .get_keycode                = synaptics_get_keycode,

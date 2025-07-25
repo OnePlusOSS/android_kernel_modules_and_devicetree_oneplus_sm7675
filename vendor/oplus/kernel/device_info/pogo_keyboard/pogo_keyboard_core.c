@@ -1670,7 +1670,7 @@ static char *pogo_keyboard_get_keyboard_name(void)
 	   return NULL;
 	}
     } else {
-	pogo_keyboard_client->keyboard_name = (pogo_keyboard_client->keyboard_brand - 1) ? "OnePlus Keyboard" : "OPLUS Pad Keyboard";
+	pogo_keyboard_client->keyboard_name = (pogo_keyboard_client->keyboard_brand - 1) ? "OnePlus Keyboard" : "OPPO Pad Keyboard";
     }
     return pogo_keyboard_client->keyboard_name;
 }
@@ -1705,7 +1705,7 @@ static char *pogo_keyboard_get_keyboard_ble_name(void)
 	   return NULL;
 	}
     } else {
-	pogo_keyboard_client->keyboard_ble_name = (pogo_keyboard_client->keyboard_brand - 1) ? "OnePlus Keyboard" : "OPLUS Pad Keyboard";
+	pogo_keyboard_client->keyboard_ble_name = (pogo_keyboard_client->keyboard_brand - 1) ? "OnePlus Keyboard" : "OPPO Pad Keyboard";
     }
     return pogo_keyboard_client->keyboard_ble_name;
 }

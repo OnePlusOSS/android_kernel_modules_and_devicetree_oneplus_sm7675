@@ -15,6 +15,9 @@
 #include <drm/drm_panel.h>
 #include <drm/msm_drm.h>
 #include <drm/msm_drm_pp.h>
+#if IS_ENABLED(CONFIG_OPLUS_POWER_NOTIFIER)
+#include <misc/oplus_power_notifier.h>
+#endif
 
 #include "dsi_defs.h"
 #include "dsi_ctrl_hw.h"
@@ -506,6 +509,11 @@ struct dsi_panel {
 	bool is_secondary;
 	int hbm_mode;
 	u32 qsync_mode;
+#endif
+
+#if IS_ENABLED(CONFIG_OPLUS_POWER_NOTIFIER)
+	struct notifier_block oplus_power_notify_client;
+	int pon_status;
 #endif
 };
 

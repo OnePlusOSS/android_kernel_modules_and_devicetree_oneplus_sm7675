@@ -96,7 +96,7 @@ enum {
 #define SIA81XX_DISABLE_LEVEL				(0)
 
 /* 10us > pulse width > 0.75us */
-#define MIN_OWI_PULSE_GAP_TIME_US			(3)
+#define MIN_OWI_PULSE_GAP_TIME_US			(10)
 #define MAX_OWI_PULSE_GAP_TIME_US			(160)
 #define MAX_OWI_RETRY_TIMES					(10)
 #define MIN_OWI_MODE						(1)
@@ -2904,7 +2904,11 @@ int sipa_i2c_probe(
 {
 	sipa_dev_t *si_pa = NULL;
 	struct device_node	*sipa_of_node = NULL;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 115)) && (LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0))
+	char *sipa_fw_name = "sipa.bin";
+#else
 	char *sipa_fw_name = "../../../../odm/firmware/sipa.bin";
+#endif
 	int ret = 0;
 	int addr_offset = 0;
 	char buf[50] = {0};
@@ -3464,7 +3468,11 @@ static int sipa_probe(struct platform_device *pdev)
 	int ret = 0;
 	sipa_dev_t *si_pa = NULL;
 	char work_name[20];
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 115)) && (LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0))
+	char *sipa_fw_name = "sipa.bin";
+#else
 	char *sipa_fw_name = "../../odm/firmware/sipa.bin";
+#endif
 #if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
 	struct oplus_speaker_device *speaker_device = NULL;
 	bool new_speaker_device_node = false;

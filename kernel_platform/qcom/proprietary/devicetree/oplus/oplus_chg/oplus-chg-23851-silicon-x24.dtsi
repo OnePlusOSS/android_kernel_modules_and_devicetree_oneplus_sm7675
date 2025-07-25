@@ -359,6 +359,9 @@
 						385 405 CP_CURR_LIMIT_7BIT_4_0A  2 0
 						395 415 CP_CURR_LIMIT_7BIT_3_0A  3 1
 						405 440 CP_CURR_LIMIT_7BIT_2_0A  3 2>;
+
+		oplus,plc_strategy-data = <&buck_simple_strategy &cp_2t1_simple_strategy &cp_1t1_simple_strategy>;
+		oplus,plc_strategy-names = "default", "svooc", "vooc";
 	};
 };
 
@@ -402,6 +405,9 @@
 		oplus_spec,ufcs_high_temp = <500>;
 		oplus_spec,ufcs_low_soc = <0>;
 		oplus_spec,ufcs_high_soc = <95>;
+
+		oplus,plc_strategy-data = <&oplus_ufcs_step_strategy &cp_2t1_simple_strategy>;
+		oplus,plc_strategy-names = "default", "third";
 
 		ufcs_oplus_lcf_strategy {
 			oplus,temp_type = <OPLUS_STRATEGY_USE_SHELL_TEMP>;
@@ -857,6 +863,9 @@
 		oplus,curve_strategy_name = "pps_ufcs_curve_v2";
 		oplus,pps_charge_strategy_soc = <0 20 35 55 75 85 95>;
 		oplus,pps_charge_strategy_temp = <0 50 120 160 350 440 510>;
+
+		oplus,plc_strategy-data = <&cp_2t1_simple_strategy>;
+		oplus,plc_strategy-names = "default";
 
 		pps_charge_third_strategy {
 			oplus,temp_type = <OPLUS_STRATEGY_USE_SHELL_TEMP>;

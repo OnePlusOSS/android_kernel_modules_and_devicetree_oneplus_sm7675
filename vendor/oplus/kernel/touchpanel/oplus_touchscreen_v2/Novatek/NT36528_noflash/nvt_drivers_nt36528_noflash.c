@@ -22,6 +22,8 @@
 #define MESSAGE_SIZE			  (256)
 
 static int8_t nvt_cmd_store(struct chip_data_nt36528 *chip_info, uint8_t u8Cmd);
+static int8_t nvt_extend_cmd2_store(struct chip_data_nt36528 *chip_info,
+			uint8_t u8Cmd, uint8_t u8SubCmd, uint8_t u8SubCmd1);
 
 static fw_update_state nvt_fw_update_sub(void *chip_data, const struct firmware *fw, bool force);
 static fw_update_state nvt_fw_update(void *chip_data, const struct firmware *fw, bool force);
@@ -1507,7 +1509,11 @@ static unsigned int nvt_trigger_reason(void *chip_data, int gesture_enable, int 
 			/* auto go back to wakeup gesture mode */
 			TPD_INFO("Recover for fw reset %02X\n", chip_info->point_data[1]);
 			nvt_reset(chip_info);
-			ret = nvt_cmd_store(chip_info, 0x13);
+			if (chip_info->aod_flag == 1) {
+				ret = nvt_extend_cmd2_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_AOD_ON_OFF, 0x01);
+			} else {
+				ret = nvt_cmd_store(chip_info, 0x13);
+			}
 			return IRQ_IGNORE;
 		}
 		TPD_INFO("Recover for fw reset %02X, IRQ_EXCEPTION\n", chip_info->point_data[1]);
@@ -2228,6 +2234,13 @@ static int nvt_get_gesture_info(void *chip_data, struct gesture_info *gesture)
 		gesture->Point_end     = gesture->Point_start;
 		break;
 
+	case SINGLE_DETECT:
+		gesture->gesture_type  = SINGLE_TAP;
+		gesture->Point_start.x = point_data[4] | point_data[5] << 8;
+		gesture->Point_start.y = point_data[6] | point_data[7] << 8;
+		gesture->Point_end     = gesture->Point_start;
+		break;
+
 	case UP_VEE_DETECT :
 		gesture->gesture_type  = UP_VEE;
 		gesture->Point_start.x = point_data[4] | point_data[5] << 8;
@@ -2659,6 +2672,26 @@ static void nvt_force_water_mode(void *chip_data, bool enable)
 	TPD_INFO("%s: %s force_water_mode is not supported .\n", __func__, enable ? "Enter" : "Exit");
 }
 
+static int nvt_aod_mode(void *chip_data, bool enable)
+{
+	int8_t ret = -1;
+	struct chip_data_nt36528 *chip_info = (struct chip_data_nt36528 *)chip_data;
+
+	TPD_INFO("%s: aod value = %d\n", __func__, enable);
+
+	if (enable) {
+		chip_info->aod_flag = true;
+	} else {
+		chip_info->aod_flag = false;
+		chip_info->need_judge_irq_throw = true;
+		nvt_reset(chip_info);
+		chip_info->need_judge_irq_throw = false;
+	}
+
+	ret = nvt_extend_cmd2_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_AOD_ON_OFF, enable);
+	return ret;
+}
+
 #ifdef CONFIG_OPLUS_TP_APK
 static __maybe_unused int nvt_enable_hopping_polling_mode(struct chip_data_nt36528 *chip_info, bool enable)
 {
@@ -2763,6 +2796,20 @@ static int nvt_mode_switch(void *chip_data, work_mode mode, int flag)
 		}
 
 		nvt_esd_check_enable(chip_info, false);
+		break;
+
+	case MODE_INCELL_AOD:
+		ret = nvt_aod_mode(chip_info, flag);
+
+		if (ret < 0) {
+			TPD_INFO("%s: nvt enable aod failed.\n", __func__);
+			return ret;
+		}
+
+		if (flag) {
+			nvt_esd_check_enable(chip_info, false);
+		}
+
 		break;
 
 	case MODE_GESTURE:
@@ -6877,6 +6924,10 @@ static int  nova_apk_gesture_info(void *chip_data, char *buf, int len)
 
 	case DTAP_DETECT:
 		buf[0]  = DOU_TAP;
+		break;
+
+	case SINGLE_DETECT:
+		buf[0]  = SINGLE_TAP;
 		break;
 
 	case UP_VEE_DETECT :

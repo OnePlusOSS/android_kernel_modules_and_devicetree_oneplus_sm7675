@@ -67,6 +67,9 @@ struct chip_data_ft3683g *g_fts_data = NULL;
 #define FTS_RETRIES_DELAY_WRITE                     1
 #define FTS_REG_RESET_REASON                        0xC4
 
+#define FTS_CMD_GAME_AIUINIT_EN                     0xC9
+#define FTS_CMD_GAME_AIUINIT                        0xCA
+
 #define FTS_CMD_FLASH_STATUS_NOP                    0x0000
 #define FTS_CMD_FLASH_STATUS_ECC_OK                 0xF055
 #define FTS_CMD_FLASH_STATUS_ERASE_OK               0xF0AA
@@ -1139,11 +1142,23 @@ static int focal_get_fw_version(void *chip_data)
 static void focal_get_differ_version(void *chip_data)
 {
 	u8 differ_version = 0;
+	int tx_num = 0;
+	int rx_num = 0;
+	u16 buf_len = 0;
 	struct chip_data_ft3683g *ts_data = (struct chip_data_ft3683g *)chip_data;
+
+	tx_num = ts_data->hw_res->tx_num;
+	rx_num = ts_data->hw_res->rx_num;
+	if (tx_num > FTS_MAX_TX_NUM)
+		tx_num = FTS_MAX_TX_NUM;
+	if (rx_num > FTS_MAX_RX_NUM)
+		rx_num = FTS_MAX_RX_NUM;
+
+	buf_len = 154 + (tx_num * rx_num) * 2 + (tx_num + rx_num) * 4 + 8 * rx_num * 2;
 
 	fts_read_reg(FTS_REG_DIFFER_VERSION, &differ_version);
 	if (differ_version) {
-		ts_data->buffer_len = FTS_MAX_POINTS_SNR_LENGTH_V2;
+		ts_data->buffer_len = buf_len;
 		ts_data->tp_differ_version = FTS_DIFFER_VERSION_V2;
 		TPD_INFO("ts tp differ version v2.\n");
 	} else {
@@ -2221,6 +2236,72 @@ static void fts_main_register_read(struct seq_file *s, void *chip_data)
 	return;
 }
 
+static void fts_aiunit_game_info(void *chip_data)
+{
+	struct chip_data_ft3683g *ts_data = (struct chip_data_ft3683g *)chip_data;
+	u8 cmd[MAX_AIUNIT_SET_NUM * 10 + 1] = { 0 };
+	int i = 0;
+	u8 regvalue = 0;
+	int ret = 0;
+
+	if (ts_data == NULL) {
+		return;
+	}
+
+	if (ts_data->ts->is_suspended) {
+		return;
+	}
+
+	if (ts_data->ts->aiunit_game_enable) {
+		ret = fts_write_reg(FTS_CMD_GAME_AIUINIT_EN, 1);
+		if (ret < 0)
+			TPD_INFO("%s, write 1 to reg 0xc9 failed \n", __func__);
+		msleep(3);
+		fts_read_reg(FTS_CMD_GAME_AIUINIT_EN, &regvalue);
+		if (regvalue == 1) {
+			TPD_INFO("%s: aiunit game info enter suc.\n", __func__);
+		} else {
+			TPD_INFO("%s: aiunit game info enter fail.\n", __func__);
+		}
+	} else {
+		ret = fts_write_reg(FTS_CMD_GAME_AIUINIT_EN, 0);
+		if (ret < 0)
+			TPD_INFO("%s, write 0 to reg 0xc9 failed \n", __func__);
+		msleep(3);
+		fts_read_reg(FTS_CMD_GAME_AIUINIT_EN, &regvalue);
+		if (regvalue == 0) {
+			TPD_INFO("%s: aiunit game info exit suc.\n", __func__);
+		} else {
+			TPD_INFO("%s: aiunit game info exit fail.\n", __func__);
+		}
+	}
+
+	cmd[0] = FTS_CMD_GAME_AIUINIT;
+	for (i = 0; i < MAX_AIUNIT_SET_NUM; i++) {
+		cmd[10 * i + 1] = ts_data->ts->tp_ic_aiunit_game_info[i].gametype;
+		cmd[10 * i + 2] = ts_data->ts->tp_ic_aiunit_game_info[i].aiunit_game_type;
+		cmd[10 * i + 3] = ts_data->ts->tp_ic_aiunit_game_info[i].left & 0xff;
+		cmd[10 * i + 4] = (ts_data->ts->tp_ic_aiunit_game_info[i].left >> 8) & 0xff;
+		cmd[10 * i + 5] = ts_data->ts->tp_ic_aiunit_game_info[i].top & 0xff;
+		cmd[10 * i + 6] = (ts_data->ts->tp_ic_aiunit_game_info[i].top >> 8) & 0xff;
+		cmd[10 * i + 7] = ts_data->ts->tp_ic_aiunit_game_info[i].right & 0xff;
+		cmd[10 * i + 8] = (ts_data->ts->tp_ic_aiunit_game_info[i].right >> 8) & 0xff;
+		cmd[10 * i + 9] = ts_data->ts->tp_ic_aiunit_game_info[i].bottom & 0xff;
+		cmd[10 * i + 10] = (ts_data->ts->tp_ic_aiunit_game_info[i].bottom >> 8) & 0xff;
+		TPD_INFO("type:%x,%x left:%x,%x top:%x,%x right:%x,%x bottom:%x,%x.", \
+				cmd[10 * i + 1], cmd[10 * i + 2], \
+				cmd[10 * i + 3], cmd[10 * i + 4], \
+				cmd[10 * i + 5], cmd[10 * i + 6], \
+				cmd[10 * i + 7], cmd[10 * i + 8], \
+				cmd[10 * i + 9], cmd[10 * i + 10]);
+	}
+
+	ret = fts_write(&cmd[0], 10 * MAX_AIUNIT_SET_NUM + 1);
+	if (ret < 0) {
+		TPD_INFO("fts tp aiunit game write fail");
+	}
+}
+
 static void fts_enable_gesture_mask(void *chip_data, uint32_t enable)
 {
 	struct chip_data_ft3683g *ts_data = (struct chip_data_ft3683g *)chip_data;
@@ -2349,6 +2430,12 @@ static int fts_enable_game_mode(struct chip_data_ft3683g *ts_data, bool enable)
 	int game_mode = FTS_NOT_GAME_MODE;
 	int report_rate = FTS_120HZ_REPORT_RATE;
 	TPD_INFO("MODE_GAME, write 0x8B%d", enable);
+
+	if (ts->aiunit_game_info_support) {
+		fts_write_reg(FTS_CMD_GAME_AIUINIT_EN, enable);
+		TPD_INFO("%s: game aiuinit C9 set\n", __func__);
+		msleep(1);
+	}
 	if (enable) {
 		if (ts_data->extreme_game_report_rate) {
 				TPD_INFO("%s:ts->noise_level:%d rate_ctrl_level:%d", __func__, ts->noise_level, ts->rate_ctrl_level);
@@ -4258,6 +4345,7 @@ static struct oplus_touchpanel_operations fts_ops = {
 	.diaphragm_touch_lv_set         = fts_diaphragm_touch_lv_set,
 	.get_water_mode            = fts_get_water_mode,
 	.get_glove_mode            = fts_get_glove_mode,
+	.aiunit_game_info          = fts_aiunit_game_info,
 };
 
 static struct focal_auto_test_operations ft3683g_test_ops = {

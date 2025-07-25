@@ -143,6 +143,9 @@ module_param_array(sleep_range_ms, ulong, NULL, 0664);
 /* core boost */
 static u64 last_core_boost_ts;
 static bool last_core_boost;
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CEILING_FREE)
+static atomic_t is_cb_ceiling_free;
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)
 static bool freq_qos_check = true;
@@ -472,6 +475,32 @@ static struct kernel_param_ops cb_trace_ops = {
 };
 module_param_cb(trace, &cb_trace_ops, NULL, 0444);
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CEILING_FREE)
+void cb_ceiling_free(bool ceiling_free_enable)
+{
+	if (!enable)
+		return;
+
+	if (atomic_read(&is_cb_ceiling_free) == ceiling_free_enable)
+		return;
+
+	atomic_set(&is_cb_ceiling_free, ceiling_free_enable);
+
+	for (int i = 0; i < NR_CLUS_MAX; ++i) {
+		struct cpufreq_bouncing *cb = &cb_stuff[i];
+		cb = cb_get(cb->first_cpu);
+		if (!cb)
+			continue;
+
+		if (ceiling_free_enable)
+			cb_reset_qos(i);
+		else if (likely(cb_qos_wq))
+			queue_work(cb_qos_wq, &cb->qos_work);
+	}
+}
+EXPORT_SYMBOL(cb_ceiling_free);
+#endif
+
 static inline bool clus_isolated(struct cpufreq_policy *pol)
 {
 	cpumask_t active;
@@ -710,6 +739,11 @@ static void cb_do_boundary_change_work(struct work_struct *qos_work)
 	if (debug)
 		pr_info("processing work cpu %d min %u max %u target %u req max %u\n",
 			cb->first_cpu, pol->min, pol->max, target, cb->qos_req.pnode.prio);
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CEILING_FREE)
+	if (atomic_read(&is_cb_ceiling_free))
+		target = FREQ_QOS_MAX_DEFAULT_VALUE;
+#endif
 
 	if (freq_qos_update_request(&cb->qos_req, target) < 0)
 		pr_err("failed to update freq constraint. cpu %d cb_limit %u\n", cb->first_cpu, target);

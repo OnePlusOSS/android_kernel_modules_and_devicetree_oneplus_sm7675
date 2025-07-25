@@ -121,7 +121,8 @@ UX_PRIORITY_PROTECT: Lowest priority protected ux type
 #define SA_INPUT					(1 << 5)
 #define SA_LAUNCHER_SI				(1 << 6)
 #define SA_SCENE_OPT_SET			(1 << 7)
-#define SA_GPU_COMPOSITION  			(1 << 8)
+#define SA_GPU_COMPOSITION			(1 << 8)
+#define SA_CAMERA_HEAVY				(1 << 10)
 
 #define ROOT_UID               0
 #define SYSTEM_UID             1000
@@ -630,6 +631,7 @@ bool is_min_cluster(int cpu);
 bool is_max_cluster(int cpu);
 bool is_mid_cluster(int cpu);
 bool is_top(struct task_struct *p);
+bool im_mali(const char *comm);
 bool task_is_runnable(struct task_struct *task);
 int get_ux_state(struct task_struct *task);
 

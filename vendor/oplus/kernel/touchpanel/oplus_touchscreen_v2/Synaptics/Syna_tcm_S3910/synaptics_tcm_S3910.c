@@ -3844,6 +3844,9 @@ static fw_check_state syna_fw_check(void *chip_data,
 	TP_INFO(tcm_info->tp_index, "fw id %d, custom config id 0x%s\n", panel_data->tp_fw,
 		 tcm_info->app_info.customer_config_id);
 
+        tcm_info->app_info.customer_config_id[9] = '\0';
+	TP_INFO(tcm_info->tp_index, "custom config id 0x%s\n", tcm_info->app_info.customer_config_id);
+
 	if (strlen(tcm_info->app_info.customer_config_id) == 0) {
 		tp_healthinfo_report(tcm_info->monitor_data, HEALTH_REPORT, "fw_check_err_cfgid");
 		return FW_ABNORMAL;

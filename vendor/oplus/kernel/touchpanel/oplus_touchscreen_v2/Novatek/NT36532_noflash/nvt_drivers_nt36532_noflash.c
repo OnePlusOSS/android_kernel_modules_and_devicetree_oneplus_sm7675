@@ -3066,6 +3066,20 @@ static int nvt_enable_pen_mode(struct chip_data_nt36523 *chip_info, bool enable)
 	return ret;
 }
 
+static int8_t nvt_extend_cmd_store_direct(struct chip_data_nt36523 *chip_info,
+				   uint8_t u8Cmd, uint8_t u8SubCmd)
+{
+	uint8_t buf[4] = {0};
+
+	/*---set cmd status---*/
+	buf[0] = EVENT_MAP_HOST_CMD;
+	buf[1] = u8Cmd;
+	buf[2] = u8SubCmd;
+	CTP_SPI_WRITE(chip_info->s_client, buf, 3);
+
+	return 0;
+}
+
 static int nvt_enable_pen_vibrator(struct chip_data_nt36523 *chip_info, int ctl_cmd)
 {
 	int8_t ret = 0;
@@ -3074,9 +3088,9 @@ static int nvt_enable_pen_vibrator(struct chip_data_nt36523 *chip_info, int ctl_
 	chip_info->pen_ctl_para = ctl_cmd;
 
 	if(ctl_cmd == 3) {
-		ret = nvt_extend_cmd_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_PEN_VIBRATOR_ON);
+		ret = nvt_extend_cmd_store_direct(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_PEN_VIBRATOR_ON);
 	} else if (ctl_cmd == 2) {
-		ret = nvt_extend_cmd_store(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_PEN_VIBRATOR_OFF);
+		ret = nvt_extend_cmd_store_direct(chip_info, EVENTBUFFER_EXT_CMD, EVENTBUFFER_EXT_PEN_VIBRATOR_OFF);
 	} else {
 		TPD_INFO("%s invaled cmd!!\n", __func__);
 	}
