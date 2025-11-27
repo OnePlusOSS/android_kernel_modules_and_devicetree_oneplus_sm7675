@@ -1,0 +1,5 @@
+config OPLUS_SENSOR_ATTR
+  tristate "support sensor attr"
+  default n
+  help
+    define this config to support sensor attr

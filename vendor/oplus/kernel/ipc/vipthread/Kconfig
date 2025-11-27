@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2013-2023 Oplus. All rights reserved.
+
+config ANDROID_BINDER_IPC_VIP_THREAD
+	tristate "Android Binder IPC VIP THREAD POLICY"
+	default n
+	help
+	  This feature extend binder vip thread policy.
+	  Binder vip thread policy checks enable a vip thread for special rpc

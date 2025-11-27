@@ -1,0 +1,6 @@
+config TOUCHPANEL_NOVA_NT36528_NOFLASH
+#	default y
+	tristate "TP nova nt36528 IC enable or not for OPLUS"
+	help
+	Say Y to enable driver for Touchpanel useing nova nt36528
+	Say O to enable driver for Touchpanel useing nova nt36528 as module

@@ -1,0 +1,14 @@
+#include <dt-bindings/clock/qcom,rpmh.h>
+
+&soc {
+    //add for nfc_chipset
+    nfc_chipset {
+        compatible = "oplus-nfc-chipset";
+        chipset-24881 = "PN560";
+    };
+};
+
+&qupv3_se9_i2c {
+	status = "ok";
+	qcom,clk-freq-out = <400000>;
+};

@@ -1,0 +1,5 @@
+config OPLUS_SENSOR_EVENT
+  tristate "support sensor event"
+  default n
+  help
+    define this config to support sensor event

@@ -1,0 +1,5 @@
+config SND_SOC_FS181X
+	tristate "FourSemi Analog speaker amplifier"
+	depends on I2C
+	help
+	  Config of FourSemi Analog speaker amplifier.

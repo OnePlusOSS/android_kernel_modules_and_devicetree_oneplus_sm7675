@@ -1,0 +1,7 @@
+
+config OPLUS_F2FSLOG_STORAGE
+    tristate "f2fs log storage"
+    default n
+    help
+      define this config to enable f2fs log storage.
+

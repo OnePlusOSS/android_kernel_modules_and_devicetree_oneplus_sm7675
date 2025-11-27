@@ -1,0 +1,5 @@
+config OPLUS_FEATURE_FREEZE_PROCESS_HOOK
+	tristate "config to freeze process hook"
+	default n
+	help
+	  This selects to hook try_to_freeze_tasks()

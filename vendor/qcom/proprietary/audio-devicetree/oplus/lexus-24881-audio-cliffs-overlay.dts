@@ -1,0 +1,12 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/oplus/hw-id.h>
+#include "../cliffs-audio-mtp.dts"
+#include "cliffs-audio-overlay-common.dtsi"
+#include "lexus-24881-audio-cliffs-overlay.dtsi"
+
+/ {
+    model = "Qualcomm Technologies, Inc. Cliffs MTP,lexus";
+
+    oplus,project-id = <24881 24882>;
+};

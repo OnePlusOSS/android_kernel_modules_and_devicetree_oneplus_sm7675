@@ -1,0 +1,9 @@
+config OPLUS_UFS_DRIVER
+  tristate "config oplus ufs driver"
+  help
+    define this config to compile ufs-oplus-dbg for device register
+
+config OPLUS_QCOM_UFS_DRIVER
+  tristate "config oplus qcom ufs driver"
+  help
+    define this config to compile ufs-qcom-oplus-dbg for device register

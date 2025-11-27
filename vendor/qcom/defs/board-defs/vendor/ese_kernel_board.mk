@@ -1,0 +1,1 @@
+../../../../st/opensource/eSE-driver/ese_kernel_board.mk

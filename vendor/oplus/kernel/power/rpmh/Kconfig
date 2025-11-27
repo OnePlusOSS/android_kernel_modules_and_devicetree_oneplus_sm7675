@@ -1,0 +1,11 @@
+config OPLUS_FEATURE_RPMH_DECOUPLING
+	tristate "config to decouping rpmh statistics"
+	default m
+	help
+	  This selects to decouping rpmh statistics
+
+config OPLUS_RPMH_MTK
+	tristate "config to enable rpmh platform rpmh statistics"
+	default m
+	help
+	  This selects to enable rpmh platform rpmh statistics

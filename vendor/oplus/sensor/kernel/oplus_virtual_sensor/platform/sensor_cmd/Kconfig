@@ -1,0 +1,5 @@
+config OPLUS_SENSOR_CMD
+  tristate "support sensor cmd"
+  default n
+  help
+    define this config to support sensor cmd

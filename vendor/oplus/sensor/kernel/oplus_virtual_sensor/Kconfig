@@ -1,0 +1,8 @@
+config OPLUS_FEATURE_SENSOR_ALGORITHM
+	bool "oplus vritual sensor config"
+	default n
+config OPLUS_VIRTUAL_SENSOR
+  tristate "support oplus virtual sensor"
+  default n
+  help
+    define this config to support oplus virtual sensor

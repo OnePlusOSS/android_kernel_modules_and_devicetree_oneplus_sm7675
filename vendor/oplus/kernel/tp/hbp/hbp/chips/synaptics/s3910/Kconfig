@@ -1,0 +1,11 @@
+#
+# Synaptics Touchscreen driver configuration
+#
+
+config TOUCHSCREEN_HBP_SYNA_S3910
+    tristate "Synaptics Hbp Touchscreen"
+    default n
+    help
+      Say Y here if you have Synaptics hbp touch panel.
+
+      If unsure, say N.
