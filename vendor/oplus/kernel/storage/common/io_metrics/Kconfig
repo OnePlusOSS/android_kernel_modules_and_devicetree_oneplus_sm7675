@@ -1,0 +1,25 @@
+config OPLUS_FEATURE_STORAGE_IO_METRICS_QCOM
+  tristate "config oplus_bsp_storage_io_metrics"
+  help
+    define this config to compile oplus_bsp_storage_io_metrics for device register
+
+config OPLUS_FEATURE_STORAGE_IO_METRICS_MTK
+  tristate "config oplus_bsp_storage_io_metrics"
+  help
+    define this config to compile oplus_bsp_storage_io_metrics for device register
+
+config OPLUS_FEATURE_STORAGE_IO_METRICS_DEBUG
+  tristate "config oplus_bsp_storage_io_metrics"
+  help
+    define this config to compile oplus_bsp_storage_io_metrics for device register
+
+config OPLUS_FEATURE_STORAGE_IO_METRICS
+  tristate "config oplus_bsp_storage_io_metrics"
+  help
+    define this config to compile oplus_bsp_storage_io_metrics for device register
+
+config OPLUS_FEATURE_STORAGE_IOLATENCY_STATS
+    tristate "config oplus_bsp_storage_io_metrics"
+    default y
+    help
+      define this config to compile oplus_bsp_storage_io_metrics for device register

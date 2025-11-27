@@ -1,0 +1,10 @@
+#
+# Goodix Touchscreen driver configuration
+#
+
+config TOUCHSCREEN_GTS
+    tristate "Goodix Touchscreen"
+    default n
+    help
+      Say Y here if you have Goodix touch panel.
+      If unsure, say N.

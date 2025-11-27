@@ -1,0 +1,5 @@
+config OPLUS_FPGA_NOTIFY
+    tristate "fpga noity"
+    help
+      Say Y here if you have fpga notify build into driver.
+      Say M here if you have fpga notify as module.

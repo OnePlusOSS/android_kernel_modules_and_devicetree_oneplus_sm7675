@@ -1,0 +1,30 @@
+config OPLUS_HAPTIC_COMMON
+	tristate "OPLUS haptic module"
+	help
+	  Say Y here if you have haptic build into driver.
+	  Say M here if you have haptic as module.
+
+config HAPTIC_FEEDBACK
+	tristate "Haptic feedback for awinic aw8697 series"
+	depends on I2C
+	help
+	  This option enables support for aw8697 series Haptic Driver.
+
+config AW_HAPTIC
+    tristate "Haptic driver for awinic aw8697 series"
+    depends on I2C
+    help
+      This option enables support for aw8697 series Haptic Driver.
+
+config SIH_HAPTIC
+    tristate "SI Vibrator driver for sih6887"
+    depends on I2C
+    help
+      This option enables support for sih6887 series Haptic Driver.
+
+config OPLUS_VIBRATOR_GKI_ENABLE
+    tristate "vibrator compatibility"
+    help
+      This option enables support for vibrator compatibility.
+
+

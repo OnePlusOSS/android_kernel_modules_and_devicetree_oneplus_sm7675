@@ -1,0 +1,5 @@
+config OPLUS_FEATURE_TRACE_SENSOR
+	tristate "sensor subsystem crash trace"
+	help
+	  When this option is enabled, the crash of sensor subsystem
+	  will be recorded and trigger log collection.

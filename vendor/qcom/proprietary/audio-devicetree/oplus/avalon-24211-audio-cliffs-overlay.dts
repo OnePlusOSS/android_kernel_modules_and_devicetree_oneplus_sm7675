@@ -1,0 +1,12 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/oplus/hw-id.h>
+#include "../cliffs7-audio-mtp.dts"
+#include "cliffs-audio-overlay-common.dtsi"
+#include "avalon-24211-audio-cliffs-overlay.dtsi"
+
+/ {
+    model = "Qualcomm Technologies, Inc. Cliffs MTP,avalon";
+
+    oplus,project-id = <24211 24212 24801>;
+};

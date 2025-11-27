@@ -1,0 +1,102 @@
+&pm7550ba_eusb2_repeater {
+	qcom,param-override-seq = <0x0c 0x51 0x01 0x52 0x06 0x53 0x00 0x54 0x01 0x55 0x05 0x57>;
+	qcom,param-override-seq-host = <0x0a 0x51 0x01 0x52 0x06 0x53 0x02 0x54 0x00 0x55 0x06 0x57>;
+};
+
+&soc {
+	usb_nop_phy: usb_nop_phy {
+		compatible = "usb-nop-xceiv";
+	};
+};
+
+&usb0 {
+/delete-property/ extcon;
+	dwc3@a600000 {
+		usb-phy = <&eusb2_phy0>, <&usb_nop_phy>;
+		maximum-speed = "high-speed";
+		dr_mode = "otg";
+		snps,usb2-lpm-disable;
+		snps,usb2-gadget-lpm-disable;
+	};
+};
+
+&usb_qmp_dp_phy {
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb3phy_portselect_default>;
+	status = "disabled";
+};
+
+&tlmm {
+	aw_haptics: aw_haptics {
+		aw_irq_gpio_default: aw_irq_gpio_default {
+			mux {
+				pins = "gpio145";
+				function = "gpio";
+			};
+
+			config {
+				pins = "gpio145";
+				drive-strength = <2>;
+				input-enable;
+				bias-pull-up;
+			};
+		};
+	};
+};
+
+&pm7550ba_vib {
+	status = "disabled";
+};
+
+&qupv3_se3_i2c {
+	qcom,clk-freq-out = <1000000>;
+	status = "ok";
+	/* AWINIC AW8697 Haptic */
+	aw8697_haptic@5A {
+		compatible = "awinic,aw8697_haptic";
+		reg = <0x5A>;
+		reset-gpio = <&tlmm 147 0>;
+		irq-gpio = <&tlmm 145 0>;
+		status = "ok";
+		qcom,device_id = <809>; /* 809 */
+		/* haptic ic : aw86927 */
+		oplus,aw86927_boost_voltage = <80>; /* 0x50 */
+		haptic_hv_vmax = /bits/ 8 < 0x28 0x28 0x28 0x28 0x28 0x28 0x28 0x2C 0x30 0x34 0x38 0x3C 0x40 0x44 0x48 0x4C 0x50 >;
+		haptic_hv_gain = /bits/ 8 < 0x49 0x51 0x5A 0x62 0x6B 0x73 0x7C 0x80 0x80 0x80 0x80 0x80 0x80 0x80 0x80 0x80 0x80 >;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&aw_irq_gpio_default>;
+		oplus,livetap_support;
+		oplus,auto_break_mode_support;
+		oplus,d2s_gain = /bits/ 8 <0x6>;
+		oplus,brk_time = /bits/ 8 <0x6>;
+		oplus,brk_gain = /bits/ 8 <0x8>;
+	};
+	/* AWINIC AW8697 Haptic End */
+};
+
+&soc {
+	feedback_fb: feedback_fb {
+		compatible = "oplus,haptic-feedback";
+	};
+};
+
+&battery_charger {
+        qcom,otg_boost_src = <0>; /* 0:plat_pmic 1:external */
+};
+
+&regulator_ocp_notifier {
+	periph-c40-supply = <0>;
+	periph-c41-supply = <0>;
+	periph-c42-supply = <0>;
+	periph-c43-supply = <0>;
+	periph-c45-supply = <0>;
+	periph-c46-supply = <0>;
+	periph-d40-supply = <0>;
+	periph-d41-supply = <0>;
+	periph-d42-supply = <0>;
+	periph-d43-supply = <0>;
+	periph-d44-supply = <0>;
+	periph-d45-supply = <0>;
+	periph-d46-supply = <0>;
+};

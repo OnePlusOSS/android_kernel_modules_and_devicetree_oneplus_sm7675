@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2018-2020 Oplus. All rights reserved.
+
+MODULE = oplus_rpmh_statics
+
+ifeq ($(CONFIG_OPLUS_FEATURE_RPMH_DECOUPLING), m)
+$(MODULE)-objs += oplus_rpmh_statics.o
+endif
+
+obj-$(CONFIG_OPLUS_FEATURE_RPMH_DECOUPLING) += $(MODULE).o

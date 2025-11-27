@@ -1,0 +1,23 @@
+config OPLUS_FEATURE_POWER_HOOK
+	tristate "config to power hook feature"
+	default n
+	help
+	  This selects to config power hook feature
+
+config OPLUS_FEATURE_IRQ_WAKEUP_HOOK
+	tristate "config to hook no suspend irq from s2idle"
+	default n
+	help
+	  This selects to hook no suspend irq which triggered from s2idle
+
+config OPLUS_FEATURE_ALARMTIMER_HOOK
+	tristate "config to alarmtimer hook"
+	default n
+	help
+	  This selects to hook alarmtimer
+
+config OPLUS_FEATURE_NETLINK_HOOK
+	tristate "config to alarmtimer hook"
+	default n
+	help
+	  This selects to hook netlink wakeupsource

@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2025 Oplus. All rights reserved.
+
+MODULE = oplus_standby_netlink
+
+$(MODULE)-objs := \
+	standby_netlink.o \
+	netlink_handler.o \
+	standby_netlink_deps.o
+
+obj-$(CONFIG_OPLUS_FEATURE_POWER_NETLINK) += $(MODULE).o

@@ -1,0 +1,6 @@
+#todo
+build --remote_local_fallback="true"
+build --experimental_remote_cache_lease_extension="true"
+build --experimental_remote_downloader_local_fallback="true"
+build --remote_cache=grpc://bazel-remote-cache.myoas.com:9093
+build --experimental_remote_cache_key_ignore_stamping="true"

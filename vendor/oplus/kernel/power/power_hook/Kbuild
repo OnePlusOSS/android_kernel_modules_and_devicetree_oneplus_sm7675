@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2018-2020 Oplus. All rights reserved.
+
+MODULE = oplus_power_hook
+
+$(MODULE)-objs := \
+	powerhook_main.o \
+	utils/oplus_power_hook_utils.o
+
+ifeq ($(CONFIG_OPLUS_FEATURE_IRQ_WAKEUP_HOOK), m)
+$(MODULE)-objs += irq_wakeup_hook/oplus_irq_wakeup_hook.o
+endif
+
+ifeq ($(CONFIG_OPLUS_FEATURE_ALARMTIMER_HOOK), m)
+$(MODULE)-objs += alarmtimer_hook/oplus_alarmtimer_hook.o
+endif
+
+ifeq ($(CONFIG_OPLUS_FEATURE_NETLINK_HOOK), m)
+$(MODULE)-objs += netlink_hook/oplus_netlink_hook.o
+endif
+
+obj-$(CONFIG_OPLUS_FEATURE_POWER_HOOK) += $(MODULE).o

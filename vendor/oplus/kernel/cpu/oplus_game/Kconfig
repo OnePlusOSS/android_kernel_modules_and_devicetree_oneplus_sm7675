@@ -1,0 +1,11 @@
+config OPLUS_FEATURE_GAME_ENABLE
+	bool "enable game features by chipset"
+	default n
+	help
+	  use this macro to enable game feature by chipset.
+
+config OPLUS_FEATURE_CPU_GAME
+	tristate "OPLUS GAME module specific"
+	default n
+	help
+	  oplus game module. Features from oplus game team can be added here.

@@ -1,0 +1,31 @@
+#include "panel/dsi-panel-caihong-nt35652w-2000_2800-dual-dsc-144Hz-vid.dtsi"
+#include "panel/dsi-panel-caihong-csot-nt36532-2120-3000-dual-dsc-144Hz-vid.dtsi"
+
+&soc {
+	oplus_display_dev: oplus,dsi-display-dev {
+		oplus,dsi-panel-primary = <
+			&dsi_vtdr6130_amoled_video
+			&dsi_panel_csot_nt36532_2120_3000_dual_dsc_144hz_vid
+			&dsi_panel_nt35652w_2000_2800_dual_dsc_144hz_vid
+		>;
+		oplus,dsi-panel-secondary = <>;
+		oplus,dsi-panel-extended = <>;
+	};
+
+
+	oplus_dsi_panel_custom_pwr_supply: oplus_dsi_panel_custom_pwr_supply {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,panel-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "vddio";
+			qcom,supply-min-voltage = <1800000>;
+			qcom,supply-max-voltage = <1800000>;
+			qcom,supply-enable-load = <220000>;
+			qcom,supply-disable-load = <8000>;
+			qcom,supply-post-on-sleep = <2>;
+			qcom,supply-pre-off-sleep = <30>;
+		};
+	};
+};

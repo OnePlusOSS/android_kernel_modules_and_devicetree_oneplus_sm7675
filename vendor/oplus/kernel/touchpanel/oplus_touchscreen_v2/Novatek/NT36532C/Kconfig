@@ -1,0 +1,6 @@
+config TOUCHPANEL_NOVA_NT36532C
+#	default y
+	tristate "TP nova nt36532c IC enable or not for OPLUS"
+	help
+	Say Y to enable driver for Touchpanel useing nova nt36532c
+	Say O to enable driver for Touchpanel useing nova nt36532c as module

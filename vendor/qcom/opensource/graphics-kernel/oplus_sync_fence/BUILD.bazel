@@ -1,0 +1,7 @@
+load(":define_oplus_sync_fence.bzl", "define_oplus_sync_fence")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+define_oplus_sync_fence()

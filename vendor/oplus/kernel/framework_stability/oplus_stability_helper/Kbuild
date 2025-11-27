@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2023-2030 Oplus. All rights reserved.
+
+obj-$(CONFIG_OPLUS_FEATURE_STABILITY_HELPER) += oplus_stability_helper.o
+oplus_stability_helper-y += frk_netlink.o
+oplus_stability_helper-y += binder_watcher.o
+oplus_stability_helper-y += thread_watcher.o

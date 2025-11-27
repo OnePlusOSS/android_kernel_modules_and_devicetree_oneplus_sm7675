@@ -1,0 +1,12 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/oplus/hw-id.h>
+#include "../display/pineapple-sde-display-mtp-overlay.dts"
+#include "pineapple-display-overlay-common.dtsi"
+#include "giulia-23851-display-pineapple-overlay.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Pineapple MTP,giulia";
+
+	oplus,project-id = <23851 23867 23868 23869>;
+};

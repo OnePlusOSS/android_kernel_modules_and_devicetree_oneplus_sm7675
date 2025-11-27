@@ -1,0 +1,77 @@
+/***************************************************************
+** Copyright (C), 2024, OPLUS Mobile Comm Corp., Ltd
+**
+** Description : diplay common config
+** Version : NA
+** Date : 2024/06/19
+** Author : Oplus Display
+******************************************************************/
+                qcom,mdss-dsi-h-right-border = <0>;
+                qcom,mdss-dsi-v-top-border = <0>;
+                qcom,mdss-dsi-v-bottom-border = <0>;
+                qcom,mdss-dsi-h-left-border = <0>;
+
+                qcom,dsi-panel-date-switch-command = [
+                    39 00 00 00 00 00 04 FF 5A A5 1D
+                ];
+                qcom,mdss-dsi-esd-switch-page-command = [
+                    39 00 00 00 00 00 04 FF 5A A5 00
+                ];
+                qcom,mdss-dsi-default-switch-page-command = [
+                    39 00 00 00 00 00 04 FF 5A A5 00
+                ];
+                qcom,mdss-dsi-panel-info-switch-page-command = [
+                    39 00 00 00 00 00 04 FF 5A A5 00
+                ];
+
+                oplus,dsi-panel-gamma-compensation-page0-command = [
+                    39 00 00 40 00 00 04 FF 5A A5 2F
+                    15 00 00 00 00 00 02 99 00
+                    39 00 00 40 00 00 04 FF 5A A5 00
+                ];
+                oplus,dsi-panel-gamma-compensation-page1-command = [
+                    39 00 00 40 00 00 04 FF 5A A5 2F
+                    15 00 00 00 00 00 02 99 00
+                ];
+                oplus,dsi-panel-gamma-compensation-command = [
+                    39 00 00 40 00 00 04 FF 5A A5 2F
+                    15 00 00 40 00 00 02 99 97
+                    39 00 00 40 00 00 07 80 00 00 00 00 00 00
+                    15 00 00 40 00 00 02 99 00
+                    39 00 00 40 00 00 04 FF 5A A5 2F
+                    15 00 00 40 00 00 02 99 BB
+                    39 00 00 40 00 00 07 80 00 00 00 00 00 00
+                    15 00 00 40 00 00 02 99 00
+                    39 00 00 00 00 00 04 FF 5A A5 00
+                ];
+
+                qcom,mdss-dsi-panel-info-switch-page-command-state = "dsi_lp_mode";
+                qcom,mdss-dsi-timing-switch-high-fre-command-state = "dsi_hs_mode";
+                qcom,mdss-dsi-timing-switch-command-state = "dsi_hs_pack_mode";
+                qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+                qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+                qcom,mdss-dsi-power-on-pwm-switch-onepulse-command-state = "dsi_hs_pack_mode";
+                qcom,mdss-dsi-pwm-switch-1to3-command-state = "dsi_hs_pack_mode";
+                qcom,mdss-dsi-pwm-switch-3to1-command-state = "dsi_hs_pack_mode";
+                qcom,mdss-dsi-pwm-switch-1to18-command-state = "dsi_hs_pack_mode";
+                qcom,mdss-dsi-pwm-switch-18to1-command-state = "dsi_hs_pack_mode";
+                qcom,mdss-dsi-timming-pwm-switch-onepulse-command-state = "dsi_hs_pack_mode";
+                qcom,mdss-dsi-pwm-switch-onepulse-command-state = "dsi_hs_pack_mode";
+                qcom,mdss-dsi-pwm-switch-onepulse-low-command-state = "dsi_hs_pack_mode";
+                qcom,mdss-dsi-pwm-switch-high-command-state = "dsi_hs_pack_mode";
+                qcom,mdss-dsi-pwm-switch-low-command-state = "dsi_hs_pack_mode";
+
+                qcom,dsi-panel-date-switch-command-state = "dsi_lp_mode";
+                qcom,mdss-dsi-esd-switch-page-command-state = "dsi_lp_mode";
+                qcom,mdss-dsi-default-switch-page-command-state = "dsi_lp_mode";
+                qcom,mdss-dsi-lpwm-pulse-command-state = "dsi_hs_mode";
+                qcom,mdss-dsi-hpwm-pulse-command-state = "dsi_hs_mode";
+                qcom,mdss-dsi-dimming-setting-command-state = "dsi_hs_mode";
+
+                qcom,mdss-dsi-on-high-fre-command-state = "dsi_lp_mode";
+                qcom,mdss-dsi-temperature-compensation-command-state = "dsi_hs_mode";
+                qcom,mdss-dsi-read-compensation-reg1-command-state = "dsi_hs_mode";
+
+                oplus,dsi-panel-gamma-compensation-page0-command-state = "dsi_hs_mode";
+                oplus,dsi-panel-gamma-compensation-page1-command-state = "dsi_hs_mode";
+                oplus,dsi-panel-gamma-compensation-command-state = "dsi_hs_mode";

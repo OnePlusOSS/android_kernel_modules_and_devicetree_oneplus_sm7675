@@ -1,0 +1,12 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/oplus/hw-id.h>
+#include "../display/cliffs-sde-display-mtp-overlay.dts"
+#include "cliffs-display-overlay-common.dtsi"
+#include "Lexus-24881-display-cliffs-overlay.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Cliffs MTP,lexus";
+
+	oplus,project-id = <24881 24882>;
+};

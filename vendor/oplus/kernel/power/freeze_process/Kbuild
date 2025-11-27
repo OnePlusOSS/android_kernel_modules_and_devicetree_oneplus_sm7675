@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2018-2020 Oplus. All rights reserved.
+
+MODULE = oplus_freeze_process
+
+ifeq ($(CONFIG_OPLUS_FEATURE_FREEZE_PROCESS_HOOK), m)
+$(MODULE)-objs += oplus_freeze_process_hook.o
+endif
+
+obj-$(CONFIG_OPLUS_FEATURE_FREEZE_PROCESS_HOOK) += $(MODULE).o

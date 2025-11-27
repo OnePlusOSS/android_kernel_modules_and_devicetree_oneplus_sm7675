@@ -1,0 +1,4 @@
+config OPLUS_SYNC_FENCE
+	bool "Enable oplus sync fence"
+	help
+	  Enable sync_fence driver

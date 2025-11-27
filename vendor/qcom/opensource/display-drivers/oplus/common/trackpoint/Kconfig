@@ -1,0 +1,5 @@
+config OPLUS_TRACKPOINT_REPORT
+  tristate "Oplus Trackpoint Report"
+  default n
+  help
+    define this config to init Oplus Trackpoint Report

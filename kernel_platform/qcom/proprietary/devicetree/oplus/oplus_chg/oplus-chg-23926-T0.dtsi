@@ -1,0 +1,42 @@
+//ifdef OPLUS_FEATURE_CHG_BASIC
+//BSP.CHG.Basic, 2024/3/13,  Add for charging
+
+#include "oplus-chg-23926.dtsi"
+
+/delete-node/ &maxim_encryption_gauge;
+/delete-node/ &maxim_encryption_gauge_groups;
+
+&oplus_virtual_gauge {
+	oplus,gauge_ic = <&oplus_adsp_gauge &optiga_encryption_gauge>;
+	oplus,gauge_ic_func_group = <&adsp_gauge_groups &optiga_encryption_gauge_groups>;
+};
+
+&tlmm {
+	optiga_active: optiga_active {
+		mux {
+			pins = "gpio3";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio3";
+			bias-pull-up;
+			drive-strength = <8>;
+		};
+	};
+};
+
+&soc {
+	optiga_encryption_gauge: optiga_gauge {
+		compatible = "oplus-optiga";
+		status = "ok";
+		pinctrl-names = "optiga_active";
+		pinctrl-0 = <&optiga_active>;
+		data-gpio = <&tlmm 3 0x00>;
+		cpu-id = <2>;
+		key-id = <1>;
+		oplus,ic_type = <OPLUS_CHG_IC_GAUGE>;
+		oplus,ic_index = <1>;
+	};
+};
+//#endif OPLUS_FEATURE_CHG_BASIC

@@ -1,0 +1,187 @@
+&soc {
+    bootloader_log {
+        compatible = "bootloader_log";
+        linux,contiguous-region = <&bootloader_log_mem>;
+    };
+    oplus-pmic-monitor-log {
+        compatible = "oplus,pmic-monitor-log";
+        nvmem = <&pmk8550_sdam_5>, <&pmk8550_sdam_6>;
+        nvmem-names = "pon_log0", "pon_log1";
+    };
+    dump_device_info {
+        compatible = "dump_device_info";
+        linux,contiguous-region = <&dump_device_info_mem>;
+    };
+    //#ifdef OPLUS_FEATURE_SECURITY_COMMON
+    /* 2022/08/29 add for oplus secure */
+    oplus_secure_common {
+        compatible = "oplus,secure_common";
+        oplus,sec_reg_num = <0x221C8C70>;
+        oplus,sec_en_anti_reg = <0x221C8314>;
+        oplus,sec_override1_reg = <0x221C8314>;
+        oplus,override1_en_value = <0x1>;
+    };
+    //#endif /*OPLUS_FEATURE_SECURITY_COMMON*/
+    //#ifdef OPLUS_FEATURE_THERMAL_HORAE
+    shell_front {
+        compatible = "oplus,shell-temp";
+    };
+
+    shell_frame {
+        compatible = "oplus,shell-temp";
+    };
+
+    shell_back {
+        compatible = "oplus,shell-temp";
+    };
+    //#endif /* OPLUS_FEATURE_THERMAL_HORAE */
+	oplus_kernel_state_monitor {
+		compatible = "oplus,kernel_state_monitor";
+	};
+};
+
+&reserved_memory {
+        /*
+        This size is from Core/Uefi/LAA/memmap.dtsi
+        reg = <0x0 0x81CE4000 0x0 0x00010000>;
+        MemLabel = "UEFI_Log";
+        so we reserve this for bootloader log
+        */
+        bootloader_log_mem: botloader_mem@0x81CE4000 {
+                reg = <0 0x81CE4000 0 0x00010000>;
+                label = "bootloader_log_mem";
+        };
+
+        ramoops_mem: ramoops_region {
+            compatible = "ramoops";
+            alloc-ranges = <0x0 0x00000000 0xffffffff 0xffffffff>;
+            size = <0x0 0x240000>;
+            pmsg-size = <0x200000>;
+            console-size = <0x40000>;
+            mem-type = <2>;
+        };
+
+        dump_device_info_mem: device_info_mem@0xA4F00000 {
+            reg = <0 0xA4F00000 0 0x00008000>;
+            label = "dump_device_info_mem";
+        };
+};
+&pmk8550 {
+//#ifdef CONFIG_OPLUS_FEATURE_QCOM_PMICWD
+//pmicwd depend on pon_pbs@800
+    pon_pbs@800 {
+         compatible = "qcom,qpnp-power-on";
+         reg = <0x800>;
+         qcom,system-reset;
+         qcom,store-hard-reset-reason;
+    };
+
+    pon_pmicwd@800 {
+         compatible = "oplus,pmicwd_qpnp-power-on";
+         qcom,pmicwd;
+    };
+//#endif /* CONFIG_OPLUS_FEATURE_QCOM_PMICWD */
+};
+
+/* add for not occupying display unused GPIO */
+&display_panel_avdd {
+   status = "disabled";
+};
+
+/* Remove sdhc reference to L13B */
+&sdhc_2 {
+	status = "disabled";
+
+	vdd-io-supply = <&L23B>;
+	qcom,vdd-io-voltage-level = <1800000 2960000>;
+	qcom,vdd-io-current-level = <0 22000>;
+
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&sdc2_on>;
+	pinctrl-1 = <&sdc2_off>;
+
+	cd-gpios = <&tlmm 31 GPIO_ACTIVE_LOW>;
+};
+
+#include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
+
+&apps_rsc_drv2 {
+	rpmh-regulator-ldom5 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		qcom,resource-name = "ldom5";
+		qcom,regulator-type = "pmic5-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 30000>;
+
+		L5M:
+		pm8010m_l5: regulator-pm8010m-l5 {
+			regulator-name = "pm8010m_l5";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			qcom,init-voltage = <1800000>;
+		};
+	};
+
+	rpmh-regulator-ldob14 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		qcom,resource-name = "ldob14";
+		qcom,regulator-type = "pmic5-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 10000>;
+
+		L14B:
+		pmxr2230_l14: regulator-pmxr2230-l14 {
+			regulator-name = "pmxr2230_l14";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <3008000>;
+			regulator-max-microvolt = <3200000>;
+			qcom,init-voltage = <3008000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+
+	rpmh-regulator-ldob15 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		qcom,resource-name = "ldob15";
+		qcom,regulator-type = "pmic5-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 10000>;
+
+		L15B:
+		pmxr2230_l15: regulator-pmxr2230-l15 {
+			regulator-name = "pmxr2230_l15";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <2700000>;
+			regulator-max-microvolt = <2800000>;
+			qcom,init-voltage = <2800000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+
+	rpmh-regulator-ldob13 {
+		compatible = "qcom,rpmh-vrm-regulator";
+		qcom,resource-name = "ldob13";
+		qcom,regulator-type = "pmic5-ldo";
+		qcom,supported-modes =
+			<RPMH_REGULATOR_MODE_LPM
+			RPMH_REGULATOR_MODE_HPM>;
+		qcom,mode-threshold-currents = <0 10000>;
+
+		L13B:
+		pmxr2230_l13: regulator-pmxr2230-l13 {
+			regulator-name = "pmxr2230_l13";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
+			regulator-min-microvolt = <1504000>;
+			regulator-max-microvolt = <3544000>;
+			qcom,init-voltage = <2700000>;
+			qcom,init-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+};

@@ -1,0 +1,5 @@
+config OPLUS_FEATURE_STANDBY_NETLINK
+	tristate "config to standby netlink channel"
+	default n
+	help
+	  This selects to config standby netlink channel
