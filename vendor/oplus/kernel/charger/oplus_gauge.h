@@ -152,6 +152,8 @@ struct oplus_gauge_operations {
 	int (*get_fg_vct)(void);
 	bool (*set_fg_vct)(int vct);
 	void (*sync_plugin_state)(void);
+	int (*set_sili_ic_alg_term_volt)(int volt);
+	int (*get_sili_ic_alg_term_volt)(void);
 };
 
 /****************************************

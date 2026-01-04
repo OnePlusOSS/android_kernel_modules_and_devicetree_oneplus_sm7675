@@ -1262,7 +1262,7 @@ static ssize_t haptic_proc_style_write(struct file *filp, const char __user *buf
 	int rc = 0;
 	int val;
 
-	if (count > sizeof(buffer)) {
+	if (count >= sizeof(buffer)) {
 		return -EFAULT;
 	}
 	if (buf == NULL) {
@@ -1273,10 +1273,11 @@ static ssize_t haptic_proc_style_write(struct file *filp, const char __user *buf
 		return -EFAULT;
 	}
 
+	buffer[count] = '\0';
 	oh_err("buffer=%s", buffer);
 	rc = kstrtoint(buffer, 0, &val);
 	if (rc < 0)
-		return count;
+		return rc;
 	oh_err("val = %d", val);
 	oh->vibration_style = val;
 	if (oh->haptic_common_ops->proc_vibration_style_write) {

@@ -353,6 +353,11 @@ struct oplus_chg_comm {
 	struct delayed_work lcd_notify_reg_work;
 	struct delayed_work fg_soft_reset_work;
 	struct delayed_work iterm_check_work;
+#ifdef CONFIG_OPLUS_CHARGER_MTK
+#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
+	struct delayed_work power_off_check_work;
+#endif
+#endif
 
 	struct votable *fv_max_votable;
 	struct votable *fv_min_votable;
@@ -510,6 +515,7 @@ struct oplus_chg_comm {
 	int bdd_voltdiff_trend;
 
 	struct oplus_chg_strategy *smooth_strategy;
+	int smooth_strategy_chg_reserve;
 
 	int slow_chg_param;
 	struct mutex slow_chg_mutex;
@@ -3535,6 +3541,7 @@ static void oplus_comm_smooth_strategy_update(struct oplus_chg_comm *chip)
 {
 	int smooth_soc;
 	int rc = 0;
+	int chg_reserve;
 
 	rc = oplus_chg_strategy_get_data(chip->smooth_strategy, &smooth_soc);
 	if (rc || smooth_soc < 0 || smooth_soc > 100) {
@@ -3542,6 +3549,13 @@ static void oplus_comm_smooth_strategy_update(struct oplus_chg_comm *chip)
 		smooth_soc =  chip->soc;
 	}
 	oplus_comm_set_smooth_soc(chip, smooth_soc);
+
+	rc = oplus_chg_strategy_get_metadata(chip->smooth_strategy, &chg_reserve);
+	if (rc || chg_reserve < 0) {
+		chg_info("chg_reserve %d invalid, rc=%d\n", chg_reserve, rc);
+		chg_reserve = 0;
+	}
+	chip->smooth_strategy_chg_reserve = chg_reserve;
 }
 
 static void oplus_comm_smooth_strategy_set_init_ui_soc(struct oplus_chg_comm *chip, int ui_soc)
@@ -3912,6 +3926,14 @@ static void oplus_comm_ui_soc_update_work(struct work_struct *work)
 
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 #define POWER_OFF_VBUS_CHECK 2500
+#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
+static void oplus_chg_power_off_check_work(struct work_struct *work)
+{
+	chg_info("Unplug Charger/USB In Kernel Power Off Charging Mode Shutdown OS!\n");
+	kernel_power_off();
+}
+#endif
+
 static void oplus_chg_kpoc_power_off_check(struct oplus_chg_comm *chip)
 {
 #ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
@@ -3926,18 +3948,20 @@ static void oplus_chg_kpoc_power_off_check(struct oplus_chg_comm *chip)
 		oplus_mms_get_item_data(chip->wired_topic, WIRED_ITEM_ONLINE, &data, true);
 		wired_online = data.intval;
 		if (!wired_online && vbus_mv < POWER_OFF_VBUS_CHECK) {
-			/* add for discharge the capacitor completely */
-			msleep(3000);
-			chg_info("Unplug Charger/USB double check!\n");
-			vbus_mv = oplus_wired_get_vbus();
-			oplus_mms_get_item_data(chip->wired_topic, WIRED_ITEM_ONLINE, &data, true);
-			wired_online = data.intval;
-			if (!wired_online && vbus_mv < POWER_OFF_VBUS_CHECK) {
-				if (!chip->vooc_online && !chip->vooc_online_keep) {
-					chg_info("Unplug Charger/USB In Kernel Power Off Charging Mode Shutdown OS!\n");
-					kernel_power_off();
+			if (!work_pending(&chip->power_off_check_work.work)) {
+				/* add for discharge the capacitor completely */
+				msleep(3000);
+				chg_info("Unplug Charger/USB double check!\n");
+				vbus_mv = oplus_wired_get_vbus();
+				oplus_mms_get_item_data(chip->wired_topic, WIRED_ITEM_ONLINE, &data, true);
+				wired_online = data.intval;
+				if (!wired_online && vbus_mv < POWER_OFF_VBUS_CHECK) {
+					chg_info("Schedule power off check work after 7s\n");
+					schedule_delayed_work(&chip->power_off_check_work, msecs_to_jiffies(7000));
 				}
 			}
+		} else {
+			cancel_delayed_work(&chip->power_off_check_work);
 		}
 	}
 #endif
@@ -4245,7 +4269,7 @@ static void oplus_comm_show_ui_soc_decimal(struct work_struct *work)
 		if (temp_soc != 0)
 			oplus_comm_set_ui_soc(chip, temp_soc);
 		schedule_delayed_work(&chip->ui_soc_decimal_work, msecs_to_jiffies(UPDATE_TIME * 1000));
-	} else {
+	} else if (soc_decimal->ui_soc_decimal != 0) {
 		oplus_comm_ui_soc_decimal_deinit(chip);
 	}
 }
@@ -6683,6 +6707,23 @@ int oplus_comm_get_dec_vol(struct oplus_mms *topic, int *fv_dec, int *wired_ffc_
 	return 0;
 }
 
+static void oplus_comm_soc_decimal_offline(struct oplus_chg_comm *chip)
+{
+	struct ui_soc_decimal *soc_decimal = &chip->soc_decimal;
+
+	if (soc_decimal->decimal_control) {
+		cancel_delayed_work_sync(&chip->ui_soc_decimal_work);
+		soc_decimal->last_decimal_ui_soc =
+			(soc_decimal->ui_soc_integer + soc_decimal->ui_soc_decimal);
+		oplus_comm_ui_soc_decimal_deinit(chip);
+		chg_info("ui_soc_decimal: cancel last_decimal_ui_soc=%d, ui_soc_integer:%d,"
+			"ui_soc_decimal:%d",
+			soc_decimal->last_decimal_ui_soc, soc_decimal->ui_soc_integer,
+			soc_decimal->ui_soc_decimal);
+	}
+	soc_decimal->calculate_decimal_time = 0;
+}
+
 /* For the status not controlled by the driver, clear it here */
 static void oplus_comm_offline_clean_process(struct oplus_chg_comm *chip)
 {
@@ -6694,6 +6735,7 @@ static void oplus_comm_offline_clean_process(struct oplus_chg_comm *chip)
 			vote(chip->chg_disable_votable, MMI_CHG_VOTER, false, 0, false);
 		}
 	}
+	oplus_comm_soc_decimal_offline(chip);
 }
 
 #define OFFLINE_CLEAN_DELAY 500
@@ -6701,7 +6743,6 @@ static void oplus_comm_plugin_work(struct work_struct *work)
 {
 	struct oplus_chg_comm *chip =
 		container_of(work, struct oplus_chg_comm, plugin_work);
-	struct ui_soc_decimal *soc_decimal = &chip->soc_decimal;
 	union mms_msg_data data = { 0 };
 	int fv_mv = 0;
 
@@ -6789,17 +6830,6 @@ static void oplus_comm_plugin_work(struct work_struct *work)
 			oplus_comm_battery_notify_flag_check(chip);
 		}
 		if (!chip->vooc_online) {
-			if (soc_decimal->decimal_control) {
-				cancel_delayed_work_sync(&chip->ui_soc_decimal_work);
-				soc_decimal->last_decimal_ui_soc =
-					(soc_decimal->ui_soc_integer + soc_decimal->ui_soc_decimal);
-				oplus_comm_ui_soc_decimal_deinit(chip);
-				chg_info("ui_soc_decimal: cancel last_decimal_ui_soc=%d, ui_soc_integer:%d,"
-					"ui_soc_decimal:%d",
-					soc_decimal->last_decimal_ui_soc, soc_decimal->ui_soc_integer,
-					soc_decimal->ui_soc_decimal);
-			}
-			soc_decimal->calculate_decimal_time = 0;
 			chip->bms_heat_temp_compensation = 0;
 			oplus_comm_set_slow_chg(chip->comm_topic, 0, 0, false);
 		}
@@ -9873,7 +9903,10 @@ static ssize_t proc_reserve_soc_debug_read(struct file *file, char __user *user_
 	char buf[256] = { 0 };
 	int len = 0;
 
-	len = sprintf(buf, "%d,%d", config->reserve_soc, config->reserve_soc);
+	if (chip->smooth_strategy)
+		len = sprintf(buf, "%d,0", chip->smooth_strategy_chg_reserve);
+	else
+		len = sprintf(buf, "%d,%d", config->reserve_soc, config->reserve_soc);
 	if (len > *off)
 		len -= *off;
 	else
@@ -10616,6 +10649,11 @@ static int oplus_comm_driver_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&comm_dev->offline_clean_work, oplus_comm_offline_clean_work);
 	INIT_DELAYED_WORK(&comm_dev->flash_mode_boost_work, oplus_comm_flash_mode_boost_work);
 	INIT_DELAYED_WORK(&comm_dev->iterm_check_work, oplus_comm_iterm_check_work);
+#ifdef CONFIG_OPLUS_CHARGER_MTK
+#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
+	INIT_DELAYED_WORK(&comm_dev->power_off_check_work, oplus_chg_power_off_check_work);
+#endif
+#endif
 
 	spin_lock_init(&comm_dev->remuse_lock);
 	mutex_init(&comm_dev->decimal_lock);

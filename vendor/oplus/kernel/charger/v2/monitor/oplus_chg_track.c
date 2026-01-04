@@ -1057,6 +1057,8 @@ struct oplus_chg_track {
 	oplus_chg_track_trigger *soccp_crash_trigger;
 	oplus_chg_track_trigger *bs_info_trigger;
 	oplus_chg_track_trigger *state_keep_info_trigger;
+	oplus_chg_track_trigger *usbin_abnormal_trigger;
+	oplus_chg_track_trigger *sec_ic_meminfo_trigger;
 
 	struct delayed_work mmi_chg_info_trigger_work;
 	struct delayed_work slow_chg_info_trigger_work;
@@ -1074,6 +1076,8 @@ struct oplus_chg_track {
 	struct delayed_work soccp_crash_trigger_work;
 	struct delayed_work bs_info_trigger_work;
 	struct delayed_work state_keep_info_trigger_work;
+	struct delayed_work usbin_abnormal_trigger_work;
+	struct delayed_work sec_ic_meminfo_trigger_work;
 
 	struct mutex mmi_chg_info_lock;
 	struct mutex slow_chg_info_lock;
@@ -1092,6 +1096,8 @@ struct oplus_chg_track {
 	struct mutex soccp_crash_lock;
 	struct mutex bs_info_lock;
 	struct mutex state_keep_info_lock;
+	struct mutex usbin_abnormal_lock;
+	struct mutex sec_ic_meminfo_lock;
 
 	char voocphy_name[OPLUS_CHG_TRACK_VOOCPHY_NAME_LEN];
 
@@ -1314,9 +1320,12 @@ static struct flag_reason_table track_flag_reason_table[] = {
 	{ TRACK_NOTIFY_FLAG_EIS_ABNORMAL, "EisAbnormal" },
 	{ TRACK_NOTIFY_FLAG_BAL_ABNORMAL, "BalAbnormal" },
 	{ TRACK_NOTIFY_FLAG_STATE_KEEP_ABNORMAL, "StateKeepAbnormal" },
+	{ TRACK_NOTIFY_FLAG_USBIN_ABNORMAL, "UsbinAbnormal" },
+	{ TRACK_NOTIFY_FLAG_SEC_IC_MEMINFO, "SecICMemInfo" },
 
 	{ TRACK_NOTIFY_FLAG_UPLOAD_BREAK_LOG, "UploadBreakLog" },
 	{ TRACK_NOTIFY_FLAG_UPLOAD_NO_CHG_LOG, "UploadNoChgLog" },
+	{ TRACK_NOTIFY_FLAG_UPLOAD_WLS_BREAK_LOG, "UploadWlsBreakLog" },
 
 	{ TRACK_NOTIFY_FLAG_SOCCP_CRASH, "SoccpCrash" },
 };
@@ -4798,6 +4807,20 @@ static void oplus_chg_track_bs_info_trigger_work(struct work_struct *work)
 	mutex_unlock(&chip->bs_info_lock);
 }
 
+static void oplus_chg_track_usbin_abnormal_trigger_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_chg_track *chip = container_of(dwork,
+		struct oplus_chg_track, usbin_abnormal_trigger_work);
+
+	if (chip->usbin_abnormal_trigger) {
+		oplus_chg_track_upload_trigger_data(chip->usbin_abnormal_trigger);
+		kfree(chip->usbin_abnormal_trigger);
+		chip->usbin_abnormal_trigger = NULL;
+	}
+	mutex_unlock(&chip->usbin_abnormal_lock);
+}
+
 static void oplus_chg_track_state_keep_info_trigger_work(struct work_struct *work)
 {
 	struct delayed_work *dwork = to_delayed_work(work);
@@ -4809,6 +4832,19 @@ static void oplus_chg_track_state_keep_info_trigger_work(struct work_struct *wor
 		chip->state_keep_info_trigger = NULL;
 	}
 	mutex_unlock(&chip->state_keep_info_lock);
+}
+
+static void oplus_chg_track_sec_ic_meminfo_trigger_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_chg_track *chip = container_of(dwork, struct oplus_chg_track, sec_ic_meminfo_trigger_work);
+
+	if (chip->sec_ic_meminfo_trigger) {
+		oplus_chg_track_upload_trigger_data(chip->sec_ic_meminfo_trigger);
+		kfree(chip->sec_ic_meminfo_trigger);
+		chip->sec_ic_meminfo_trigger = NULL;
+	}
+	mutex_unlock(&chip->sec_ic_meminfo_lock);
 }
 
 static void oplus_chg_track_eis_timeout_info_trigger_work(struct work_struct *work)
@@ -5225,6 +5261,7 @@ static int oplus_chg_track_init(struct oplus_chg_track *track_dev)
 	mutex_init(&chip->sub_gauge_info.batt_monitor_lock);
 	mutex_init(&chip->bs_info_lock);
 	mutex_init(&chip->state_keep_info_lock);
+	mutex_init(&chip->usbin_abnormal_lock);
 
 	chip->gauge_info.debug_err_type = TRACK_GAGUE_ERR_DEFAULT;
 	chip->gauge_info.debug_upload_period_t = 0;
@@ -5473,6 +5510,8 @@ static int oplus_chg_track_init(struct oplus_chg_track *track_dev)
 	INIT_DELAYED_WORK(&chip->soccp_crash_trigger_work, oplus_chg_track_soccp_crash_trigger_work);
 	INIT_DELAYED_WORK(&chip->bs_info_trigger_work, oplus_chg_track_bs_info_trigger_work);
 	INIT_DELAYED_WORK(&chip->state_keep_info_trigger_work, oplus_chg_track_state_keep_info_trigger_work);
+	INIT_DELAYED_WORK(&chip->usbin_abnormal_trigger_work, oplus_chg_track_usbin_abnormal_trigger_work);
+	INIT_DELAYED_WORK(&chip->sec_ic_meminfo_trigger_work, oplus_chg_track_sec_ic_meminfo_trigger_work);
 
 	return ret;
 }
@@ -7918,7 +7957,7 @@ static int oplus_chg_track_handle_no_user_break(struct oplus_chg_track *track_ch
 		oplus_chg_track_mul_break_vector_ele_add(&track_chip->wls_mul_break_info, record_ele);
 		oplus_chg_track_update_mul_break_info(track_chip, &track_chip->wls_mul_break_info, "wireless");
 		if (track_chip->wls_mul_break_info.total_break_cnt == 1) /* upload log for the first time break */
-			oplus_chg_track_force_upload_log(track_chip, TRACK_NOTIFY_TYPE_UPLOAD_LOG, TRACK_NOTIFY_FLAG_UPLOAD_BREAK_LOG);
+			oplus_chg_track_force_upload_log(track_chip, TRACK_NOTIFY_TYPE_UPLOAD_LOG, TRACK_NOTIFY_FLAG_UPLOAD_WLS_BREAK_LOG);
 	} else {
 		oplus_chg_track_match_fastchg_break_reason(track_chip);
 		oplus_chg_track_update_mul_break_single_ele(track_chip, record_ele, power_info);
@@ -10746,6 +10785,34 @@ static int oplus_chg_track_upload_bs_info(struct oplus_chg_track *chip)
 	return 0;
 }
 
+static int oplus_chg_track_upload_usbin_abnormal(struct oplus_chg_track *chip)
+{
+	int index = 0;
+
+	if (!chip)
+		return -EINVAL;
+
+	mutex_lock(&chip->usbin_abnormal_lock);
+	if (chip->usbin_abnormal_trigger)
+		kfree(chip->usbin_abnormal_trigger);
+
+	chip->usbin_abnormal_trigger = kzalloc(sizeof(oplus_chg_track_trigger), GFP_KERNEL);
+	if (!chip->usbin_abnormal_trigger) {
+		chg_err("usbin_abnormal_trigger memery alloc fail\n");
+		mutex_unlock(&chip->usbin_abnormal_lock);
+		return -ENOMEM;
+	}
+
+	chip->usbin_abnormal_trigger->type_reason = TRACK_NOTIFY_TYPE_SOFTWARE_ABNORMAL;
+	chip->usbin_abnormal_trigger->flag_reason = TRACK_NOTIFY_FLAG_USBIN_ABNORMAL;
+	oplus_chg_track_obtain_power_info(&(chip->usbin_abnormal_trigger->crux_info[index]),
+		OPLUS_CHG_TRACK_CURX_INFO_LEN - index);
+
+	schedule_delayed_work(&chip->usbin_abnormal_trigger_work, 0);
+	chg_info("success\n");
+	return 0;
+}
+
 static int oplus_chg_track_upload_state_keep_info(struct oplus_chg_track *chip)
 {
 	union mms_msg_data data = { 0 };
@@ -10821,6 +10888,44 @@ static int oplus_chg_track_upload_state_keep_abnormal(struct oplus_chg_track *ch
 	schedule_delayed_work(&chip->state_keep_info_trigger_work, 0);
 	chg_info("success\n");
 
+	return 0;
+}
+
+static int oplus_chg_track_upload_sec_ic_mem_info(struct oplus_chg_track *chip)
+{
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	if (!chip)
+		return -EINVAL;
+
+	mutex_lock(&chip->sec_ic_meminfo_lock);
+	if (chip->sec_ic_meminfo_trigger)
+		kfree(chip->sec_ic_meminfo_trigger);
+
+	chip->sec_ic_meminfo_trigger = kzalloc(sizeof(oplus_chg_track_trigger), GFP_KERNEL);
+	if (!chip->sec_ic_meminfo_trigger) {
+		chg_err("memory alloc fail\n");
+		mutex_unlock(&chip->sec_ic_meminfo_lock);
+		return -ENOMEM;
+	}
+
+	chip->sec_ic_meminfo_trigger->type_reason = TRACK_NOTIFY_TYPE_GENERAL_RECORD;
+	chip->sec_ic_meminfo_trigger->flag_reason = TRACK_NOTIFY_FLAG_SEC_IC_MEMINFO;
+
+	rc = oplus_mms_get_item_data(chip->monitor->err_topic, ERR_ITEM_SEC_IC_MEM_INFO, &data, false);
+	if (rc < 0) {
+		chg_err("get sec ic meminfo error, rc=%d\n", rc);
+		kfree(chip->sec_ic_meminfo_trigger);
+		chip->sec_ic_meminfo_trigger = NULL;
+		mutex_unlock(&chip->sec_ic_meminfo_lock);
+		return -ENOMEM;
+	}
+
+	scnprintf(chip->sec_ic_meminfo_trigger->crux_info,
+		OPLUS_CHG_TRACK_CURX_INFO_LEN, "%s", data.strval);
+	schedule_delayed_work(&chip->sec_ic_meminfo_trigger_work, 0);
+	chg_info("success\n");
 	return 0;
 }
 
@@ -12918,6 +13023,12 @@ static void oplus_chg_track_err_subs_callback(struct mms_subscribe *subs,
 			break;
 		case ERR_ITEM_STATE_KEEP_ABNORMAL:
 			oplus_chg_track_upload_state_keep_abnormal(track);
+			break;
+		case ERR_ITEM_USBIN_ABNORMAL:
+			oplus_chg_track_upload_usbin_abnormal(track);
+			break;
+		case ERR_ITEM_SEC_IC_MEM_INFO:
+			oplus_chg_track_upload_sec_ic_mem_info(track);
 			break;
 		default:
 			break;

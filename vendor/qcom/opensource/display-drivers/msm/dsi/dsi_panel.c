@@ -6489,6 +6489,7 @@ int oplus_panel_vid_cmdp_handle(void *dsi_panel, enum dsi_cmd_set_type type)
 	struct dsi_panel *panel = dsi_panel;
 	struct dsi_display_mode *mode;
 	struct dsi_cmd_desc *cmds;
+	struct task_struct *task = current;
 	int i = 0;
 	u32 count;
 
@@ -6500,6 +6501,10 @@ int oplus_panel_vid_cmdp_handle(void *dsi_panel, enum dsi_cmd_set_type type)
 	if((panel->panel_mode != DSI_OP_VIDEO_MODE) || (!panel->oplus_priv.enable_dsi_cmd_package)) {
 		return 0;
 	}
+	if (strncmp(task->comm, "crtc_commit", 11) != 0) {
+		return 0;
+	}
+
 	mode = panel->cur_mode;
 	cmds = mode->priv_info->cmd_sets[type].cmds;
 	count = mode->priv_info->cmd_sets[type].count;

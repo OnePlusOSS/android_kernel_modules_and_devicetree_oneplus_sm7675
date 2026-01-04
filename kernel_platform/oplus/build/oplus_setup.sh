@@ -6,7 +6,7 @@ function init_build_environment() {
     export TOPDIR=$(readlink -f ${PWD})
     export ANDROID_BUILD_TOP=${TOPDIR}
     export CHIPSET_COMPANY=QCOM
-    export OPLUS_VND_BUILD_PLATFORM=SM8650
+    export OPLUS_VND_BUILD_PLATFORM=SM7675
     export ANDROID_PRODUCT_OUT=${TOPDIR}/out/target/product/$variants_platform
     export TARGET_BOARD_PLATFORM=$variants_platform
 

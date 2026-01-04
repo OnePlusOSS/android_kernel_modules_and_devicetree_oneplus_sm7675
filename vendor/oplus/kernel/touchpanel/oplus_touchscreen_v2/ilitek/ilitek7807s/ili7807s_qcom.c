@@ -3141,6 +3141,7 @@ static int ilitek_mode_switch(void *chip_data, work_mode mode, int flag)
 
 	case MODE_INCELL_AOD:
 		ILI_INFO("MODE_INCELL_AOD flag = %d\n", flag);
+		chip_info->gesture = flag;
 		ret = ili_aod_control(flag);
 		break;
 

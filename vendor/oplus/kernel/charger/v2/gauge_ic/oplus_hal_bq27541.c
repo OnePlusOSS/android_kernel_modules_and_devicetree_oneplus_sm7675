@@ -3881,6 +3881,11 @@ try:
 		if (device_type == DEVICE_TYPE_NFG8011B)
 			chip->batt_nfg8011b = true;
 	}
+
+	if (chip->batt_nfg8011b && device_type != DEVICE_TYPE_NFG8011B &&
+	    device_type != DEVICE_TYPE_BQ27541)
+		chip->gauge_type_error = true;
+
 	chg_info("device_type : 0x%04x\n", device_type);
 }
 
@@ -7293,7 +7298,12 @@ static bool bq27541_sha256_hmac_result_check(struct chip_bq27541 *chip)
 		ret =  false;
 	} else {
 		chg_info("gauge authenticate succeed\n");
-		ret = true;
+		if (chip->gauge_type_error) {
+			chg_err("gauge_type_error\n");
+			ret = false;
+		} else {
+			ret = true;
+		}
 	}
 
 	return ret;

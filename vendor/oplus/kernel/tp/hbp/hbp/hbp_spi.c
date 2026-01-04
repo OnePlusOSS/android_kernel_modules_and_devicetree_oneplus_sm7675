@@ -563,7 +563,7 @@ static int hbp_spi_probe(struct spi_device *spi_dev)
 
 #ifdef CONFIG_TOUCHPANEL_MTK_PLATFORM
 #else
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
 	if (cs_setup[0] == 0) {
 		bus->delay_params.spi_cs_clk_delay = 50;
 	} else {
