@@ -224,6 +224,8 @@ def define_oplus_chg_v2_module():
         "v2/oplus_chg_pps.c",
         "v2/oplus_batt_bal.c",
         "v2/oplus_chg_mutual.c",
+        "v2/oplus_reverse_chg.c",
+        "v2/oplus_chg_dual_cells_protection.c",
         "v2/gauge_ic/oplus_hal_bq27541.c",
         "v2/hal/oplus_chg_ic.c",
         "v2/hal/oplus_virtual_buck.c",
@@ -240,6 +242,7 @@ def define_oplus_chg_v2_module():
         "v2/hal/oplus_virtual_platufcs.c",
         "v2/hal/oplus_virtual_batt_bal.c",
         "v2/hal/oplus_virtual_level_shift.c",
+        "v2/hal/oplus_virtual_reverse_chg.c",
         "v2/mms/oplus_mms.c",
         "v2/mms/oplus_msg_filter.c",
         "v2/mms/oplus_mms_gauge.c",
@@ -428,6 +431,11 @@ def define_oplus_chg_v2_module():
         "CONFIG_OPLUS_UFCS_SLAVE_NU2112A": {
             True: [
                 "v2/ufcs_ic/oplus_hal_nu2112a_slave.c"
+            ],
+        },
+        "CONFIG_OPLUS_UFCS_MASTER_NU2118A": {
+            True: [
+                "v2/ufcs_ic/oplus_hal_nu2118a.c"
             ],
         },
         "CONFIG_OPLUS_CHG_MOS_CTRL": {

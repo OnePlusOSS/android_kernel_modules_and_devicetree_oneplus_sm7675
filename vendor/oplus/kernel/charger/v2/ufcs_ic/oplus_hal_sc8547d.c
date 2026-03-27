@@ -973,11 +973,11 @@ static void sc8547_voocphy_set_pd_svooc_config(
 	}
 
 	if (enable) {
-		reg_data = 0x90 | (chip->ocp_reg & 0xf);
+		reg_data = 0xa0 | (chip->ocp_reg & 0xf);
 		sc8547_write_byte(chip->client, SC8547_REG_05, reg_data);
 		sc8547_write_byte(chip->client, SC8547_REG_09, 0x13);
 	} else {
-		reg_data = 0x10 | (chip->ocp_reg & 0xf);
+		reg_data = 0x20 | (chip->ocp_reg & 0xf);
 		sc8547_write_byte(chip->client, SC8547_REG_05, reg_data);
 	}
 
@@ -1091,7 +1091,7 @@ static int sc8547_voocphy_reset_voocphy(struct oplus_voocphy_manager *chip)
 	sc8547_write_byte(chip->client, SC8547_REG_00, reg_data);
 	sc8547_write_byte(chip->client, SC8547_REG_02, 0x01);
 	sc8547_write_byte(chip->client, SC8547_REG_04, dev->vbus_ovp_reg);
-	reg_data = 0x10 | (chip->ocp_reg & 0xf);
+	reg_data = 0x20 | (chip->ocp_reg & 0xf); /* ibus_ucp time: 50ms */
 
 	sc8547_write_byte(chip->client, SC8547_REG_05, reg_data);
 	sc8547_write_byte(chip->client, SC8547_REG_11, 0x00);
@@ -1160,8 +1160,8 @@ static int sc8547_init_device(struct sc8547d_device *chip)
 	sc8547_write_byte(chip->client, SC8547_REG_04, chip->vbus_ovp_reg); /* VBUS_OVP:10 2:1 or 1:1V */
 	reg_data = 0x20 | (chip->ovp_reg & 0x1f);
 	sc8547_write_byte(chip->client, SC8547_REG_00, reg_data); /* VBAT_OVP:4.65V */
-	reg_data = 0x10 | (chip->ocp_reg & 0xf);
-	sc8547_write_byte(chip->client, SC8547_REG_05, reg_data); /* IBUS_OCP_UCP:3.6A */
+	reg_data = 0x20 | (chip->ocp_reg & 0xf);
+	sc8547_write_byte(chip->client, SC8547_REG_05, reg_data); /* IBUS_OCP_UCP:3.6A, UCP_TIME: 50ms */
 	sc8547_write_byte(chip->client, SC8547_REG_01, 0xbf);
 	sc8547_write_byte(chip->client, SC8547_REG_2B, 0x00); /* OOC_CTRL:disable */
 	sc8547_write_byte(chip->client, SC8547_REG_34, 0x60);
@@ -1216,8 +1216,8 @@ static int sc8547_svooc_hw_setting(struct sc8547d_device *chip, bool wdt_cfg)
 	u8 reg_data;
 	sc8547_write_byte(chip->client, SC8547_REG_02, 0x01); /*VAC_OVP:12v*/
 	sc8547_write_byte(chip->client, SC8547_REG_04, chip->vbus_ovp_reg); /*VBUS_OVP:10v*/
-	reg_data = 0x10 | (chip->ocp_reg & 0xf);
-	sc8547_write_byte(chip->client, SC8547_REG_05, reg_data); /*IBUS_OCP_UCP:3.6A*/
+	reg_data = 0x20 | (chip->ocp_reg & 0xf);
+	sc8547_write_byte(chip->client, SC8547_REG_05, reg_data); /*IBUS_OCP_UCP:3.6A, UCP_TIME:50ms */
 	if (wdt_cfg)
 		sc8547_write_byte(chip->client, SC8547_REG_09, 0x13); /*WD:1000ms*/
 	else
@@ -1236,7 +1236,7 @@ static int sc8547_vooc_hw_setting(struct sc8547d_device *chip, bool wdt_cfg)
 {
 	sc8547_write_byte(chip->client, SC8547_REG_02, 0x07); /*VAC_OVP:*/
 	sc8547_write_byte(chip->client, SC8547_REG_04, 0x64); /*VBUS_OVP:11V*/
-	sc8547_write_byte(chip->client, SC8547_REG_05, 0x1c); /*IBUS_OCP_UCP:*/
+	sc8547_write_byte(chip->client, SC8547_REG_05, 0x2c); /*IBUS_OCP_UCP:*/
 	if (wdt_cfg)
 		sc8547_write_byte(chip->client, SC8547_REG_09, 0x93); /*WD:1000ms*/
 	else
@@ -3786,9 +3786,16 @@ static int sc8547d_driver_probe(struct i2c_client *client,
 		}
 		chip->ufcs = ufcs_device_register(chip->dev, &ufcs_ops, chip, &sc8547d_ufcs_config);
 		if (IS_ERR_OR_NULL(chip->ufcs)) {
-			chg_err("ufcs device register error\n");
-			rc = -ENODEV;
-			goto reg_ufcs_err;
+			rc = PTR_ERR(chip->ufcs);
+			chg_err("ufcs device register error, rc=%d\n", rc);
+			if (rc == -EINTR) {
+				chip->use_ufcs_phy = false;
+				chip->ufcs = NULL;
+				goto skip_ufcs_reg;
+			} else {
+				rc = -ENODEV;
+				goto reg_ufcs_err;
+			}
 		}
 	}
 

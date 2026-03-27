@@ -53,7 +53,7 @@ static inline int __hbp_spi_alloc_mem(struct spi_transfer **spi_xfer,
 		if (!cache->tx_buf) {
 			cache->tx_count = 0;
 			ret = -ENOMEM;
-			hbp_err("Failed to malloc tx memory\n");
+			hbp_err("Failed to malloc tx memory, tx_size %lu.\n", tx_size);
 			goto err_exit;
 		}
 		cache->tx_count = tx_size;
@@ -69,7 +69,7 @@ static inline int __hbp_spi_alloc_mem(struct spi_transfer **spi_xfer,
 		if (!cache->rx_buf) {
 			cache->rx_count = 0;
 			ret = -ENOMEM;
-			hbp_err("Failed to malloc rx memory\n");
+			hbp_err("Failed to malloc rx memory, rx_size %lu.\n", rx_size);
 			goto err_exit;
 		}
 		cache->rx_count = rx_size;
@@ -280,6 +280,10 @@ static int __hbp_spi_sync(struct spi_device *spi, u8 *tx, u8 *rx, u32 len, struc
 				  &rx_buf,
 				  len,
 				  &param->cache);
+	if (ret < 0) {
+		hbp_err("Failed to alloc memory.\n");
+		goto alloc_fail;
+	}
 
 	if (tx) {
 		memcpy(tx_buf, tx, len);
@@ -300,7 +304,7 @@ static int __hbp_spi_sync(struct spi_device *spi, u8 *tx, u8 *rx, u32 len, struc
 	}
 
 	memcpy(rx, rx_buf, len);
-
+alloc_fail:
 	return ret;
 }
 

@@ -46,6 +46,8 @@
 #define HBP_IOCTRL_SET_HEALTH_INFO         _IO(HBP_IOCTRL_GROUP, 0x1B)
 
 #define HBP_IOCTRL_PEN_STATUS              _IO(HBP_IOCTRL_GROUP, 0x21)
+/*fpGripStatus*/
+#define HBP_IOCTRL_FP_GRIP_STATUS          _IO(HBP_IOCTRL_GROUP, 0x22)
 
 extern void hbp_state_notify(struct hbp_core *hbp, int id, hbp_panel_event event);
 extern int hbp_register_notify_cb(struct hbp_device *hbp_dev, struct device *dev);
@@ -203,8 +205,9 @@ static int hbp_device_dt_parse(struct hbp_core *hbp, struct hbp_device *hbp_dev)
 	hbp_dev->pen_support = of_property_read_bool(np, "pen_support");
 	hbp_info("pen_support:%d\n", hbp_dev->pen_support);
 
-	hbp_dev->create_with_power_on_support = of_property_read_bool(np, "create_with_power_on_support");
-	hbp_info("create_with_power_on_support:%d\n", hbp_dev->create_with_power_on_support);
+	hbp_dev->fp_grip_support = of_property_read_bool(np, "fp_grip_support");
+	hbp_info("fp_grip_support:%d\n", hbp_dev->fp_grip_support);
+
 	memset(hbp_dev->clk_name, 0, 16);
 	ret = of_property_read_string(np, "clock-names", &clock_name);
 	if (ret < 0) {
@@ -388,12 +391,6 @@ struct hbp_device *hbp_device_create(void *priv,
 	hbp_dev->pre_fpstate = -1;
 	hbp_dev->screenoff_ifp = false;
 
-	if (hbp_dev->create_with_power_on_support) {
-		/*some ic need to power on when created*/
-		hbp_info("power on when hbp device created\n");
-		hbp_power_ctrl(hbp_dev, power_on_default);
-	}
-
 	/*clk*/
 	hbp_dev->pen_ck = devm_clk_get(hbp_dev->dev, hbp_dev->clk_name);
 	if (IS_ERR(hbp_dev->pen_ck)) {
@@ -521,6 +518,18 @@ static void hbp_fingerprint_report(struct hbp_device *hbp_dev, struct gesture_in
 	mutex_unlock(&hbp_dev->mifp);
 }
 
+void touch_call_fp_grip(struct hbp_device *hbp_dev, int state)
+{
+	struct touch_fp_grip_info event_data;
+	memset(&event_data, 0, sizeof(event_data));
+	if (!hbp_dev) {
+		return;
+	}
+	event_data.value = state;
+	hbp_event_call_notifier(EVENT_ACTION_FOR_FP_GIRP, (void *)&event_data);
+	hbp_info("transfer girp of fp pass state:%d\n", event_data.value);
+}
+
 static void hbp_gesture_report(struct hbp_device *hbp_dev, struct gesture_info *gesture)
 {
 
@@ -550,6 +559,8 @@ static void hbp_gesture_report(struct hbp_device *hbp_dev, struct gesture_info *
 			gesture->type == SingleTap? "single tap" :
 			gesture->type == Heart? "heart" :
 			gesture->type == PenDetect? "(pen detect)" :
+			gesture->type == FP_GESTURE_HOLD ? "fp_gesture_hold" :
+			gesture->type == FP_GESTURE_RELEASE ? "fp_gesture_release" :
 			gesture->type == SGesture? "(S)" : "unknown");
 
 		if (gesture->type != UnknownGesture) {
@@ -563,6 +574,18 @@ static void hbp_gesture_report(struct hbp_device *hbp_dev, struct gesture_info *
 			input_sync(hbp_dev->i_dev);
 		} else {
 			hbp_err("detect unkown gesture\n");
+		}
+
+		if (hbp_dev->fp_grip_support) {
+			if (gesture->type == FP_GESTURE_HOLD) {
+				hbp_dev->fp_grip_hold = true;
+				hbp_info("FP_GESTURE_HOLD:%d\n", hbp_dev->fp_grip_hold);
+				touch_call_fp_grip(hbp_dev, 1);
+			} else if (gesture->type == FP_GESTURE_RELEASE) {
+				hbp_dev->fp_grip_hold = false;
+				hbp_info("FP_GESTURE_RELEASE:%d\n", hbp_dev->fp_grip_hold);
+				touch_call_fp_grip(hbp_dev, 0);
+			}
 		}
 	}
 }
@@ -1132,6 +1155,12 @@ static long hbp_ctrl_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigne
 			pen_resume(hbp_dev);
 		} else {
 			pen_suspend(hbp_dev);
+		}
+		break;
+	case HBP_IOCTRL_FP_GRIP_STATUS:
+		if (hbp_dev->fp_grip_support) {
+			hbp_dev->fp_grip_enable = !!usr.val;
+			hbp_info("%s finger hold\n", (hbp_dev->fp_grip_enable & 1) > 0 ? "enable" : "disable");
 		}
 		break;
 	default:

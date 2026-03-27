@@ -32,6 +32,14 @@
 #include "sa_group.h"
 #endif
 
+#ifdef CONFIG_OPLUS_SCHED_GROUP_OPT
+#include "sa_group.h"
+#endif
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_DDL)
+#include "sa_ddl.h"
+#endif
+
 #define OPLUS_SCHEDULER_PROC_DIR		"oplus_scheduler"
 #define OPLUS_SCHEDASSIST_PROC_DIR		"sched_assist"
 
@@ -72,13 +80,6 @@ static u64 last_total_instr;
 static u64 last_total_ncsw;
 static u64 last_total_nvcsw;
 #endif
-
-enum {
-	OPT_STR_TYPE = 0,
-	OPT_STR_PID,
-	OPT_STR_VAL,
-	OPT_STR_MAX = 3,
-};
 
 static ssize_t proc_debug_enabled_write(struct file *file, const char __user *buf,
 		size_t count, loff_t *ppos)
@@ -1318,6 +1319,10 @@ int oplus_sched_assist_proc_init(void)
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
 	oplus_pipeline_init(d_sched_assist);
+#endif
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_DDL)
+	oplus_sched_ddl_init(d_sched_assist);
 #endif
 
 	return 0;

@@ -378,6 +378,10 @@ void operate_mode_switch(struct touchpanel_data *ts)
 			TP_INFO(ts->tp_index, "%s:ODE_UNDERWATER success: disable_touch_event = %d\n", __func__, ts->disable_touch_event);
 		}
 
+		if (ts->tp_scene_para_switch_support && ts->ts_ops->set_package_type) {
+			ts->ts_ops->set_package_type(ts->chip_data, ts->scene_info.set_package_type);
+		}
+
 		if (ts->tp_scene_para_switch_support && ts->ts_ops->pen_sensitive_lv_set) {
 			ts->ts_ops->pen_sensitive_lv_set(ts->chip_data, ts->scene_info.pen_sensitive_level);
 		}
@@ -675,6 +679,10 @@ static void tp_exception_handle(struct touchpanel_data *ts)
 		return;
 	}
 
+	if (ts->debug_info_ops->tp_data_debug_info_print) {
+		ts->debug_info_ops->tp_data_debug_info_print(ts->chip_data);
+	}
+
 	ts->ts_ops->reset(
 		ts->chip_data);    /* after reset, all registers set to default*/
 	operate_mode_switch(ts);
@@ -682,9 +690,16 @@ static void tp_exception_handle(struct touchpanel_data *ts)
 	tp_btnkey_release(ts);
 	tp_touch_release(ts);
 
+	if (ts->debug_info_ops->tp_data_debug_info_print) {
+		ts->debug_info_ops->tp_data_debug_info_print(ts->chip_data);
+	}
+
 	if (ts->fingerprint_underscreen_support) {
 		ts->fp_info.touch_state = 0;
 		touch_call_notifier_fp(ts, &ts->fp_info);
+	}
+	if (ts->health_monitor_support) {
+		tp_healthinfo_report(&ts->monitor_data, HEALTH_REPORT, "tp_exception_handle_report");
 	}
 	if (ts->exception_upload_support) {
 		tp_exception_report(&ts->exception_data, EXCEP_IRQ, "tp_exception_handle", sizeof("tp_exception_handle"));
@@ -3578,6 +3593,7 @@ int tp_register_irq_func(struct touchpanel_data *ts)
 		if (ret < 0) {
 			TP_INFO(ts->tp_index, "%s request_threaded_irq ret is %d\n", __func__, ret);
 		}
+		ts->tp_irq_desc = irq_to_desc(ts->irq);
 	} else {
 		TP_INFO(ts->tp_index, "%s:no valid irq\n", __func__);
 		ret = -1;
@@ -3591,6 +3607,7 @@ tvm_setup:
 				tp_irq_thread_fn,
 				ts->irq_tui_flags | IRQF_ONESHOT,
 				ts->irq_name, ts);
+	ts->tp_irq_desc = irq_to_desc(ts->irq);
 	return 0;
 #endif
 }
@@ -4732,8 +4749,6 @@ static void tp_suspend_direct(struct touchpanel_data *ts)
 		esd_handle_switch(&ts->esd_info, false);
 	}
 
-	ts->rate_ctrl_level = 0;
-
 	if (!ts->is_incell_panel || (ts->black_gesture_support
 				     && ts->gesture_enable > 0)) {
 		/*step5:gamde mode support*/
@@ -4849,6 +4864,7 @@ static void tp_resume(struct device *dev)
 	struct touchpanel_data *ts = dev_get_drvdata(dev);
 	struct device_node *chip_np = NULL;
 	struct device_node *src_chip_np = NULL;
+	int i = 0;
 	TP_INFO(ts->tp_index, "%s start.\n", __func__);
 
 	if (!ts->is_suspended) {
@@ -4878,6 +4894,15 @@ static void tp_resume(struct device *dev)
 		devm_free_irq(ts->dev, ts->irq, ts);
 		if (ts->int_mode == UNBANNABLE) {
 			mutex_unlock(&ts->mutex);
+		}
+	}
+
+	if (ts->tp_ic_type == TYPE_TDDI_TCM && ts->is_noflash_ic && ts->tp_irq_desc->depth > 0) {
+		TP_INFO(ts->tp_index, "%s: tp resume irq TP IRQ depth:%d.\n", __func__, ts->tp_irq_desc->depth);
+		while (ts->tp_irq_desc->depth > 0 && i < 10) {
+			enable_irq(ts->irq);
+			i++;
+			TP_INFO(ts->tp_index, "%s: tp resume irq TP IRQ depth:%d.\n", __func__, ts->tp_irq_desc->depth);
 		}
 	}
 
@@ -5057,7 +5082,7 @@ static void lcd_off_early_event(struct touchpanel_data *ts)
 		tp_suspend(ts->dev);
 
 	} else if (ts->tp_suspend_order == LCD_TP_SUSPEND) {
-		if (!ts->gesture_enable && ts->is_incell_panel) {
+		if (!ts->gesture_enable && ts->is_incell_panel && (ts->tp_irq_desc->depth == 0)) {
 			disable_irq_nosync(ts->irq);
 		}
 	}
@@ -5100,7 +5125,7 @@ static void lcd_on_early_event(struct touchpanel_data *ts)
 		tp_resume(ts->dev);
 
 	} else if (ts->tp_resume_order == LCD_TP_RESUME) {
-		if (!(ts->tp_ic_type == TYPE_TDDI_TCM && ts->is_noflash_ic)) {
+		if (!(ts->tp_ic_type == TYPE_TDDI_TCM && ts->is_noflash_ic) && (ts->tp_irq_desc->depth == 0)) {
 			disable_irq_nosync(ts->irq);
 		}
 	}
@@ -5146,6 +5171,7 @@ static void lcd_other_event(int *blank, struct touchpanel_data *ts)
 		ts->incell_aod_flag = false;
 	} else if (*blank == LCD_CTL_AOD_ON) {
 		ts->incell_aod_flag = true;
+		ts->is_suspended = 1;
 	}
 };
 

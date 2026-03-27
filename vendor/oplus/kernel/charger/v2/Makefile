@@ -61,6 +61,7 @@ oplus_chg_v2-y += oplus_smart_chg.o
 oplus_chg_v2-y += oplus_chg_pps.o
 oplus_chg_v2-y += oplus_batt_bal.o
 oplus_chg_v2-y += oplus_chg_mutual.o
+oplus_chg_v2-y += oplus_reverse_chg.o
 oplus_chg_v2-$(CONFIG_OPLUS_CHG_PARALLEL) += oplus_parallel.o
 
 oplus_chg_v2-y += gauge_ic/oplus_hal_bq27541.o
@@ -90,6 +91,7 @@ oplus_chg_v2-y += hal/oplus_virtual_ufcs.o
 oplus_chg_v2-y += hal/oplus_virtual_platufcs.o
 oplus_chg_v2-y += hal/oplus_virtual_batt_bal.o
 oplus_chg_v2-y += hal/oplus_virtual_level_shift.o
+oplus_chg_v2-y += hal/oplus_virtual_reverse_chg.o
 
 oplus_chg_v2-y += mms/oplus_mms.o
 oplus_chg_v2-y += mms/oplus_msg_filter.o
@@ -112,6 +114,7 @@ oplus_chg_v2-y += monitor/oplus_monitor_core.o
 oplus_chg_v2-y += monitor/oplus_chg_track.o
 oplus_chg_v2-y += monitor/oplus_chg_exception.o
 oplus_chg_v2-y += plat_ufcs/plat_ufcs_notify.o
+oplus_chg_v2-y += oplus_chg_dual_cells_protection.o
 
 oplus_chg_v2-$(CONFIG_OPLUS_CHG_RECOVERY) += recovery/oplus_chg_recovery.o
 oplus_chg_v2-$(CONFIG_OPLUS_CHG_STATE_KEEP) += recovery/state_keep/state_keep.o
@@ -181,6 +184,7 @@ oplus_chg_v2-$(CONFIG_OPLUS_SC6607_CP) += voocphy/phy/oplus_sc6607_cp.o
 oplus_chg_v2-$(CONFIG_OPLUS_VOOCPHY_SC8547A) += voocphy/phy/oplus_sc8547a.o
 oplus_chg_v2-$(CONFIG_OPLUS_UFCS_MASTER_NU2112A) += ufcs_ic/oplus_hal_nu2112a.o
 oplus_chg_v2-$(CONFIG_OPLUS_UFCS_SLAVE_NU2112A) += ufcs_ic/oplus_hal_nu2112a_slave.o
+oplus_chg_v2-$(CONFIG_OPLUS_UFCS_MASTER_NU2118A) += ufcs_ic/oplus_hal_nu2118a.o
 
 oplus_chg_v2-$(CONFIG_OPLUS_CHG_MOS_CTRL) += switching_ic/oplus_mos_ctrl.o
 

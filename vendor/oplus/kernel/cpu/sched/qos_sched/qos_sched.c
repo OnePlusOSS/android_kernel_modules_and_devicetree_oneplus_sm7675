@@ -403,7 +403,7 @@ static int write_qos_pid(const char __user *buf, size_t count,
 {
 	char buffer[MAX_OUTPUT];
 	char *str, *token;
-	char opt_str[OPT_STR_MAX][13] = {"0", "0", "0"};
+	char opt_str[QOS_OPT_STR_MAX][13] = {"0", "0", "0"};
 	int cnt = 0, err = 0, pid;
 	bool process = false;
 	struct task_struct *task;
@@ -422,13 +422,13 @@ static int write_qos_pid(const char __user *buf, size_t count,
 
 	buffer[count] = '\0';
 	str = strstrip(buffer);
-	while ((token = strsep(&str, " ")) && *token && (cnt < OPT_STR_MAX)) {
+	while ((token = strsep(&str, " ")) && *token && (cnt < QOS_OPT_STR_MAX)) {
 		strlcpy(opt_str[cnt], token, sizeof(opt_str[cnt]));
 		cnt += 1;
 	}
 
-	if (cnt == OPT_STR_MAX) {
-		err = kstrtoint(strstrip(opt_str[OPT_STR_VAL]), 10, &pid);
+	if (cnt == QOS_OPT_STR_MAX) {
+		err = kstrtoint(strstrip(opt_str[QOS_OPT_STR_VAL]), 10, &pid);
 		if (err)
 			return err;
 
@@ -441,7 +441,7 @@ static int write_qos_pid(const char __user *buf, size_t count,
 			get_task_struct(task);
 		rcu_read_unlock();
 
-		if (!strncmp(opt_str[OPT_STR_PID], "p", 1)
+		if (!strncmp(opt_str[QOS_OPT_STR_PID], "p", 1)
 			&& task && !thread_group_leader(task)) {
 			put_task_struct(task);
 			return -EFAULT;
@@ -449,10 +449,10 @@ static int write_qos_pid(const char __user *buf, size_t count,
 		if (task)
 			put_task_struct(task);
 
-		if (!strncmp(opt_str[OPT_STR_TYPE], "r", 1)) {
-			if (!strncmp(opt_str[OPT_STR_PID], "p", 1))
+		if (!strncmp(opt_str[QOS_OPT_STR_TYPE], "r", 1)) {
+			if (!strncmp(opt_str[QOS_OPT_STR_PID], "p", 1))
 				process = true;
-			else if (strncmp(opt_str[OPT_STR_PID], "t", 1))
+			else if (strncmp(opt_str[QOS_OPT_STR_PID], "t", 1))
 				return -EFAULT;
 
 			atomic_long_set(qos_pid, (pid << QOS_TASK_PID_FLAG_BITS) | process);

@@ -27,10 +27,10 @@ enum {
 };
 
 enum {
-	OPT_STR_TYPE = 0,
-	OPT_STR_PID,
-	OPT_STR_VAL,
-	OPT_STR_MAX = 3,
+	QOS_OPT_STR_TYPE = 0,
+	QOS_OPT_STR_PID,
+	QOS_OPT_STR_VAL,
+	QOS_OPT_STR_MAX = 3,
 };
 
 #define QOS_TASK_PID_FLAG_BITS 1

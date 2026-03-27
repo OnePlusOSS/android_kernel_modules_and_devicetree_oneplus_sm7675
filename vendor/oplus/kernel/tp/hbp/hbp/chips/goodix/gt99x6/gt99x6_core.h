@@ -95,6 +95,12 @@ enum gesture_id {
 #define GOODIX_M_GESTRUE                 0x6D
 #define GOODIX_W_GESTURE                 0x77
 
+/* gesture type for fingerprint start */
+#define GOODIX_COMPLEX_SMALL_AREA        0x41
+#define GOODIX_SIMPLE_AREA               0x42
+#define GOODIX_RELEASE_HOLD              0x44
+/* gesture type for fingerprint end */
+
 #define GTP_SENSOR_ID_DEFAULT            255
 #define GTP_SENSOR_ID_ERR                0
 

@@ -3093,8 +3093,19 @@ static void touch_scen_config_write(struct touchpanel_data *ts, char *input, int
 		mutex_unlock(&ts->mutex);
 		break;
 	case 2:
+		TPD_INFO("set_package_type:%u set value:%d.\n", scene_info->set_package_type, value);
+		if (value == scene_info->set_package_type) {
+			break;
+		}
+		mutex_lock(&ts->mutex);
 		scene_info->set_package_type = value;
-		TPD_INFO("set_package_type is %d\n", scene_info->set_package_type);
+		TS_TP_INFO("%s: set_package_type set:%d.\n", __func__, value);
+		if (!ts->is_suspended && ts->ts_ops->set_package_type && ts->tp_scene_para_switch_support) {
+			ts->ts_ops->set_package_type(ts->chip_data, value);
+		} else {
+			TS_TP_INFO("%s: TP is_suspended.\n", __func__);
+		}
+		mutex_unlock(&ts->mutex);
 		break;
 	case 3:
 		TPD_INFO("pen_sensitive_level:%u set value:%d.\n", scene_info->pen_sensitive_level, value);

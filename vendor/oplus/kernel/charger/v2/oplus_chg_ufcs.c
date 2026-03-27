@@ -3856,6 +3856,8 @@ static void oplus_ufcs_check_sw_full(struct oplus_ufcs *chip, struct puc_strateg
 				vote(chip->ufcs_disable_votable, CHG_FULL_VOTER, true, 1, false);
 				return;
 			}
+		} else {
+			chip->count.sw_full = 0;
 		}
 
 		if ((vbat_mv > normal_hw_vth)) {
@@ -3865,6 +3867,8 @@ static void oplus_ufcs_check_sw_full(struct oplus_ufcs *chip, struct puc_strateg
 				vote(chip->ufcs_disable_votable, CHG_FULL_VOTER, true, 1, false);
 				return;
 			}
+		} else {
+			chip->count.hw_full = 0;
 		}
 	} else {
 		chip->count.sw_full = 0;

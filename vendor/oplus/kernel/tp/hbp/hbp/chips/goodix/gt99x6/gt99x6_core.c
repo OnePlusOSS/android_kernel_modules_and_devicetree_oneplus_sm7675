@@ -197,7 +197,8 @@ static int gt_chip_get_gesture(void *priv, struct gesture_info *gesture)
 	goodix_spi_read(gt, ges_addr, temp_data, sizeof(temp_data));
 	if (temp_data[0] == 0) {
 		hbp_err("invalid gesture head\n");
-		goto re_send_ges_cmd;
+		//goto re_send_ges_cmd;
+		return -1;
 	}
 
 	/* check gesture data */
@@ -209,6 +210,8 @@ static int gt_chip_get_gesture(void *priv, struct gesture_info *gesture)
 		hbp_err("Gesture data checksum error, %*ph\n", (int)sizeof(temp_data), temp_data);
 		goto re_send_ges_cmd;
 	}
+
+	hbp_info("get gesture type:0x%02x\n", temp_data[4]);
 
 	switch (temp_data[4]) {
 	case 0xCC: //double tap
@@ -283,6 +286,21 @@ static int gt_chip_get_gesture(void *priv, struct gesture_info *gesture)
 	case 0x48: // double swip
 		hbp_info("get gesture event: single tap\n");
 		gesture->type = DoubleSwip;
+		break;
+	case GOODIX_COMPLEX_SMALL_AREA:
+		hbp_info("get gesture event: fp_grip_small_area_cnt\n");
+		hbp_dev_healthinfo_report(gt, FP_GRIP_SMALL_AREA_CNT);
+		gesture->type = FP_GESTURE_HOLD;
+		break;
+	case GOODIX_SIMPLE_AREA:
+		hbp_info("get gesture event: fp_grip_big_area_cnt\n");
+		hbp_dev_healthinfo_report(gt, FP_GRIP_BIG_AREA_CNT);
+		gesture->type = FP_GESTURE_HOLD;
+		break;
+	case GOODIX_RELEASE_HOLD:
+		hbp_info("get gesture event: fp_grip_release_cnt\n");
+		hbp_dev_healthinfo_report(gt, FP_GRIP_RELEASE_CNT);
+		gesture->type = FP_GESTURE_RELEASE;
 		break;
 	default:
 		hbp_err("not support gesture type 0x%02x\n", temp_data[4]);
@@ -361,14 +379,11 @@ static int goodix_spi_read(struct gt_core *ts_data, unsigned int addr, unsigned 
 	ret = ts_data->bus_ops->spi_sync(ts_data->bus_ops, tx_buf, rx_buf, SPI_READ_PREFIX_LEN + len);
 	if (ret < 0) {
 		hbp_err("spi transfer error:%d",ret);
-		if (ret == -110) {
-			hbp_err("BUG_ON at spiread sync ret = -110.\n");
-		}
 		goto exit;
 	}
 	memcpy(data, &rx_buf[SPI_READ_PREFIX_LEN - 1], len);
-	mutex_unlock(&ts_data->bus_mutex);
 exit:
+	mutex_unlock(&ts_data->bus_mutex);
 	return ret;
 }
 
@@ -402,13 +417,10 @@ static int goodix_spi_write(struct gt_core *ts_data, unsigned int addr, unsigned
 
 	if (ret < 0) {
 		hbp_err("spi transfer error:%d",ret);
-		if (ret == -110) {
-			hbp_err("BUG_ON at spiwrite sync ret = -110.\n");
-		}
 		goto exit;
 	}
-	mutex_unlock(&ts_data->bus_mutex);
 exit:
+	mutex_unlock(&ts_data->bus_mutex);
 	return ret;
 }
 
