@@ -8,6 +8,7 @@
 
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
+#include <linux/ktime.h>
 
 #define FP_ID_MAX_LENGTH                60 /*the length of /proc/fp_id should less than FP_ID_MAX_LENGTH !!!*/
 #define ENGINEER_MENU_SELECT_MAXLENTH   20

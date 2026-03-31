@@ -63,7 +63,7 @@
  ******************************************************************/
 #define AW87XXX_I2C_NAME	"aw87xxx_pa_2_x_0"
 #define AW87XXX_DRIVER_VERSION	"v2.12.0"
-#ifdef AW_KERNEL_VER_OVER_6_1_0
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 115))
 #define AW87XXX_FW_BIN_NAME	"aw87xxx_acf.bin"
 #else
 #define AW87XXX_FW_BIN_NAME	"../../odm/firmware/awinic/aw87xxx_acf.bin"
