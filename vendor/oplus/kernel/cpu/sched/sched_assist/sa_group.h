@@ -78,4 +78,4 @@ bool bg_task(struct task_struct *p);
 bool ta_task(struct task_struct *p);
 bool rootcg_task(struct task_struct *p);
 
-#endif /* _OPLUS_SA_GROUP_H_ */
+#endif

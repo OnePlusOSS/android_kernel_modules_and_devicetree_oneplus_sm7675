@@ -143,7 +143,7 @@ void oplus_ddl_preempt_tint(struct rq *rq, struct task_struct *prev)
 	struct oplus_task_struct *ots = get_oplus_task_struct(prev);
 	u64 now = rq_clock(rq);
 
-	if(!prev->se.on_rq || IS_ERR_OR_NULL(ots))
+	if (!prev->se.on_rq || IS_ERR_OR_NULL(ots))
 		return;
 
 	if (ots->ddl_active_ts) {
@@ -308,7 +308,7 @@ out_unlock:
 
 void update_ddl_hit_history(struct task_struct *p)
 {
-	if(p) {
+	if (p) {
 		if (!strlen(ddl_sdata[p->pid].comm)
 			|| strncmp(p->comm, ddl_sdata[p->pid].comm, strlen(p->comm))) {
 			memset(&ddl_sdata[p->pid], 0, sizeof(struct ddl_sinfo_data));
@@ -367,10 +367,10 @@ static ssize_t proc_ddl_task_read(struct file *file, char __user *buf,
 
 /*
  * Example:
- * adb shell "echo "p 1611 8" > proc/oplus_scheduler/sched_assist/ux_task"
- * 'p' means pid, '1611' is thread pid, '8' means set ux state as '2'
+ * adb shell "echo "p 1611 8" > proc/oplus_scheduler/sched_assist/ddl_task"
+ * 'p' means pid, '1611' is thread pid, '8' means set ddl thres to 8ms
  *
- * adb shell "echo "r 1611" > proc/oplus_scheduler/sched_assist/ux_task"
+ * adb shell "echo "r 1611" > proc/oplus_scheduler/sched_assist/ddl_task"
  * "r" means we want to read thread "1611"'s ddl info
  */
 static ssize_t proc_ddl_task_write(struct file *file, const char __user *buf,
@@ -539,8 +539,7 @@ static ssize_t proc_ddl_sinfo_read(struct file *file, char __user *buf,
 	num = min(num, (unsigned int)PID_MAX_DEFAULT - 1);
 	sort(ddl_sdata, num, sizeof(struct ddl_sinfo_data), ddl_sinfo_comp, NULL);
 
-	for (i = 0; i < NUM_DDL_HIT_ITEM; i++)
-	{
+	for (i = 0; i < NUM_DDL_HIT_ITEM; i++) {
 		if (!ddl_sdata[i].hit)
 			break;
 		len += snprintf(buffer + len, sizeof(buffer) - len, "%s:%llu ",
@@ -586,5 +585,4 @@ void oplus_sched_ddl_init(struct proc_dir_entry *pde)
 		remove_proc_entry("ddl_sinfo", pde);
 		pr_err("failed to create proc node ddl_sinfo\n");
 	}
-
 }

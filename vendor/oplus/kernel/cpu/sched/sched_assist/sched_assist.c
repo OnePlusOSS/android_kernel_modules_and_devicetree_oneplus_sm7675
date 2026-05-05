@@ -72,6 +72,10 @@ static void set_ux_to_task(struct task_struct *new) {
 
 static void android_rvh_wake_up_new_task_handler(void *unused, struct task_struct *new) {
 	set_ux_to_task(new);
+
+#if IS_ENABLED(CONFIG_OPLUS_SCHED_GROUP_OPT)
+	oplus_sg_wake_up_new_task(new);
+#endif
 	/*
 	 * Due to function vendor hook limitation,
 	 * used ext handler pointer to invoke to other module
@@ -79,10 +83,6 @@ static void android_rvh_wake_up_new_task_handler(void *unused, struct task_struc
 	if (wunt_handler) {
 		wunt_handler(new);
 	}
-
-#if IS_ENABLED(CONFIG_OPLUS_SCHED_GROUP_OPT)
-	oplus_sg_wake_up_new_task(new);
-#endif
 }
 
 void register_wake_up_new_task_ext_handler(wake_up_new_task_handler_t ext_handler)
@@ -96,6 +96,7 @@ static int register_scheduler_vendor_hooks(void)
 	int ret;
 
 	/* register vender hook in kernel/sched/fair.c */
+	REGISTER_TRACE_RVH(android_rvh_place_entity, android_rvh_place_entity_handler);
 	REGISTER_TRACE_RVH(android_rvh_check_preempt_tick, android_rvh_check_preempt_tick_handler);
 	REGISTER_TRACE_RVH(android_rvh_can_migrate_task, android_rvh_can_migrate_task_handler);
 #ifndef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
@@ -134,11 +135,6 @@ static int register_scheduler_vendor_hooks(void)
 	REGISTER_TRACE_RVH(android_rvh_dequeue_task, android_rvh_dequeue_task_handler);
 #endif
 	REGISTER_TRACE_RVH(android_rvh_set_cpus_allowed_by_task, android_rvh_set_cpus_allowed_by_task_handler);
-#if IS_ENABLED(CONFIG_OPLUS_SCHED_GROUP_OPT)
-	REGISTER_TRACE_RVH(android_rvh_cpu_cgroup_online, android_rvh_cpu_cgroup_online_handler);
-#endif
-	REGISTER_TRACE_RVH(android_rvh_set_cpus_allowed_comm, android_rvh_set_cpus_allowed_comm_handler);
-
 	REGISTER_TRACE_RVH(android_rvh_set_cpus_allowed_comm, android_rvh_set_cpus_allowed_comm_handler);
 #if IS_ENABLED(CONFIG_OPLUS_SCHED_GROUP_OPT)
 	REGISTER_TRACE_VH(android_vh_reweight_entity, android_vh_reweight_entity_handler);

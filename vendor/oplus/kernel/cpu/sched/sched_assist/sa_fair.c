@@ -314,7 +314,7 @@ int get_topology_cluster_id(int cpu)
 static inline bool select_target_cpu_fastpath(struct task_struct *task, int target_cpu)
 {
 	struct rq *orig_rq = cpu_rq(target_cpu);
-	struct oplus_rq *orig_orq = (struct oplus_rq *)orig_rq->android_oem_data1;
+	struct oplus_rq *orig_orq = get_oplus_rq(orig_rq);
 	bool latency_sensitive = false;
 
 	if (global_lowend_plat_opt && global_less_prime_cpu_arch) {
@@ -958,7 +958,8 @@ inline void oplus_check_preempt_wakeup(struct rq *rq, struct task_struct *p, boo
 #endif
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_DDL)
-		oplus_ddl_check_preempt(rq, p, curr, preempt, nopreempt);
+		if (global_sched_ddl_enabled)
+			oplus_ddl_check_preempt(rq, p, curr, preempt, nopreempt);
 #endif
 
 		return;
@@ -1161,6 +1162,28 @@ EXPORT_SYMBOL(dec_ld_stats);
 
 #endif /* CONFIG_OPLUS_FEATURE_SCHED_SPREAD */
 
+/* implement vender hook in driver/android/fair.c */
+void android_rvh_place_entity_handler(void *unused, struct cfs_rq *cfs_rq, struct sched_entity *se, int initial, u64 *vruntime)
+{
+#ifdef CONFIG_OPLUS_SCHED_GROUP_OPT
+	unsigned long thresh = sysctl_sched_latency;
+
+	if (entity_is_task(se))
+		return;
+
+	if (se->my_q && se->my_q->idle > 0)
+		return;
+
+	if (initial)
+		return;
+
+	if (sched_feat(GENTLE_FAIR_SLEEPERS))
+		thresh >>= 2;
+
+	*vruntime += thresh;
+#endif
+}
+
 void android_rvh_check_preempt_tick_handler(void *unused, struct task_struct *task,
 			unsigned long *ideal_runtime, bool *skip_preempt,
 			unsigned long delta_exec, struct cfs_rq *cfs_rq,
@@ -1271,7 +1294,7 @@ void android_rvh_replace_next_task_fair_handler(void *unused,
 #endif
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_DDL)
-	if (*repick != true)
+	if (*repick != true && global_sched_ddl_enabled)
 		oplus_replace_next_task_ddl(rq, p, se, repick, simple);
 #endif
 

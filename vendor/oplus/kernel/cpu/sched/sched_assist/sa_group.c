@@ -1,8 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- * Copyright (C) 2025 Oplus. All rights reserved.
- */
-
 #include <linux/cgroup.h>
 #include <linux/proc_fs.h>
 #include <linux/sched/cputime.h>
@@ -17,7 +12,7 @@
 
 LIST_HEAD(css_tg_map_list);
 
-int bg_cgrp, fg_cgrp, fgwd_cgrp, ta_cgrp;
+int bg_cgrp, lbg_cgrp, hbg_cgrp, fg_cgrp, fgwd_cgrp, ta_cgrp;
 
 static struct task_group *css_tg(struct cgroup_subsys_state *css)
 {
@@ -26,11 +21,10 @@ static struct task_group *css_tg(struct cgroup_subsys_state *css)
 
 static inline int task_cpu_cgroup(struct task_struct *p)
 {
-	struct cgroup_subsys_state *css = NULL;
 	if (IS_ERR_OR_NULL(p))
 		return -1;
 
-	css = task_css(p, cpu_cgrp_id);
+	struct cgroup_subsys_state *css = task_css(p, cpu_cgrp_id);
 	return css ? css->id : -1;
 }
 
@@ -54,7 +48,9 @@ bool bg_task(struct task_struct *p)
 	if (-1 == cpu_cgrp_id)
 		return false;
 
-	if (bg_cgrp && cpu_cgrp_id == bg_cgrp)
+	if ((bg_cgrp && cpu_cgrp_id == bg_cgrp)
+		|| (lbg_cgrp && cpu_cgrp_id == lbg_cgrp)
+		|| (hbg_cgrp && cpu_cgrp_id == hbg_cgrp))
 		return true;
 
 	return false;
@@ -101,7 +97,7 @@ static ssize_t tg_map_read(struct file *file, char __user *buf,
 		len += snprintf(buffer + len, sizeof(buffer) - len, "%s:%d:%llu:%d ",
 				iter->sg_info->tg_name, iter->sg_info->id, iter->sg_info->ddl, iter->sg_info->dynamic_share);
 		if (len > MAX_GUARD_SIZE) {
-			len += snprintf(buffer + len, sizeof(buffer) - len, "... ");
+			len += sprintf(buffer + len, "... ");
 			break;
 		}
 	}
@@ -137,7 +133,6 @@ void oplus_update_ddl_tasks(struct cgroup_subsys_state *css, struct css_tg_map *
 {
 	struct css_task_iter it;
 	struct task_struct *p;
-
 	if (IS_ERR_OR_NULL(map) || IS_ERR_OR_NULL(map->sg_info))
 		return;
 
@@ -303,80 +298,6 @@ static const struct oplus_sg_info oplus_sg_conf[OPLUS_CGRP_MAX] = {
 	},
 };
 
-u64 get_sg_ddl_rthres(struct task_group *tg)
-{
-	struct css_tg_map *map = NULL;
-
-	if (!tg)
-		return SG_DDL_RTHRES_DEFAULT;
-
-	map = (struct css_tg_map *) READ_ONCE(tg->android_vendor_data1[OPLUS_SG_IDX]);
-	if (IS_ERR_OR_NULL(map) || IS_ERR_OR_NULL(map->sg_info))
-		return SG_DDL_RTHRES_DEFAULT;
-
-	return map->sg_info->ddl_rthres;
-}
-
-#else
-static const struct oplus_sg_info oplus_sg_conf[OPLUS_CGRP_MAX] = {
-	[FOREGROUND] = {
-		.tg_name = "foreground",
-		.dynamic_share = 1,
-	},
-	[BACKGROUND] = {
-		.tg_name = "background",
-	},
-	[TOP_APP] = {
-		.tg_name = "top-app",
-		.dynamic_share = 1,
-	},
-	[SYSTEM_BG] = {
-		.tg_name = "system-background",
-	},
-	[FOREGROUND_WINDOW] = {
-		.tg_name = "foreground_window",
-		.dynamic_share = 1,
-	},
-	[CAMERA_DAEMON] = {
-		.tg_name = "camera-daemon",
-		.dynamic_share = 1,
-	},
-	[SERVICE_FG] = {
-		.tg_name = "service-foreground",
-		.dynamic_share = 1,
-	},
-	[NORMAL_FG] = {
-		.tg_name = "normal-foreground",
-		.dynamic_share = 1,
-	},
-	[MEM] = {
-		.tg_name = "mem",
-		.dynamic_share = 1,
-	},
-	[SSTOP] = {
-		.tg_name = "sstop",
-		.dynamic_share = 1,
-	},
-	[SSFG] = {
-		.tg_name = "ssfg",
-		.dynamic_share = 1,
-	},
-	[BG] = {
-		.tg_name = "bg",
-	},
-};
-
-u64 get_sg_ddl_rthres(struct task_group *tg)
-{
-	return 0;
-}
-
-void oplus_update_ddl_tasks(struct cgroup_subsys_state *css, struct css_tg_map *map)
-{
-}
-
-#endif
-
 static const struct oplus_sg_info *get_oplus_sg_info(int id, const char *tg_name)
 {
 	enum oplus_cgrp iter = FOREGROUND;
@@ -397,6 +318,38 @@ static const struct oplus_sg_info *get_oplus_sg_info(int id, const char *tg_name
 
 	return &oplus_sg_conf[OPLUS_CGRP_DEFAULT];
 }
+
+u64 get_sg_ddl_rthres(struct task_group *tg)
+{
+	struct css_tg_map *map = NULL;
+
+	if (!tg)
+		return SG_DDL_RTHRES_DEFAULT;
+
+	map = (struct css_tg_map *) READ_ONCE(tg->android_vendor_data1[OPLUS_SG_IDX]);
+	if (IS_ERR_OR_NULL(map) || IS_ERR_OR_NULL(map->sg_info))
+		return SG_DDL_RTHRES_DEFAULT;
+
+	return map->sg_info->ddl_rthres;
+}
+
+#else
+
+static const struct oplus_sg_info *get_oplus_sg_info(int id, const char *tg_name)
+{
+	return NULL;
+}
+
+u64 get_sg_ddl_rthres(struct task_group *tg)
+{
+	return 0;
+}
+
+void oplus_update_ddl_tasks(struct cgroup_subsys_state *css, struct css_tg_map *map)
+{
+}
+
+#endif
 
 struct css_tg_map *get_oplus_tg_map(struct task_group *tg)
 {
@@ -423,6 +376,10 @@ void save_oplus_sg_info(struct css_tg_map *map)
 		fgwd_cgrp = map->sg_info->id;
 	else if (same_cgrp(map->sg_info->tg_name, "background"))
 		bg_cgrp = map->sg_info->id;
+	else if (same_cgrp(map->sg_info->tg_name, "l-background"))
+		lbg_cgrp = map->sg_info->id;
+	else if (same_cgrp(map->sg_info->tg_name, "h-background"))
+		hbg_cgrp = map->sg_info->id;
 	else if (same_cgrp(map->sg_info->tg_name, "top-app"))
 		ta_cgrp = map->sg_info->id;
 }
@@ -559,7 +516,6 @@ static void register_oplus_cgrp_hooks(void)
 void oplus_sched_group_init(struct proc_dir_entry *pde)
 {
 	struct proc_dir_entry *proc_node;
-
 	proc_node = proc_create("tg_map", 0666, pde, &tg_map_fops);
 	if (!proc_node) {
 		pr_err("failed to create proc node tg_css_map\n");

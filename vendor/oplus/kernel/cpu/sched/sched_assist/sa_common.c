@@ -42,12 +42,12 @@
 #include <../kernel/oplus_cpu/sched/frame_boost/frame_group.h>
 #endif
 
-#if IS_ENABLED(CONFIG_OPLUS_SCHED_TUNE)
-#include <../kernel/oplus_cpu/sched/sched_tune/tune.h>
-#endif
-
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_DDL)
 #include "sa_ddl.h"
+#endif
+
+#if IS_ENABLED(CONFIG_OPLUS_SCHED_TUNE)
+#include <../kernel/oplus_cpu/sched/sched_tune/tune.h>
 #endif
 
 #if IS_ENABLED(CONFIG_OPLUS_SCHED_GROUP_OPT)
@@ -2056,12 +2056,6 @@ void android_vh_sched_setaffinity_early_handler(void *unused, struct task_struct
 #endif
 
 #if IS_ENABLED(CONFIG_OPLUS_SCHED_GROUP_OPT)
-void android_rvh_cpu_cgroup_online_handler(void *unused, struct cgroup_subsys_state *css)
-{
-       oplus_update_tg_map(css,false);
-}
-
-
 static inline void update_load_set(struct load_weight *lw, unsigned long w)
 {
 	lw->weight = w;
@@ -2070,6 +2064,9 @@ static inline void update_load_set(struct load_weight *lw, unsigned long w)
 
 void android_vh_reweight_entity_handler(void *unused, struct sched_entity *se)
 {
+	if (!(global_sched_group_enabled & 0x1))
+		return;
+
 	if (!entity_is_task(se)) {
 		struct cfs_rq *gcfs_rq = NULL;
 		struct task_group *tg = NULL;

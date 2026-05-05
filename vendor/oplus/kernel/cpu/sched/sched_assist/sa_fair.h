@@ -32,6 +32,7 @@ struct task_count_rq {
 DECLARE_PER_CPU(struct task_count_rq, task_lb_count);
 extern struct cpumask nr_mask;
 #endif /* CONFIG_OPLUS_FEATURE_SCHED_SPREAD */
+extern int global_sched_ddl_enabled;
 extern struct ux_sched_cputopo ux_sched_cputopo;
 
 void task_tpd_mask(struct task_struct *tsk, cpumask_t *request);
@@ -75,6 +76,7 @@ bool is_spread_task_enabled(void);
 #endif /* CONFIG_OPLUS_FEATURE_SCHED_SPREAD */
 
 /* register vender hook in kernel/sched/fair.c */
+void android_rvh_place_entity_handler(void *unused, struct cfs_rq *cfs_rq, struct sched_entity *se, int initial, u64 *vruntime);
 void android_rvh_check_preempt_tick_handler(void *unused, struct task_struct *task,
 			unsigned long *ideal_runtime, bool *skip_preempt,
 			unsigned long delta_exec, struct cfs_rq *cfs_rq,

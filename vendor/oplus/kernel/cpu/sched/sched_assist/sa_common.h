@@ -285,6 +285,7 @@ extern int global_debug_enabled;
 extern int global_sched_assist_enabled;
 extern int global_sched_assist_scene;
 extern int global_sched_disable_camera_ux;
+extern int global_sched_group_enabled;
 
 struct rq;
 
@@ -814,8 +815,7 @@ void android_rvh_cpu_cgroup_online_handler(void *unused, struct cgroup_subsys_st
 #endif
 void android_rvh_set_cpus_allowed_comm_handler(void *unused, struct task_struct *task, const struct cpumask *new_mask);
 void android_rvh_set_cpus_allowed_by_task_handler(void *unused, const struct cpumask *cpu_valid_mask, const struct cpumask *new_mask,
-												struct task_struct *p, unsigned int *dest_cpu);
-void android_rvh_set_cpus_allowed_comm_handler(void *unused, struct task_struct *task, const struct cpumask *new_mask);
+				struct task_struct *p, unsigned int *dest_cpu);
 void android_vh_reweight_entity_handler(void *unused, struct sched_entity *se);
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_BAN_APP_SET_AFFINITY)
 void android_vh_sched_setaffinity_early_handler(void *unused, struct task_struct *task, const struct cpumask *new_mask, bool *skip);
